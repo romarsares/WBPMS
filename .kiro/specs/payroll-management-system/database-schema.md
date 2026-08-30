@@ -445,47 +445,6 @@ migrations or ORM models are created.
     across two branches, while the stakeholder-benefit text refers to
     monitoring all three branches.
 
-### 5.1 Supplemental operational evidence
-
-The later HR follow-up and Final Defense Reviewer PDFs add operational
-evidence that was not represented in Tables 85–97 or Figures 163–164:
-
-- [`Follow-up-Questions-with-Answers-from-HR-1.pdf`](capstone_files/Follow-up-Questions-with-Answers-from-HR-1.pdf)
-- [`Final-Defense-Reviewer-1.pdf`](capstone_files/Final-Defense-Reviewer-1.pdf)
-
-1. Payroll is weekly: the recurring attendance period is Friday through
-   Thursday, Saturday is the rest day, attendance closes Thursday, Owner
-   approval occurs Friday morning, and disbursement/payslips occur Friday
-   afternoon. The first Sunday-through-Thursday biometric period was a
-   one-time transition, not a calendar variant.
-2. SSS, PhilHealth, and Pag-IBIG employee shares are deducted only on the
-   last Friday of the month. SSS and PhilHealth use EEMR/Monthly Basic
-   Salary, computed as `(daily_rate × 313) ÷ 12`, rather than variable
-   weekly earnings.
-3. The supplemental DFD routes `Government Contributions` into the D4
-   `Deductions` store and contains no Benefits store. This resolves the
-   canonical treatment of government contributions as deductions and
-   provides evidence to exclude the orphan `benefits_tbl` from the build.
-4. Holiday calculations require a holiday classification absent from the
-   source schema: regular-holiday work pays 200% and special-holiday work
-   pays 130%. Overtime pays 125%; the documents do not define how overtime
-   on a holiday compounds.
-5. Salary disbursement is not a bank-upload file: the company uses one
-   aggregate pay-to-cash cheque per week and one manually prepared BDO
-   deposit slip per employee. There is no ATM payroll or non-BDO flow.
-6. `employee_type` has confirmed values `Regular` and `Contractual`, with a
-   six-month contractual evaluation period.
-7. The Owner draws no salary. The canonical user model therefore permits a
-   Business Owner user with no employee row; this database consequence is
-   an implementation inference from the operational answer.
-8. Current employees have no income-tax withholding because the HR answer
-   states they remain at or below a ₱250,000 annual threshold. This is a
-   configurable current policy, not evidence for a permanent universal tax
-   exemption.
-9. Attendance policy includes memo/suspension and AWOL/termination review
-   thresholds. These require auditable HR-review flags, not automatic
-   employment actions.
-
 ---
 
 ## 6. Recommended canonical decisions
@@ -509,42 +468,19 @@ the original capstone consistently specifies.
    original schema already contains them.
 7. Add complete Data Dictionary entries for every canonical table before
    implementation approval.
-8. Exclude the orphan `benefits_tbl` from the canonical model. Record
-   employee government shares in `deductions_tbl` and retain a separate
-   auditable contribution-calculation record for employee/employer shares.
-9. Make `users.employee_id` nullable and unique so employee-linked users
-   remain one-to-one while the non-salaried Business Owner can be user-only.
-10. Add `pay_date` and contribution-basis/audit fields required to enforce
-    the weekly cycle and last-Friday contribution schedule.
-11. Replace the assumed bank-file flow with a weekly disbursement batch
-    (one cheque) and employee deposit-slip records.
 
 ---
 
 ## 7. Schema extensions (not part of the original documentation)
 
-These extensions support features the requirements call for but the original schema never
+These were proposed during later design work in this conversation to
+support features the requirements call for but the original schema never
 modeled. They are **not** sourced from the capstone document — listed here
 only so they're clearly separated from the source-of-truth schema above.
 
 - `sss_bracket`, `philhealth_rate`, `pagibig_rate` — contribution bracket
   and effective-rate tables (addresses issue #9).
-- `holiday_calendar` with `holiday_type` and `pay_multiplier` — holiday
-  dates plus the confirmed Regular (2.00) and Special (1.30) formulas.
-- `contribution_record` — EEMR basis, employee share, employer share,
-  deduction date, and lock/audit state for each SSS/PhilHealth/Pag-IBIG
-  calculation. The employee share also posts to `deductions_tbl` on the
-  last-Friday payroll.
-- `payroll.pay_date` — separates the Friday disbursement date from the
-  Friday-through-Thursday attendance period and makes monthly contribution
-  scheduling deterministic.
-- `disbursement_batch` and `deposit_slip` — model one weekly aggregate
-  pay-to-cash cheque and one manually prepared BDO slip per employee. These
-  supersede the canonical use of Figure 163/164's per-payroll
-  `cash_transaction` shape, which cannot express the confirmed batch flow.
-- `attendance_policy_flag` (or equivalent auditable event representation)
-  — records HR-review alerts for tardiness and absence thresholds without
-  applying discipline automatically.
+- `holiday_calendar` — holiday dates (addresses issue #10).
 - `employee.device_employee_id`, `attendance_import_batch`,
   `unmatched_punch` — added to support the `.dat` file upload / timesheet
   generation feature (a policy change made after the original
@@ -559,58 +495,3 @@ Table 86.
 The implementation-oriented reconciliation currently appears in
 `design.md`. A future SQL migration should cite both this audit and the
 documentation revision record before resolving the remaining decisions.
-
----
-
-## 8. Adoption status (updated after `design.md` reconciliation)
-
-`design.md`'s Data Models section was rewritten to apply the
-recommendations in §6, with every table now labeled by provenance
-(`[Fig163/164]`, `[Table85/86]`, `[canonical correction]`,
-`[union decision — pending approval]`, `[extension]`). This section
-tracks which of the seven recommendations were actually applied, and
-which conflicts are still open. **Applying a recommendation in `design.md`
-is not the same as it being approved** — the checklist in the
-[revision log](database-documentation-revision-log.md) is still what
-governs sign-off before any migration is built (see `tasks.md` task 1.0).
-
-| # | Recommendation (§6) | Status in `design.md` | Notes |
-|---|---|---|---|
-| 1 | Use Fig. 163/164 as the operational base | ✅ Applied with a documented disbursement exception | Core operational tables follow Fig. 163/164. The later HR evidence supersedes `cash_transaction` with `disbursement_batch` + `deposit_slip`. |
-| 2 | Keep `employee.branch_id` | ✅ Applied | Present on `employee`, with `branch 1—N employee` documented as source-backed (Fig. 163/164) despite being absent from Table 85/86. |
-| 3 | Union the employee fields | ✅ Applied | `employee` now carries both sources' fields; `position` and `device_employee_id` are separately flagged as `[extension]` since neither source has them. |
-| 4 | `payroll_id`-keyed child tables for earnings/deductions | ✅ Applied | `payroll` is a header row; `deduction` and `payroll_earnings` are children keyed by `payroll_id`, matching Fig. 163/164. Government employee shares post to `deduction`; `benefits_tbl` is excluded. |
-| 5 | Canonical corrected names (`city_name`, `request_type_id`, `payroll_earnings`, `log_id`→`audit_logs.log_id`, split `approval_status`/`remarks`) | ✅ Applied | All five corrections are in `design.md`'s table definitions. |
-| 6 | Decide geography hierarchy explicitly | ⚠️ Decided **not** to adopt by default | `design.md` keeps `city`/`barangay` flat (no `province_id`/`city_id` FKs between them) and documents the hierarchy as an available but unadopted extension. This satisfies "don't claim the source already contains it," but the underlying question (does the app need a real hierarchy?) is still open. |
-| 7 | Complete Data Dictionary entries for every canonical table | ❌ Not done | `design.md` documents shape and provenance per table, but not full dictionary metadata (defaults, exact lengths, validation patterns) in the Table 86-style format. Still needed before implementation sign-off. |
-
-### Canonical resolution from supplemental evidence
-
-- **`benefits_tbl` is resolved for canonical implementation:** it remains
-  documented as a literal Table 85/95 artifact, but it is not migrated.
-  The supplemental DFD confirms that government contributions flow to
-  Deductions. A future non-government bonus/benefit feature would need its
-  own approved requirements and model.
-
-### Conflicts still open after the supplemental-evidence update
-
-- **Branch count (§5 issue 11)** — still contradicts itself in the source
-  (2 vs. 3). `product.md` now surfaces this instead of asserting a
-  number; the actual count still needs confirmation with the business
-  owner/HR. Gated behind `tasks.md` task 1.0.
-- **`cash_advance_history` ↔ `request` relationship** — not defined in
-  any source (the two tables model overlapping cash-advance concepts:
-  `request` for the approval workflow, `cash_advance_history` for
-  repayment tracking). `design.md` now documents an assumed link
-  (approved cash-advance request → one `cash_advance_history` row) but
-  labels it a decision, not a source fact.
-- **`users.password` → `password_hash`** — a necessary implementation
-  extension for REQN011 (secure login), not resolvable from source text
-  since the capstone never specifies hashing.
-
-### Recommended next step
-
-Route the remaining branch-count, cash-advance-history/request, geography,
-and user-password decisions through the revision log's approval checklist.
-The former benefit-table gate can be closed once that checklist records the
-supplemental DFD decision; this update does not itself authorize migrations.

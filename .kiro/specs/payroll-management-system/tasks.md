@@ -1,10 +1,20 @@
 # Implementation Plan
 
 - [ ] 1. Project and database foundation
-  - [ ] 1.1 Scaffold PHP project structure per `structure.md` (`public/`, `app/Controllers`, `app/Models`, `app/Services`, `app/Middleware`, `config/`)
-  - [ ] 1.2 Write `database/schema.sql` implementing every table in `design.md` Data Models, with FKs and indexes on lookup columns (`employee_id`, `date`, `status`)
-  - [ ] 1.3 Seed reference data: `role`, `request_type`, `sss_bracket`, `philhealth_rate`, `pagibig_rate`, initial `branch` rows
-  - [ ] 1.4 Configure DB connection (`config/database.php`) and a base `Model` with PDO prepared-statement helpers
+  - [ ] 1.0 **Approval gate — do not skip:** work through the "Capstone
+        update checklist" in `database-documentation-revision-log.md`
+        with the business owner/HR subject-matter owner. In particular:
+        confirm official branch names and employee distribution (observed
+        counts are seed data, not limits), approve the canonical `employee` attribute set,
+        approve payroll header/detail cardinalities, and decide the
+        `benefit` table's relationship (it has no FK to anything in any
+        source — see `design.md` Data Models). Do not proceed to 1.2
+        until these are checked off; `design.md`'s current schema is a
+        **draft** built from audit recommendations, not an approved one.
+  - [ ] 1.1 Scaffold Node.js/TypeScript project structure per `structure.md` (`src/{models,controllers,services,middleware,routes}`, `migrations/`, `seeders/`)
+  - [ ] 1.2 Once 1.0 is approved, write Sequelize migrations implementing every table in `design.md` Data Models (post-approval version), with FKs and indexes on lookup columns (`employee_id`, `date`, `status`); resolve every table still marked "pending approval" or "conflict not yet resolved" in `design.md` before writing its migration
+  - [ ] 1.3 Seed reference data and confirmed initial branches/sites/devices without hardcoding counts
+  - [ ] 1.4 Configure DB connection (`config/database.ts`) and base Sequelize model setup
   - _Requirements: foundation for all_
 
 - [ ] 2. Authentication and RBAC
@@ -21,9 +31,10 @@
   - _Requirements: 3_
 
 - [ ] 4. Employee Management module
-  - [ ] 4.1 `EmployeeService`: list with branch/search/date filters, create, update, archive (REQ009–REQ017)
-  - [ ] 4.2 `EmployeeController` + views: employee table, create/edit form, search bar, branch filter, selectable list endpoint (for use by Attendance/Payroll screens)
-  - [ ] 4.3 Integration test covering create → search → filter by branch → archive
+  - [ ] 4.1 Employee CRUD/filtering plus effective `employee_branch_assignment`
+  - [ ] 4.2 Permanent `transferEmployee` transaction with no overlaps and stable employee/user identity
+  - [ ] 4.3 Employee views for current branch, transfer, and assignment history
+  - [ ] 4.4 Integration test create → transfer → historical lookup → archive
   - _Requirements: 4_
 
 - [ ] 5. Work Schedule module
@@ -33,17 +44,17 @@
   - _Requirements: 5_
 
 - [ ] 6. Attendance Management module (`.dat` file upload → timesheet)
-  - [ ] 6.1 Implement `.dat` file upload endpoint (multipart upload, file-type validation) rejecting unrecognized formats outright
-  - [ ] 6.2 Implement `AttendanceService.parseDatFile` to extract raw punch records (device employee ID, timestamp, in/out flag) from the uploaded file
-  - [ ] 6.3 Implement `matchEmployees` against `employee.device_employee_id`, routing unmatched punches to `unmatched_punch` for HR review
-  - [ ] 6.4 Implement `generateTimesheet` to pair in/out punches into `attendance` rows per employee/day, skipping or flagging duplicates against existing records (REQ024)
-  - [ ] 6.5 Wrap parse → match → generate in a transaction (`importFromDatFile`) recorded as an `attendance_import_batch`, and return an import summary (parsed/matched/unmatched/duplicates) to the HR Head
+  - [ ] 6.1 Configurable sites, devices, effective device-branch coverage, and employee enrollments
+  - [ ] 6.2 Device-aware upload and pure `.dat` parser
+  - [ ] 6.3 Match device+code+punch-time; retain raw unmatched/coverage exceptions
+  - [ ] 6.4 Punch/file duplicate safeguards (REQ024)
+  - [ ] 6.5 Transactional device-aware import with branch-grouped summary and timesheet generation
   - [ ] 6.6 Implement `computeHours` (late/undertime/overtime) against the employee's active `work_schedule`
   - [ ] 6.7 Implement `flagIncomplete` for timesheet entries missing time-in/out, surfaced to Dashboard alerts
   - [ ] 6.8 Implement manual adjustment flow writing to `attendance_adjustment` with reason + adjuster (REQ023)
   - [ ] 6.9 Build an "unmatched punches" reconciliation screen for HR to manually assign unmatched punches to employees
   - [ ] 6.10 `AttendanceController` + views: upload screen with import-summary feedback, employee-scoped timesheet table with computed columns
-  - [ ] 6.11 Unit tests: `.dat` parsing against sample/fixture files, `computeHours` covering on-time/late/undertime/overtime/missing-punch cases, and duplicate/unmatched-punch handling
+  - [ ] 6.11 Tests for shared-device branches, transfer/late upload, duplicates, unmatched/coverage exceptions, and calculations
   - _Requirements: 6_
 
 - [ ] 7. Request Management module (Leave, Overtime, Cash Advance)
@@ -63,6 +74,11 @@
   - _Requirements: 8_
 
 - [ ] 9. Benefits and Deductions module
+  - [ ] 9.0 Resolve the `benefit` table conflict flagged in `design.md`
+        (no FK to `employee` or `payroll` in any source representation)
+        before building this module — decide whether benefits become
+        `payroll.total_benefits`-only, or a proper `payroll_id`-keyed
+        child table like `deduction`/`payroll_earnings`
   - [ ] 9.1 `ContributionEngine.computeSSS` against `sss_bracket` table, including bracket-boundary tests
   - [ ] 9.2 `ContributionEngine.computePhilHealth` / `computePagIbig` against current rate tables
   - [ ] 9.3 Contribution record CRUD + lock/unlock (REQ058–REQ062)
@@ -71,13 +87,13 @@
   - _Requirements: 9_
 
 - [ ] 10. Payroll Processing module
-  - [ ] 10.1 `PayrollService.computePayroll`: integrate attendance, approved requests, salary, and contributions into gross/net pay per employee (REQ047)
+  - [ ] 10.1 Implement payroll period and branch-run preview/generation using cutoff-start branch membership (REQ047)
   - [ ] 10.2 Digital payslip generation in company format (REQ048)
   - [ ] 10.3 `compute13thMonthPay` (REQ049)
   - [ ] 10.4 Approval state machine: Draft → Computed → Pending Owner Approval → Approved/Returned (REQ050, REQ051)
   - [ ] 10.5 `PayrollController` (HR: compute/submit) and Owner-facing review actions (approve/return with note)
   - [ ] 10.6 Guard against double-approval / edits after `Approved`
-  - [ ] 10.7 Unit tests for `computePayroll` against known attendance+request+salary fixtures; integration test for the full approval lifecycle
+  - [ ] 10.7 Tests for golden calculation, unique period+branch/employee, mid-cutoff transfer ownership, and approval lifecycle
   - [ ] 10.8 Performance test: payroll computation completes within 5s for a full branch roster (REQN005)
   - _Requirements: 10_
 
@@ -113,7 +129,7 @@
 
 - [ ] 15. End-to-end integration pass
   - [ ] 15.1 Wire all controllers into the app router with role-guarded routes
-  - [ ] 15.2 Seed a realistic demo dataset (3 branches, sample employees, schedules, attendance, requests)
+  - [ ] 15.2 Seed a realistic demo dataset (per the approved branch count from task 1.0, sample employees, schedules, attendance, requests)
   - [ ] 15.3 Walk every user story in `requirements.md` end-to-end (login → module action → expected result) and record pass/fail
   - [ ] 15.4 Fix defects found during the walkthrough before marking the spec complete
   - _Requirements: all_

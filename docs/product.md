@@ -17,13 +17,24 @@ records.
 ## Problem it solves
 
 - Payroll is computed by hand in spreadsheets — slow, error-prone, and hard
-  to audit across three branches.
+  to audit across the company's branches.
 - Attendance (from a biometric scanner) is reconciled manually against
   payroll.
 - Employees have no self-service way to check attendance, leave balances,
   request leave/overtime/cash advances, or retrieve payslips.
 - Government-mandated contributions (SSS, PhilHealth, Pag-IBIG) and 13th
   month pay are computed manually each cycle.
+
+> **Operational topology clarification:** follow-up interview evidence reports
+> two physical biometric devices: one at the Banga site and one at Surallah.
+> The Banga device appears to serve two adjacent operational branches/business
+> units (Construction Supplies and an Auto Supplies unit whose official name
+> remains to be confirmed). This explains why source material can describe
+> two physical locations while referring to three operational branches.
+> Neither the observed branch count nor device count is a product limit:
+> authorized HR users configure branches, attendance sites, biometric devices,
+> and which branches each device serves. Exact branch names and employee
+> distribution remain master data rather than hardcoded values.
 
 ## Users and roles
 

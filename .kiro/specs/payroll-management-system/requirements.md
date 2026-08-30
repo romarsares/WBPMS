@@ -104,6 +104,14 @@ data.
    list. [REQ015]
 7. WHEN the HR Head filters by branch or date range THEN the system SHALL
    return only matching records. [REQ016, REQ017]
+8. WHEN an employee is created THEN the system SHALL maintain one stable
+   employee identity and at most one linked login account, regardless of later
+   branch transfers.
+9. WHEN HR permanently transfers an employee THEN the system SHALL close the
+   prior branch assignment and create a non-overlapping effective-dated branch
+   assignment without rewriting historical attendance, payroll, or payslips.
+10. FOR any calendar date, THE SYSTEM SHALL permit exactly one effective branch
+    assignment per employee.
 
 ### Requirement 5: Work Schedule Management
 
@@ -142,30 +150,38 @@ live connection to the device.
 2. IF the uploaded file is not a valid/recognized `.dat` format THEN the
    system SHALL reject the upload and display a clear error without
    partially importing records.
-3. WHEN a `.dat` file is successfully parsed THEN the system SHALL match
-   each punch record's device employee identifier to an `employee` record
-   and generate/update attendance rows, producing a timesheet per employee
-   for the covered date range.
-4. IF a punch record's device employee identifier does not match any
+3. WHEN a `.dat` file is uploaded THEN the HR Head SHALL identify its registered
+   source biometric device, and the system SHALL derive its attendance site
+   and configured branch coverage.
+4. WHEN a `.dat` file is successfully parsed THEN the system SHALL match each
+   punch using the source device, device employee code, and punch timestamp
+   against an effective biometric enrollment, then resolve the employee's
+   effective branch assignment.
+5. IF a punch record's device employee identifier does not match any
    known employee THEN the system SHALL flag that record as unmatched
    for HR review rather than silently discarding or misassigning it.
-5. WHEN the HR Head selects an employee THEN the system SHALL display
+6. WHEN the HR Head selects an employee THEN the system SHALL display
    that employee's generated timesheet in a table (time-in, time-out,
    total hours). [REQ018, REQ019]
-6. WHEN attendance records are computed THEN the system SHALL calculate
+7. WHEN attendance records are computed THEN the system SHALL calculate
    total hours worked, late minutes, undertime, and overtime based on the
    employee's assigned schedule. [REQ020, REQ021]
-7. WHEN a generated timesheet entry is missing a time-in or time-out THEN
+8. WHEN a generated timesheet entry is missing a time-in or time-out THEN
    the system SHALL flag it for HR review rather than silently excluding
    it from computation. [REQ022]
-8. WHEN the HR Head manually adjusts a timesheet entry THEN the system
+9. WHEN the HR Head manually adjusts a timesheet entry THEN the system
    SHALL save the adjustment and record who made it and why. [REQ023]
-9. IF re-importing a `.dat` file would duplicate an existing time-in/
-   time-out for the same employee and date THEN the system SHALL skip or
-   flag the duplicate rather than creating a second record. [REQ024]
-10. WHEN a `.dat` import completes THEN the system SHALL show an import
-    summary (records parsed, matched, unmatched, duplicates skipped) to
-    the HR Head.
+10. IF a re-import contains the same device transaction, or the same source
+    device, employee code, timestamp, and punch type, THEN the system SHALL
+    skip or flag it rather than creating a second raw punch. [REQ024]
+11. WHEN a `.dat` import completes THEN the system SHALL show an import
+    summary grouped by resolved employee branch where applicable.
+12. WHEN one device serves multiple configured branches THEN one valid import
+    SHALL produce attendance for employees in any of those branches.
+13. IF the employee's effective branch is outside the device's effective
+    coverage THEN the system SHALL retain and flag the punch for HR review.
+14. WHEN an historical file is uploaded after a transfer THEN matching SHALL
+    use punch time rather than upload time or current branch.
 
 ### Requirement 7: Request Management (Leave, Overtime, Cash Advance)
 
@@ -261,6 +277,13 @@ Owner for approval, so that payroll is accurate, auditable, and controlled.
    from being marked as paid/final.
 7. WHEN payroll computation runs THEN the system SHALL complete within 5
    seconds. [REQN005]
+8. WHEN HR previews or generates payroll THEN the system SHALL require a
+   payroll period and branch and create a distinct branch payroll run.
+9. FOR a given period and branch, THE SYSTEM SHALL permit at most one run; an
+   employee SHALL appear in at most one branch run for that period.
+10. Payroll membership SHALL use the branch assignment effective on the period
+    start date. A transfer during the period SHALL NOT split or duplicate the
+    employee payroll; the following period SHALL use the new branch.
 
 ### Requirement 11: Reports Management
 
