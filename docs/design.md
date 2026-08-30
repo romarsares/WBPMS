@@ -119,8 +119,9 @@ gates controller actions:
   device/site/format context and orchestrates
   the three steps above in a transaction and returns a summary (parsed /
   matched / unmatched / duplicates-skipped counts) for the HR Head to
-  review; unmatched punches are persisted to an `unmatched_punch` table
-  for manual reconciliation rather than discarded.
+  review; unmatched punches are persisted to the `biometric_punch` table
+  (with `match_status = 'unmatched'`) for manual reconciliation rather
+  than discarded.
 - `getAttendanceFor(employeeId, dateRange): AttendanceRecord[]`
 - `computeHours(attendanceRecord, schedule): {hoursWorked, late, undertime, overtime}`
 - `flagIncomplete(): AttendanceRecord[]` — timesheet entries missing

@@ -30,6 +30,7 @@ evidence, corrections, and decisions that still require approval.
 | DBR-005 | The schema implied `province → city → barangay → address`. | Table 85/Tables 86–90 place `province_id`, `city_id`, and `barangay_id` directly on `address`; the hierarchy is not source-defined. | Any hierarchical geography FKs must be documented as an implementation decision. |
 | DBR-006 | Relationships from Table 85, the Data Dictionary, and Figures 163–164 were combined into one diagram. | Relationships are now grouped by source, with conflicts called out. | Prevents incorrect FK direction and cardinality assumptions. |
 | DBR-007 | The only explicitly noted gaps were branch linkage, holiday dates, and government brackets. | The audit now also records employee, payroll, request, attendance-adjustment, cash-transaction, earnings, audit-log, and branch-count conflicts. | Expands the correction scope before schema implementation. |
+| DBR-008 | `users_tbl.password` was documented as a plain `varchar` column with no hashing specification. | Renamed to `password_hash` in `design.md`'s canonical `users` table. The source never specifies hashing; the rename is an implementation extension required by REQN011 (secure login). The original source spelling is preserved in §3.3 of `database-schema.md` for traceability. | Prevents a migration from creating a column named `password` that tempts plain-text storage; aligns the data model with the `bcrypt` requirement in `tech.md`. |
 
 ## Literal source corrections retained
 
@@ -114,6 +115,17 @@ capstone only through a documented revision:
   model and names the correct parent table.
 - [ ] Update `design.md`, SQL migrations, ORM models, and tests only after
   the canonical decisions are recorded.
+- [x] **`benefits_tbl` canonical exclusion** — Resolved. The supplemental
+  DFD (Final Defense Reviewer PDF) routes Government Contributions into
+  the D4 Deductions store and contains no Benefits store. `benefits_tbl`
+  is retained as a source-literal artifact in `database-schema.md §2.10`
+  but is excluded from the canonical model and will not be migrated.
+  Any future non-government bonus/benefit feature requires separate
+  approved requirements before a table is added. *(Closed 2026-08-30)*
+- [x] **`users.password` → `password_hash`** — Resolved as DBR-008.
+  The column is renamed in `design.md`'s canonical `users` table.
+  Source spelling preserved in `database-schema.md §3.3` for traceability.
+  *(Closed 2026-08-30)*
 
 ## Documentation update rule
 
