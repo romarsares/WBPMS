@@ -262,8 +262,9 @@ final class CreateSalaryPayrollContributionTables extends AbstractMigration
 
         $this->execute("ALTER TABLE payroll_run ADD CONSTRAINT chk_run_returned_reason "
             . "CHECK (status != 'Returned' OR return_reason IS NOT NULL)");
-        $this->execute("ALTER TABLE payroll_run ADD CONSTRAINT chk_run_approved_meta "
-            . "CHECK (status NOT IN ('Approved','Returned') OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL))");
+        // NOTE: chk_run_approved_meta (reviewed_by IS NOT NULL when Approved/Returned) is enforced
+        // at the application layer in PayrollService — MySQL 8 prohibits CHECK constraints that
+        // reference a column also used in a FK referential action (error 3823).
 
         // -------------------------------------------------------------------
         // payroll — per-employee payroll detail; no duplicated approval status

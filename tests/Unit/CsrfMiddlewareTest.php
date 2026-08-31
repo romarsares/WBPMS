@@ -89,7 +89,7 @@ final class CsrfMiddlewareTest extends TestCase
         $field = CsrfMiddleware::field();
 
         $this->assertStringContainsString('type="hidden"', $field);
-        $this->assertStringContainsString('name="_csrf_token"', $field);
+        $this->assertStringContainsString('name="_csrf"', $field);
         $this->assertStringContainsString($token, $field);
     }
 

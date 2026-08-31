@@ -14,14 +14,20 @@ use RuntimeException;
  * This is the only place in the application where a PDO handle is created.
  * All repositories receive a Connection instance via constructor injection.
  * Direct SQL outside repositories and migrations is prohibited (ADR-0003).
+ *
+ * Not declared final so test doubles can extend it via getMockBuilder().
  */
-final class Connection
+class Connection
 {
     private ?PDO $pdo = null;
 
+    /** @var array<string,mixed> */
+    private array $config;
+
     /** @param array<string,mixed> $config */
-    public function __construct(private readonly array $config)
+    public function __construct(array $config)
     {
+        $this->config = $config;
     }
 
     /**

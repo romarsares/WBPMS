@@ -211,6 +211,22 @@ Implementation work should retain the original `REQ0xx` and `REQNxxx`
 identifiers in tests, issues, and relevant commit messages for
 traceability.
 
+## Demo credentials
+
+After running migrations and seeders (`vendor/bin/phinx migrate` then
+`vendor/bin/phinx seed:run`), the following synthetic accounts are available
+for local development and testing. **Never use these in production.**
+
+| Role | Username | Password |
+|---|---|---|
+| Business Owner | `owner` | `owner-demo-pass` |
+| HR Head | `hrhead` | `hrhead-demo-pass` |
+| Employee | `employee` | `employee-demo-pass` |
+
+Passwords are hashed with `password_hash(PASSWORD_DEFAULT)` at seed time.
+Change or remove these accounts before deploying to any shared or production
+environment.
+
 ## License
 
 No license has been added to this repository. Unless the project owners

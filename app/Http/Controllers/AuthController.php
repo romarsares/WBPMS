@@ -40,8 +40,12 @@ final class AuthController
             return;
         }
 
-        $error = $_SESSION['_login_error'] ?? null;
-        unset($_SESSION['_login_error']);
+        // Pick up login errors AND session-expiry flash messages set by
+        // AuthMiddleware::requireRoles() on expired/unauthenticated redirects.
+        $error = $_SESSION['_login_error']
+              ?? $_SESSION['_flash_error']
+              ?? null;
+        unset($_SESSION['_login_error'], $_SESSION['_flash_error']);
 
         $csrfField = CsrfMiddleware::field();
 
@@ -131,8 +135,14 @@ final class AuthController
 
     private function redirectToDashboard(string $roleName): void
     {
-        // Placeholder until dashboards are implemented
-        $this->redirect('/health');
+        $path = match ($roleName) {
+            'HRHead'        => '/hr/dashboard',
+            'BusinessOwner' => '/owner/dashboard',
+            'Employee'      => '/employee/dashboard',
+            default         => '/login',
+        };
+
+        $this->redirect($path);
     }
 
     private function redirect(string $path): void

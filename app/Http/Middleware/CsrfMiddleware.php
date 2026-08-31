@@ -56,7 +56,9 @@ final class CsrfMiddleware
         }
 
         $sessionToken   = $_SESSION[self::SESSION_KEY] ?? null;
-        $submittedToken = $_POST['_csrf_token']
+        // Accept '_csrf' (used by views) or '_csrf_token' (legacy) or header
+        $submittedToken = $_POST['_csrf']
+            ?? $_POST['_csrf_token']
             ?? $_SERVER['HTTP_X_CSRF_TOKEN']
             ?? null;
 
@@ -84,7 +86,16 @@ final class CsrfMiddleware
     {
         $token = htmlspecialchars(self::generateToken(), ENT_QUOTES, 'UTF-8');
 
-        return '<input type="hidden" name="_csrf_token" value="' . $token . '">';
+        return '<input type="hidden" name="_csrf" value="' . $token . '">';
+    }
+
+    /**
+     * Return the raw CSRF token string.
+     * Use this to pass the token as a variable to views/layouts.
+     */
+    public static function token(): string
+    {
+        return self::generateToken();
     }
 
     /**

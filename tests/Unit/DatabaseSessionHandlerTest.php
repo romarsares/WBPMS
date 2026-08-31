@@ -20,19 +20,20 @@ use Wbpms\Infrastructure\Session\DatabaseSessionHandler;
  */
 final class DatabaseSessionHandlerTest extends TestCase
 {
-    private function makePdo(): PDO&MockObject
+    private function makePdo(): PDO
     {
         /** @var PDO&MockObject $pdo */
         return $this->createMock(PDO::class);
     }
 
-    private function makeStmt(mixed $fetchReturn = false, bool $executeReturn = true): PDOStatement&MockObject
+    private function makeStmt(mixed $fetchReturn = false, bool $executeReturn = true): PDOStatement
     {
         /** @var PDOStatement&MockObject $stmt */
         $stmt = $this->createMock(PDOStatement::class);
         $stmt->method('fetch')->willReturn($fetchReturn);
         $stmt->method('execute')->willReturn($executeReturn);
-        $stmt->method('rowCount')->willReturn(1);
+        // Note: rowCount() is intentionally NOT stubbed here so that individual
+        // tests can configure it as needed (e.g. gc_returns_deleted_row_count).
 
         return $stmt;
     }

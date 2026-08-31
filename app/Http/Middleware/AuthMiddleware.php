@@ -122,7 +122,15 @@ final class AuthMiddleware
 
     /**
      * Enforce that the current request has an authenticated session with one
-     * of the allowed roles. Terminates with a JSON error if not.
+     * of the allowed roles.
+     *
+     * - If the identity is missing or expired (including 30-minute idle timeout
+     *   and 12-hour absolute timeout), browser requests are redirected to /login
+     *   with a one-time flash so the user sees a friendly message. AJAX/API
+     *   requests (Accept: application/json) receive a 401 JSON envelope.
+     * - If the identity exists but the role is not permitted, a 403 is returned.
+     *   Browser users see a 403 redirect to /login (role mismatch is abnormal
+     *   for a correctly built UI, so a plain redirect is acceptable).
      *
      * @param list<string> $allowedRoles Role names from the role table
      */
@@ -135,14 +143,33 @@ final class AuthMiddleware
         $identity = self::identity();
 
         if ($identity === null) {
-            http_response_code(401);
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode([
-                'error' => [
-                    'code'    => 'UNAUTHENTICATED',
-                    'message' => 'Authentication required. Please sign in.',
-                ],
-            ]);
+            // Determine whether this is a browser or an API/AJAX request.
+            $acceptHeader = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+            $isApiRequest = str_contains($acceptHeader, 'application/json')
+                && !str_contains($acceptHeader, 'text/html');
+
+            if ($isApiRequest) {
+                http_response_code(401);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'error' => [
+                        'code'    => 'UNAUTHENTICATED',
+                        'message' => 'Authentication required. Please sign in.',
+                    ],
+                ]);
+                exit;
+            }
+
+            // Browser request: store a flash message and redirect to login.
+            // The session may already be destroyed; start a fresh one to
+            // carry the flash message across the redirect.
+            if (session_status() === PHP_SESSION_NONE) {
+                self::startSession();
+            }
+            $_SESSION['_flash_error'] = 'Your session has expired. Please sign in again.';
+
+            $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+            header('Location: ' . $base . '/login', true, 302);
             exit;
         }
 
