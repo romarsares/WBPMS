@@ -135,14 +135,17 @@ final class AuthController
 
     private function redirectToDashboard(string $roleName): void
     {
-        $path = match ($roleName) {
-            'HRHead'        => '/hr/dashboard',
-            'BusinessOwner' => '/owner/dashboard',
-            'Employee'      => '/employee/dashboard',
-            default         => '/login',
-        };
+private function redirectToDashboard(string $roleName): void
+{
+    $path = match ($roleName) {
+        'HRHead'        => '/hr/dashboard',
+        'BusinessOwner' => '/owner/dashboard',
+        'Employee'      => '/employee/dashboard',
+        default         => '/login',
+    };
 
-        $this->redirect($path);
+    $this->redirect($path);
+}
     }
 
     private function redirect(string $path): void

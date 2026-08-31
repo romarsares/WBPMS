@@ -26,16 +26,23 @@ use Wbpms\Http\Controllers\ScheduleController;
 // Public routes — no authentication required
 // ---------------------------------------------------------------------------
 
+
 // Health check
 $router->add('GET', '/health', [HealthController::class, 'index'], []);
 
 // Authentication
 $router->add('GET',  '/login',  [AuthController::class, 'showLogin'],  []);
 $router->add('POST', '/login',  [AuthController::class, 'login'],      []);
+=======
+$router->add('GET', '/health', [\Wbpms\Http\Controllers\HealthController::class, 'index'], []);
+$router->add('GET',  '/login',  [\Wbpms\Http\Controllers\AuthController::class, 'showLogin'], []);
+$router->add('POST', '/login',  [\Wbpms\Http\Controllers\AuthController::class, 'login'],     []);
+
 
 // ---------------------------------------------------------------------------
-// Authenticated routes — require valid session
+// Shared authenticated routes
 // ---------------------------------------------------------------------------
+
 
 $router->add('POST', '/logout', [AuthController::class, 'logout'], ['BusinessOwner', 'HRHead', 'Employee']);
 
@@ -95,3 +102,34 @@ $router->add('GET',  '/employee/requests/new',  [EmployeePortalController::class
 $router->add('POST', '/employee/requests',      [EmployeePortalController::class,  'storeRequest'],  ['Employee']);
 $router->add('GET',  '/employee/payslips',      [EmployeePortalController::class,  'payslips'],      ['Employee']);
 $router->add('GET',  '/employee/payslips/{id}', [EmployeePortalController::class,  'payslipDetail'], ['Employee']);
+=======
+$router->add('POST', '/logout',    [\Wbpms\Http\Controllers\AuthController::class,      'logout'], ['BusinessOwner', 'HRHead', 'Employee']);
+$router->add('GET',  '/dashboard', [\Wbpms\Http\Controllers\DashboardController::class,  'index'],  ['BusinessOwner', 'HRHead', 'Employee']);
+
+// ---------------------------------------------------------------------------
+// Business Owner
+// ---------------------------------------------------------------------------
+
+$router->add('GET', '/users',    [\Wbpms\Http\Controllers\UserManagementController::class, 'index'], ['BusinessOwner']);
+$router->add('GET', '/requests', [\Wbpms\Http\Controllers\RequestsController::class,       'index'], ['BusinessOwner', 'HRHead']);
+$router->add('GET', '/payroll',  [\Wbpms\Http\Controllers\PayrollController::class,        'index'], ['BusinessOwner', 'HRHead']);
+$router->add('GET', '/reports',  [\Wbpms\Http\Controllers\ReportsController::class,        'index'], ['BusinessOwner', 'HRHead']);
+
+// ---------------------------------------------------------------------------
+// HR Head
+// ---------------------------------------------------------------------------
+
+$router->add('GET', '/employees', [\Wbpms\Http\Controllers\EmployeeController::class,  'index'], ['HRHead']);
+$router->add('GET', '/attendance',[\Wbpms\Http\Controllers\AttendanceController::class, 'index'], ['HRHead']);
+$router->add('GET', '/schedule',  [\Wbpms\Http\Controllers\ScheduleController::class,  'index'], ['HRHead']);
+$router->add('GET', '/salary',    [\Wbpms\Http\Controllers\SalaryController::class,    'index'], ['HRHead']);
+$router->add('GET', '/benefits',  [\Wbpms\Http\Controllers\BenefitsController::class,  'index'], ['HRHead']);
+
+// ---------------------------------------------------------------------------
+// Employee self-service
+// ---------------------------------------------------------------------------
+
+$router->add('GET', '/my-attendance', [\Wbpms\Http\Controllers\EmployeePortalController::class, 'myAttendance'], ['Employee']);
+$router->add('GET', '/my-requests',   [\Wbpms\Http\Controllers\EmployeePortalController::class, 'myRequests'],   ['Employee']);
+$router->add('GET', '/my-payslips',   [\Wbpms\Http\Controllers\EmployeePortalController::class, 'myPayslips'],   ['Employee']);
+>>>>>>> cd3c46aa7b672775ed0b8601054e78037aa9d780

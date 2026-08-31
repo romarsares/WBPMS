@@ -19,7 +19,8 @@ $baseOptions = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
-    PDO::MYSQL_ATTR_INIT_COMMAND => $strictMode,
+    // PDO::MYSQL_ATTR_INIT_COMMAND is deprecated in PHP 8.5; use the namespaced constant.
+    Pdo\Mysql::ATTR_INIT_COMMAND => $strictMode,
 ];
 
 $configs = [
