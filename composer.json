@@ -1,0 +1,40 @@
+{
+    "name": "wbpms/wbpms",
+    "description": "Web-Based Payroll Management System for Light Diamond Enterprises",
+    "type": "project",
+    "require": {
+        "php": "^8.5",
+        "phpoffice/phpspreadsheet": "^3.3",
+        "robmorgan/phinx": "^0.16",
+        "vlucas/phpdotenv": "^5.6"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.0",
+        "phpstan/phpstan": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Wbpms\\": "app/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Wbpms\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit --configuration phpunit.xml",
+        "analyse": "phpstan analyse --configuration phpstan.neon",
+        "serve": "php -S localhost:8000 -t public/",
+        "migrate": "vendor/bin/phinx migrate -c phinx.php",
+        "seed": "vendor/bin/phinx seed:run -c phinx.php",
+        "migrate:test": "vendor/bin/phinx migrate -c phinx.php -e testing",
+        "seed:test": "vendor/bin/phinx seed:run -c phinx.php -e testing",
+        "migrate:rollback": "vendor/bin/phinx rollback -c phinx.php"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "minimum-stability": "stable"
+}

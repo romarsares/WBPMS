@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+    bootstrap="vendor/autoload.php"
+    colors="true"
+    stopOnFailure="false"
+    displayDetailsOnTestsThatTriggerWarnings="true"
+    displayDetailsOnTestsThatTriggerDeprecations="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory suffix=".php">app</directory>
+        </include>
+        <exclude>
+            <directory>app/Infrastructure/Reports</directory>
+        </exclude>
+    </source>
+
+    <php>
+        <!-- Testing environment — uses wbpms_test database -->
+        <env name="APP_ENV"            value="testing" />
+        <env name="APP_BASE_URL"       value="http://localhost" />
+        <env name="APP_KEY"            value="test-key-32-chars-placeholder!!!!" />
+        <env name="DB_HOST"            value="127.0.0.1" />
+        <env name="DB_PORT"            value="3306" />
+        <env name="DB_NAME"            value="wbpms_test" />
+        <env name="DB_USER"            value="root" />
+        <env name="DB_PASSWORD"        value="" />
+        <env name="TEST_DB_HOST"       value="127.0.0.1" />
+        <env name="TEST_DB_PORT"       value="3306" />
+        <env name="TEST_DB_NAME"       value="wbpms_test" />
+        <env name="TEST_DB_USER"       value="root" />
+        <env name="TEST_DB_PASSWORD"   value="" />
+    </php>
+</phpunit>

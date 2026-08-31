@@ -1,0 +1,11 @@
+parameters:
+    level: 6
+    paths:
+        - app
+    excludePaths:
+        - app/Infrastructure/Reports
+    checkMissingIterableValueType: false
+    treatPhpDocTypesAsCertain: false
+    ignoreErrors:
+        # Session handler write() and destroy() signatures differ in PHP 8
+        - '#Wbpms\\Infrastructure\\Session\\DatabaseSessionHandler#'

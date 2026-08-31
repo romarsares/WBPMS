@@ -1,0 +1,31 @@
+# Dependencies
+/vendor/
+
+# Environment — never commit real credentials
+/.env
+
+# Composer lock is committed; generated artifacts are not
+/composer.phar
+
+# Storage — uploads, generated payslips, logs
+/storage/private/*
+!/storage/private/.gitkeep
+
+# PHPUnit cache and coverage
+/.phpunit.cache/
+/.phpunit.result.cache
+/coverage/
+
+# PHPStan cache
+/.phpstan.cache/
+
+# IDE and OS files
+/.idea/
+/.vscode/
+*.swp
+*.swo
+Thumbs.db
+.DS_Store
+
+# Windows
+desktop.ini

@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Phinx migration configuration.
+ *
+ * Run from the project root:
+ *   vendor/bin/phinx migrate -c phinx.php           (development)
+ *   vendor/bin/phinx migrate -c phinx.php -e testing
+ *   vendor/bin/phinx seed:run -c phinx.php
+ */
+
+// Load .env when running Phinx from the CLI (outside front controller).
+if (file_exists(__DIR__ . '/.env')) {
+    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+    $dotenv->load();
+}
+
+return [
+    'paths' => [
+        'migrations' => __DIR__ . '/database/migrations',
+        'seeds'      => __DIR__ . '/database/seeds',
+    ],
+    'environments' => [
+        'default_migration_table' => 'phinxlog',
+        'default_environment'     => 'development',
+        'development' => [
+            'adapter' => 'mysql',
+            'host'    => $_ENV['DB_HOST']     ?? '127.0.0.1',
+            'name'    => $_ENV['DB_NAME']     ?? 'wbpms',
+            'user'    => $_ENV['DB_USER']     ?? 'root',
+            'pass'    => $_ENV['DB_PASSWORD'] ?? '',
+            'port'    => (int) ($_ENV['DB_PORT'] ?? 3306),
+            'charset' => 'utf8mb4',
+        ],
+        'testing' => [
+            'adapter' => 'mysql',
+            'host'    => $_ENV['TEST_DB_HOST']     ?? '127.0.0.1',
+            'name'    => $_ENV['TEST_DB_NAME']     ?? 'wbpms_test',
+            'user'    => $_ENV['TEST_DB_USER']     ?? 'root',
+            'pass'    => $_ENV['TEST_DB_PASSWORD'] ?? '',
+            'port'    => (int) ($_ENV['TEST_DB_PORT'] ?? 3306),
+            'charset' => 'utf8mb4',
+        ],
+        'production' => [
+            'adapter' => 'mysql',
+            'host'    => $_ENV['DB_HOST']     ?? '127.0.0.1',
+            'name'    => $_ENV['DB_NAME']     ?? 'wbpms',
+            'user'    => $_ENV['DB_USER']     ?? 'root',
+            'pass'    => $_ENV['DB_PASSWORD'] ?? '',
+            'port'    => (int) ($_ENV['DB_PORT'] ?? 3306),
+            'charset' => 'utf8mb4',
+        ],
+    ],
+    'version_order' => 'creation',
+];
