@@ -8,9 +8,10 @@ requests, approvals, payslips, and reports.
 
 ## Project status
 
-This repository has an **accepted MVP development baseline** in ADR-0001.
-Requirements, architecture, schema shape, the biometric `.xls` contract,
-and technical choices are ready for implementation. It does not yet contain
+This repository has an **accepted MVP development baseline** in ADR-0001 as
+amended by ADR-0002. Requirements, architecture, the typed canonical schema,
+the biometric `.xls` contract, and technical choices are ready for
+implementation. It does not yet contain
 an executable application, `package.json`, database migrations, or deployment
 configuration.
 
@@ -129,16 +130,20 @@ device identifiers are retained for HR review.
 | [Technology stack](docs/tech.md) | Planned runtime, framework, database, integrations, and non-functional constraints. |
 | [Implementation plan](docs/tasks.md) | Module-by-module implementation and testing checklist. |
 | [Five-day development roadmap](docs/five-day-development-roadmap.md) | Collaborative MVP scope, ownership lanes, daily integration gates, and delivery workflow. |
-| [Consolidated recommendations](docs/recommendation.md) | Cross-document recommendations with their ADR-0001 resolution status. |
+| [Consolidated recommendations](docs/recommendation.md) | Cross-document recommendations with their ADR-0001/ADR-0002 resolution status. |
 | [Database schema audit](docs/database-schema.md) | Source-literal database evidence, cross-source conflicts, and recommended canonical decisions. |
 | [Database revision record](docs/database-documentation-revision-log.md) | Corrections, accepted MVP resolutions, and remaining capstone-publication work. |
 | [Development baseline ADR](docs/adr/0001-development-baseline.md) | Accepted MVP decisions, workbook contract, technology choices, and production caveats. |
+| [Schema integrity ADR](docs/adr/0002-schema-integrity-corrections.md) | Corrected lifecycle authority, lineage, temporal constraints, and migration rules. |
+| [Canonical schema v1.1](docs/capstone_files/Canonical-Database-Schema-v1.1.md) | Typed implementation dictionary and capstone correction addendum. |
 
 Original reference material is retained under
 [`docs/capstone_files`](docs/capstone_files/), including the
 [capstone submission](<docs/capstone_files/Capstone 1 Final Submission.docx.pdf>),
 [final-defense review](docs/capstone_files/Final-Defense-Reviewer-1.pdf),
 and [HR follow-up answers](docs/capstone_files/Follow-up-Questions-with-Answers-from-HR-1.pdf).
+Those PDFs remain immutable evidence; the v1.1 addendum records the accepted
+schema corrections.
 
 The `.kiro/` directory contains mirrored specifications and persistent
 project steering guidance.
@@ -163,11 +168,13 @@ functional requirements but are absent from all source database models.
 
 Do not generate migrations directly from only one source diagram. Use the
 [schema audit](docs/database-schema.md), [revision record](docs/database-documentation-revision-log.md),
-and accepted [development baseline ADR](docs/adr/0001-development-baseline.md).
+accepted [development baseline ADR](docs/adr/0001-development-baseline.md),
+[schema integrity ADR](docs/adr/0002-schema-integrity-corrections.md), and
+[canonical schema v1.1](docs/capstone_files/Canonical-Database-Schema-v1.1.md).
 
 ## Development baseline
 
-ADR-0001 closes the MVP development gate: organization topology is
+ADR-0001 and ADR-0002 close the MVP development/schema gates: organization topology is
 configurable, employee and payroll cardinalities are frozen, the orphan
 benefit table is excluded, the real `.xls` workbook contract is documented,
 and the technical choices are selected. Production still requires official
@@ -186,7 +193,7 @@ holiday-overtime treatment, and HR acceptance testing.
 ## Recommended implementation sequence
 
 1. Scaffold the Node.js/TypeScript application, migrations, seeders, and tests
-   from ADR-0001.
+   from ADR-0001, ADR-0002, and canonical schema v1.1.
 2. Implement authentication and RBAC before the business modules.
 3. Build employee, schedule, attendance, request, salary, and contribution
    modules.

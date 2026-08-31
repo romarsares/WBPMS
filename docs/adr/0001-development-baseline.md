@@ -1,6 +1,6 @@
 # ADR-0001: Documentation-Grounded Development Baseline
 
-- **Status:** Accepted for MVP development
+- **Status:** Accepted for MVP development; schema details amended by ADR-0002
 - **Date:** 2026-08-31
 - **Branch:** `WBPMS-dev`
 - **Decision basis:** repository documentation, supplemental HR answers,
@@ -10,6 +10,11 @@
   final HR review of production master data.
 
 ## Context
+
+> **Amendment:** [ADR-0002](0002-schema-integrity-corrections.md) preserves
+> these business decisions and replaces incomplete/ambiguous relational details
+> with the typed
+> [v1.1 capstone schema addendum](../capstone_files/Canonical-Database-Schema-v1.1.md).
 
 The original capstone contains conflicting database representations and a
 mix of generic and later operational requirements. The repository also
@@ -201,6 +206,8 @@ the selected versions favor stability for the MVP.
 - [Design](../design.md)
 - [Schema audit](../database-schema.md)
 - [Revision checklist](../database-documentation-revision-log.md)
+- [ADR-0002 schema integrity corrections](0002-schema-integrity-corrections.md)
+- [Canonical database schema v1.1](../capstone_files/Canonical-Database-Schema-v1.1.md)
 - [HR follow-up answers](../capstone_files/Follow-up-Questions-with-Answers-from-HR-1.pdf)
 - [Final Defense Reviewer](../capstone_files/Final-Defense-Reviewer-1.pdf)
 - [Node.js release schedule](https://nodejs.org/en/about/previous-releases)
