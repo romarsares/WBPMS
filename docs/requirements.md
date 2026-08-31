@@ -155,27 +155,30 @@ working days and hours.
 ### Requirement 6: Attendance Management
 
 **User Story:** As the HR Head, I want to upload the biometric device's
-exported `.dat` log file and have the system generate a timesheet from it,
+exported monthly `.xls` daily-log workbook and have the system generate a timesheet from it,
 so that payroll is computed from accurate time records without needing a
 live connection to the device.
 
 #### Acceptance Criteria
 
-1. WHEN the HR Head uploads a `.dat` file from the biometric device THEN
-   the system SHALL parse the file's punch records (employee identifier,
-   timestamp, in/out indicator) and stage them for import. [REQ018,
-   REQ019 — revised from live sync to file upload]
-2. IF the uploaded file is not a valid/recognized `.dat` format THEN the
+1. WHEN the HR Head uploads an `.xls` workbook matching the approved daily-log
+   contract THEN the system SHALL parse `Dept`, `User ID`, `Name`, `Enroll ID`,
+   date columns labeled `MM/DD ddd`, and every `HH:mm` token in a date cell.
+   [REQ018, REQ019 — revised from live sync to workbook upload; ADR-0001]
+2. IF the uploaded file is not a valid/recognized `.xls` workbook or its
+   required headers/date/time tokens are invalid THEN the
    system SHALL reject the upload and display a clear error without
    partially importing records.
-3. WHEN a `.dat` file is uploaded THEN the HR Head SHALL identify its registered
+3. WHEN an `.xls` workbook is uploaded THEN the HR Head SHALL identify its registered
    source biometric device, and the system SHALL derive the device's attendance
    site and configured branch coverage rather than require a separate upload
    for each served branch.
-4. WHEN a `.dat` file is successfully parsed THEN the system SHALL match each
-   punch using the source device, device employee code, and punch timestamp
+4. WHEN an `.xls` workbook is successfully parsed THEN the system SHALL match
+   each punch using the selected source device, `Enroll ID`, and punch timestamp
    against an effective biometric enrollment, then resolve the employee's
-   branch assignment effective at the punch timestamp.
+   branch assignment effective at that timestamp. `Dept` and `Name` SHALL be
+   retained as evidence but SHALL NOT override configured identity or branch
+   master data.
 5. IF a punch record's device employee identifier does not match any
    known employee THEN the system SHALL flag that record as unmatched
    for HR review rather than silently discarding or misassigning it.
@@ -190,12 +193,13 @@ live connection to the device.
    it from computation. [REQ022]
 9. WHEN the HR Head manually adjusts a timesheet entry THEN the system
    SHALL save the adjustment and record who made it and why. [REQ023]
-10. IF a re-import contains the same device transaction, or the same source
-    device, employee code, timestamp, and punch type, THEN the system SHALL
+10. IF a re-import has the same SHA-256 file checksum, or contains the same
+    source device, enrollment code, and local timestamp, THEN the system SHALL
     skip or flag it rather than creating a second raw punch. [REQ024]
-11. WHEN a `.dat` import completes THEN the system SHALL show an import
-    summary (records parsed, matched, unmatched, duplicates skipped), grouped
-    by resolved employee branch where applicable, to the HR Head.
+11. WHEN an `.xls` import completes THEN the system SHALL show an import
+    summary (tokens parsed, matched, unmatched, duplicates skipped, incomplete
+    days, and multi-punch days), grouped by resolved employee branch where
+    applicable, to the HR Head.
 12. WHEN one device is configured to serve multiple branches THEN a single
     valid import SHALL be able to produce attendance for employees in any of
     those branches; the device SHALL identify punch location, while the
@@ -206,17 +210,22 @@ live connection to the device.
 14. WHEN an historical file is uploaded after an employee transfer THEN the
     system SHALL use the punch timestamp—not upload time or current branch—to
     resolve the historical enrollment and branch assignment.
-15. WHEN Thursday attendance processing completes THEN the system SHALL
+15. WHEN a date cell contains one punch THEN the system SHALL preserve it and
+    flag the day as incomplete; WHEN it contains two punches THEN the system
+    SHALL use the earlier as time-in and later as time-out; WHEN it contains
+    more than two punches THEN the system SHALL preserve every punch and flag
+    the day for HR review rather than silently dropping intermediate punches.
+16. WHEN Thursday attendance processing completes THEN the system SHALL
     close the Friday-through-Thursday attendance period for payroll
     preparation. The first biometric transition period (Sunday through
     Thursday, five working days) is historical data and SHALL NOT become a
     recurring payroll-calendar rule. [Supplemental HR answer, p. 3]
-16. WHEN an employee has three consecutive late arrivals THEN the system
+17. WHEN an employee has three consecutive late arrivals THEN the system
     SHALL flag the employee for an HR memorandum; WHEN three such memoranda
     have been recorded THEN the system SHALL flag the employee for HR review
     of a one-week suspension. The system SHALL NOT impose discipline
     automatically. [Supplemental HR answer, p. 1]
-17. WHEN an employee has not reported for two weeks, or has three
+18. WHEN an employee has not reported for two weeks, or has three
     consecutive absences without notice and without an acceptable reason,
     THEN the system SHALL flag the employee for HR review under the
     company's AWOL/termination policy. The system SHALL NOT terminate an
@@ -303,6 +312,10 @@ deductions are accurate and compliant.
 8. WHEN government contributions are posted THEN employee shares SHALL be
    represented as payroll deductions, not as benefits. [Final Defense
    Reviewer DFD Level 0, p. 3]
+9. UNTIL complete effective-dated statutory tables are approved THEN the MVP
+   SHALL calculate only the ADR-0001 demo fixture and clearly label it
+   non-production; an unsupported EEMR/policy combination SHALL fail visibly
+   rather than extrapolate a contribution bracket.
 
 ### Requirement 10: Payroll Processing
 
@@ -338,7 +351,8 @@ Owner for approval, so that payroll is accurate, auditable, and controlled.
 9. WHEN pay components are computed THEN overtime SHALL use
    `hourly_rate × 1.25 × overtime_hours`, work on a regular holiday SHALL
    pay `daily_rate × 2.00`, and work on a special holiday SHALL pay the
-   daily rate plus a 30% premium (`daily_rate × 1.30`). The treatment of
+   daily rate plus a 30% premium (`daily_rate × 1.30`); lateness SHALL deduct
+   `₱1 × minutes_late`. The treatment of
    overtime worked on a holiday remains a separate policy decision and
    SHALL NOT be inferred by compounding these multipliers. [Final Defense
    Reviewer, pp. 4–5]

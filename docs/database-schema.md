@@ -485,18 +485,25 @@ evidence that was not represented in Tables 85–97 or Figures 163–164:
 9. Attendance policy includes memo/suspension and AWOL/termination review
    thresholds. These require auditable HR-review flags, not automatic
    employment actions.
+10. The three supplied biometric samples are legacy `.xls` monthly daily-log
+    matrices, not `.dat` punch streams. Each contains 138 enrollment rows,
+    fixed identity columns, date columns, and zero or more `HH:mm` tokens per
+    employee/day. They contain neither an in/out flag nor a transaction ID.
+    ADR-0001 defines the canonical import expansion and deduplication rules.
 
 ---
 
-## 6. Recommended canonical decisions
+## 6. Accepted canonical decisions
 
-These are recommendations for a buildable schema, not claims about what
-the original capstone consistently specifies.
+ADR-0001 accepts these decisions for MVP development. They are not claims
+about what the original capstone consistently specifies and do not certify
+production statutory master data.
 
 1. Use the Figure 163/164 operational model as the starting point because
    it contains richer payroll, schedule, approval, and audit structures.
-2. Keep `employee.branch_id`; it is source-backed by both database-model
-   figures and required by the narrative and branch filters.
+2. Preserve the source-backed employee/branch relationship through
+   effective-dated `employee_branch_assignment`; do not keep a mutable direct
+   branch field as the canonical source of current and historical assignment.
 3. Reconcile the employee fields by taking the union of required identity,
    employment, address, branch, and government-identifier fields, then
    document nullability and uniqueness explicitly.
@@ -504,9 +511,9 @@ the original capstone consistently specifies.
    deductions rather than the single `payroll.deduction_id` structure.
 5. Use `city_name`, `request_type_id`, `payroll_earnings`, `log_id`, and
    separate `approval_status`/`remarks` as canonical corrected names.
-6. Decide whether geography is a strict hierarchy. If it is, add explicit
-   `city.province_id` and `barangay.city_id` foreign keys; do not claim the
-   original schema already contains them.
+6. Keep the source's flat address links for the MVP. A strict
+   province→city→barangay hierarchy requires a future ADR and must not be
+   attributed to the original schema.
 7. Add complete Data Dictionary entries for every canonical table before
    implementation approval.
 8. Exclude the orphan `benefits_tbl` from the canonical model. Record
@@ -518,6 +525,13 @@ the original capstone consistently specifies.
     the weekly cycle and last-Friday contribution schedule.
 11. Replace the assumed bank-file flow with a weekly disbursement batch
     (one cheque) and employee deposit-slip records.
+12. Add configurable attendance sites/devices, effective device/branch
+    coverage, employee biometric enrollment, immutable raw punches, and
+    checksum-based workbook import batches.
+13. Add `payroll_period` and branch-scoped `payroll_run` above employee
+    payroll details, with unique period/branch and period/employee guards.
+14. Model an approved cash advance as one `cash_advance_history` record and
+    post repayments as payroll deductions.
 
 ---
 
@@ -530,13 +544,16 @@ above. Full Data Dictionary entries are provided for each table so that the
 implementation sign-off requirement (§6 recommendation #7) is satisfied for
 these extension tables.
 
-`employee.branch_id` is **not** classified as an extension: it already
-appears in Figures 163 and 164, although it conflicts with Table 85 and
-Table 86.
+The extension dictionaries below are reconciled to ADR-0001, including the
+real `.xls` workbook contract, effective branch/device history, branch-level
+payroll runs, and manual BDO disbursement workflow.
 
-The implementation-oriented reconciliation currently appears in
-`design.md`. A future SQL migration should cite both this audit and the
-documentation revision record before resolving the remaining decisions.
+The employee→branch relationship is source-backed by Figures 163 and 164;
+the effective-dated assignment table is the implementation extension used to
+preserve that relationship over time.
+
+The accepted implementation reconciliation appears in `design.md` and
+ADR-0001. SQL migrations must cite both this audit and the ADR.
 
 ---
 
@@ -569,7 +586,7 @@ and has a known export file format. Required by REQ018 AC3.
 | device_code | Short identifier for the device | VARCHAR(30) | — | — | N | ✅ | e.g. `DEV-BANGA-01` |
 | device_name | Descriptive name | VARCHAR(100) | — | — | Y | — | — |
 | serial_number | Hardware serial number | VARCHAR(100) | — | — | Y | ✅ | — |
-| file_format | Export format identifier | VARCHAR(50) | — | — | N | — | e.g. `ZKTIME_DAT_V1` |
+| file_format | Export format identifier | VARCHAR(50) | — | — | N | — | MVP: `LDE_XLS_DAILY_LOG_V1` |
 | timezone | IANA timezone of the device | VARCHAR(50) | — | — | N | — | Default `Asia/Manila` |
 | status | Device status | ENUM('Active','Inactive','Retired') | — | — | N | — | Default `Active` |
 | installed_at | Date device was registered | DATE | — | — | Y | — | — |
@@ -658,7 +675,7 @@ Final Defense Reviewer PDF (Regular = 2.00, Special = 1.30).
 
 ### 7.7 `attendance_import_batch`
 
-Audit record for each `.dat` file upload. The file checksum provides
+Audit record for each `.xls` daily-log upload. The file checksum provides
 idempotency — re-uploading the same file is detected and rejected.
 Required by REQ018 AC2, REQ024.
 
@@ -674,6 +691,8 @@ Required by REQ018 AC2, REQ024.
 | records_matched | Punch records matched to an enrollment | INT UNSIGNED | — | — | N | — | — |
 | records_unmatched | Punch records with no matching enrollment | INT UNSIGNED | — | — | N | — | — |
 | duplicates_skipped | Records skipped as duplicate punches | INT UNSIGNED | — | — | N | — | — |
+| incomplete_days | Employee/date groups containing one punch | INT UNSIGNED | — | — | N | — | Default `0` |
+| multi_punch_days | Employee/date groups containing more than two punches | INT UNSIGNED | — | — | N | — | Default `0` |
 
 ---
 
@@ -691,14 +710,22 @@ Required by REQ018 AC5, REQ018 AC10, REQ024.
 | employee_id | Matched employee (FK → employee, NULL if unmatched) | INT UNSIGNED | — | ✅ | Y | — | NULL until matched |
 | branch_assignment_id | Resolved branch assignment (FK → employee_branch_assignment) | INT UNSIGNED | — | ✅ | Y | — | NULL until resolved |
 | device_employee_code | Employee code as read from the device | VARCHAR(50) | — | — | N | — | — |
-| punched_at | Punch timestamp | DATETIME | — | — | N | — | — |
-| punch_type | In or out indicator | ENUM('In','Out','Unknown') | — | — | N | — | — |
-| device_transaction_id | Device-native transaction ID if present | VARCHAR(50) | — | — | Y | — | — |
+| punched_at | Punch instant normalized from device-local `Asia/Manila` time | DATETIME | — | — | N | — | Preserve local source value below |
+| punch_type | Adapter-supplied in/out indicator | ENUM('In','Out','Unknown') | — | — | Y | — | NULL for ADR-0001 `.xls` source |
+| device_transaction_id | Device-native transaction ID if present | VARCHAR(50) | — | — | Y | — | NULL for ADR-0001 `.xls` source |
 | match_status | Resolution status | ENUM('matched','unmatched','coverage_exception','duplicate') | — | — | N | — | — |
-| raw_record | Full raw line from the source file | TEXT | — | — | N | — | Immutable; never updated |
-| source_line | Line number in the uploaded file | INT UNSIGNED | — | — | Y | — | — |
+| source_department | `Dept` value from the workbook | VARCHAR(100) | — | — | Y | — | Evidence only; not branch authority |
+| source_user_id | `User ID` value from the workbook | VARCHAR(50) | — | — | Y | — | Evidence only |
+| source_employee_name | `Name` value from the workbook | VARCHAR(150) | — | — | Y | — | Evidence only; not identity authority |
+| raw_record | Original date-cell value and parser evidence | TEXT | — | — | N | — | Immutable; never updated |
+| source_workbook_row | One-based workbook row | INT UNSIGNED | — | — | N | — | — |
+| source_date_column | Original date-column label | VARCHAR(20) | — | — | N | — | e.g. `06/01 Mon` |
 | resolved_by | User who manually resolved the punch (FK → users) | INT UNSIGNED | — | ✅ | Y | — | NULL until resolved |
 | resolved_at | Timestamp of manual resolution | TIMESTAMP | — | — | Y | — | NULL until resolved |
+
+Unique constraint for the MVP adapter:
+`(device_id, device_employee_code, punched_at)`. The workbook has no native
+transaction ID, so this key plus the batch SHA-256 provides idempotency.
 
 ---
 
@@ -897,25 +924,22 @@ Required by REQ073 (Supplemental HR answer, pp. 2–3).
 
 ## 8. Adoption status (updated after `design.md` reconciliation)
 
-`design.md`'s Data Models section was rewritten to apply the
+`design.md`'s Data Models section applies the
 recommendations in §6, with every table now labeled by provenance
 (`[Fig163/164]`, `[Table85/86]`, `[canonical correction]`,
-`[union decision — pending approval]`, `[extension]`). This section
-tracks which of the seven recommendations were actually applied, and
-which conflicts are still open. **Applying a recommendation in `design.md`
-is not the same as it being approved** — the checklist in the
-[revision log](database-documentation-revision-log.md) is still what
-governs sign-off before any migration is built (see `tasks.md` task 1.0).
+`[canonical baseline decision]`, `[extension]`). ADR-0001 approves this
+shape for MVP migrations; production master data and statutory certification
+remain separate gates.
 
 | # | Recommendation (§6) | Status in `design.md` | Notes |
 |---|---|---|---|
 | 1 | Use Fig. 163/164 as the operational base | ✅ Applied with a documented disbursement exception | Core operational tables follow Fig. 163/164. The later HR evidence supersedes `cash_transaction` with `disbursement_batch` + `deposit_slip`. |
-| 2 | Keep `employee.branch_id` | ✅ Applied | Present on `employee`, with `branch 1—N employee` documented as source-backed (Fig. 163/164) despite being absent from Table 85/86. |
-| 3 | Union the employee fields | ✅ Applied | `employee` now carries both sources' fields; `position` and `device_employee_id` are separately flagged as `[extension]` since neither source has them. |
+| 2 | Preserve employee/branch relationship | ✅ Applied through history | `employee_branch_assignment` replaces a mutable direct field while retaining the source-backed relationship. |
+| 3 | Union the employee fields | ✅ Applied | Required/optional fields and uniqueness are frozen in ADR-0001; device identity is normalized into effective enrollments. |
 | 4 | `payroll_id`-keyed child tables for earnings/deductions | ✅ Applied | `payroll` is a header row; `deduction` and `payroll_earnings` are children keyed by `payroll_id`, matching Fig. 163/164. Government employee shares post to `deduction`; `benefits_tbl` is excluded. |
 | 5 | Canonical corrected names (`city_name`, `request_type_id`, `payroll_earnings`, `log_id`→`audit_logs.log_id`, split `approval_status`/`remarks`) | ✅ Applied | All five corrections are in `design.md`'s table definitions. |
-| 6 | Decide geography hierarchy explicitly | ⚠️ Decided **not** to adopt by default | `design.md` keeps `city`/`barangay` flat (no `province_id`/`city_id` FKs between them) and documents the hierarchy as an available but unadopted extension. This satisfies "don't claim the source already contains it," but the underlying question (does the app need a real hierarchy?) is still open. |
-| 7 | Complete Data Dictionary entries for every canonical table | ✅ Applied for extension tables | Full Data Dictionary entries (columns, types, PK/FK, nullability, uniqueness, notes) are now provided in §7 (7.1–7.17) for all 17 extension tables. The 12 source-documented tables in §2 retain their original capstone dictionary entries. The 11 model-only tables in §3 retain source-backed types and key markers; their full dictionary metadata (defaults, lengths, validation patterns) is still subject to the approval checklist before a migration is built. |
+| 6 | Decide geography hierarchy explicitly | ✅ Flat for MVP | `address` retains the source's direct geography references; a strict hierarchy is deferred. |
+| 7 | Complete Data Dictionary entries for every canonical table | ✅ Extension dictionaries complete; historical publication deferred | §7 provides full dictionaries for all 17 extension tables. Migration definitions complete the executable dictionary for model-only tables; regenerated capstone tables/figures remain documentation debt. |
 
 ### Canonical resolution from supplemental evidence
 
@@ -925,25 +949,18 @@ governs sign-off before any migration is built (see `tasks.md` task 1.0).
   Deductions. A future non-government bonus/benefit feature would need its
   own approved requirements and model.
 
-### Conflicts still open after the supplemental-evidence update
+### Development-blocking conflicts
 
-- **Branch count (§5 issue 11)** — still contradicts itself in the source
-  (2 vs. 3). `product.md` now surfaces this instead of asserting a
-  number; the actual count still needs confirmation with the business
-  owner/HR. Gated behind `tasks.md` task 1.0.
-- **`cash_advance_history` ↔ `request` relationship** — not defined in
-  any source (the two tables model overlapping cash-advance concepts:
-  `request` for the approval workflow, `cash_advance_history` for
-  repayment tracking). `design.md` now documents an assumed link
-  (approved cash-advance request → one `cash_advance_history` row) but
-  labels it a decision, not a source fact.
-- **`users.password` → `password_hash`** — a necessary implementation
-  extension for REQN011 (secure login), not resolvable from source text
-  since the capstone never specifies hashing.
+None. ADR-0001 resolves branch topology through configurable master data,
+accepts the cash-advance request/history lifecycle, requires password hashing,
+selects the flat geography model, and defines the real `.xls` import contract.
+
+The following remain production confirmations rather than migration blockers:
+official branch display names, complete statutory tables/caps/effective dates,
+holiday-overtime compounding, and HR acceptance of production seed data.
 
 ### Recommended next step
 
-Route the remaining branch-count, cash-advance-history/request, geography,
-and user-password decisions through the revision log's approval checklist.
-The former benefit-table gate can be closed once that checklist records the
-supplemental DFD decision; this update does not itself authorize migrations.
+Implement migrations from `design.md` and ADR-0001, preserving provenance in
+migration comments and tests. Do not describe the documented demo contribution
+fixture as production-certified statutory logic.

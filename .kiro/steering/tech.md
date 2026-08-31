@@ -11,7 +11,7 @@ over unchanged. Kiro should default to the choices below.
 
 ## Application layers
 
-- **Server-side runtime/language:** Node.js (LTS) with **TypeScript** —
+- **Server-side runtime/language:** Node.js 24.x LTS with **TypeScript** —
   handles payroll calculations, employee record management, and secure DB
   communication.
 - **Web framework:** Express — routing, middleware (auth/RBAC guards),
@@ -19,16 +19,15 @@ over unchanged. Kiro should default to the choices below.
 - **ORM:** Sequelize (MySQL dialect) — maps directly onto the normalized
   schema in `design.md` (models = tables: `Employee`, `Attendance`,
   `Payroll`, `Salary`, etc.) and gives migrations for schema evolution.
-- **Validation:** `zod` or `express-validator` for request payload
-  validation at the controller boundary.
-- **Auth:** `bcrypt` for password hashing, `jsonwebtoken` (or
-  session + `express-session`) for authenticated sessions, role claims
-  checked in middleware.
-- **Client-side scripting:** JavaScript (or a lightweight frontend
-  framework such as React, if the team wants componentized views) — same
-  role as before: dynamic UI without full page reloads.
-- **Markup/styling:** HTML + CSS.
-- **Database:** MySQL (relational, client-server) — employee records,
+- **Validation:** Zod for environment, request payload, and service-boundary
+  validation.
+- **Auth:** `bcrypt` for password hashing plus server-managed
+  `express-session` sessions persisted in MySQL; role checks remain in
+  middleware.
+- **Client-side scripting:** small progressive JavaScript enhancements; no
+  separate SPA in the MVP.
+- **Markup/styling:** server-rendered EJS, HTML, and CSS.
+- **Database:** MySQL 8.4 LTS (InnoDB, `utf8mb4`, strict SQL mode) — employee records,
   salary info, payroll history, user accounts. Schema unchanged from
   `design.md`.
 - **Hosting/deployment:** any Node-compatible host (Render, Railway,
@@ -55,10 +54,11 @@ salaries, reports, payslips) flow back the same path in reverse.
 
 ## External/peripheral integration
 
-- **Biometric device** — attendance data arrives as a `.dat` file exported
-  from the device and manually uploaded by the HR Head (no live device
-  connection/API integration). The Application Tier parses the file and
-  generates a timesheet — see `attendance` module in `design.md`.
+- **Biometric device** — attendance data arrives as the supplied legacy
+  monthly `.xls` daily-log workbook and is manually uploaded by the HR Head
+  (no live device connection/API integration). A SheetJS-backed parser
+  expands its employee/date matrix into immutable raw punches before
+  generating a timesheet. See ADR-0001 and the attendance design.
 - **Email/OTP** — password recovery flow, sent via a mail provider (e.g.,
   Nodemailer + SMTP, or a transactional email API).
 
@@ -92,6 +92,23 @@ npm test
 # Build for production / start
 npm run build && npm start
 ```
+
+## Frozen MVP choices
+
+- Package manager: npm.
+- Tests: Vitest plus Supertest.
+- Local database: MySQL 8.4 through Docker Compose, with separate development
+  and test databases.
+- Business timezone: `Asia/Manila`; store instants in UTC and business dates
+  as MySQL `DATE`.
+- API success envelope: `{ "data": ..., "meta": ... }`; error envelope:
+  `{ "error": { "code": "...", "message": "...", "fields": {}, "requestId": "..." } }`.
+- Required environment variables: `NODE_ENV`, `PORT`, `APP_BASE_URL`,
+  `SESSION_SECRET`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and
+  `DB_PASSWORD`.
+
+See [`ADR-0001`](../../docs/adr/0001-development-baseline.md) for the complete decision
+record and production caveats.
 
 ## Non-functional constraints to design against
 

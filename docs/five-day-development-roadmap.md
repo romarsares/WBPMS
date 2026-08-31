@@ -25,7 +25,7 @@ reviewer**.
 | Lane | Suggested owner | Primary responsibility |
 |---|---|---|
 | A — Platform and security | Developer A / technical lead | Project scaffold, database, migrations, seeders, authentication, RBAC, CI, shared middleware |
-| B — People and attendance | Developer B | Employee, schedule, biometric mapping, `.dat` parser, attendance calculation and exceptions |
+| B — People and attendance | Developer B | Employee, schedule, biometric mapping, `.xls` daily-log parser, attendance calculation and exceptions |
 | C — Payroll domain | Developer C | Salary, approved contribution rules, payroll calculation, approval state machine, payslip data |
 | D — Experience and quality | Developer D | Thin role-specific UI, API integration, dashboards, automated integration/E2E tests, demo data and documentation |
 | Product/domain review | Business Owner and HR Head | Same-day decisions on schema, payroll rules, fixtures, and acceptance evidence |
@@ -55,7 +55,7 @@ architecture decisions, but does not become the only reviewer or tester.
 - Employee list/create/update and branch assignment using synthetic demo
   data.
 - One effective employee schedule and biometric device ID mapping.
-- Upload and parse one documented `.dat` fixture format.
+- Upload and parse the documented legacy `.xls` daily-log format.
 - Match punches, retain unmatched entries, prevent duplicate imports, flag
   incomplete entries, and calculate hours/late/undertime/overtime for the
   agreed schedule rules.
@@ -85,7 +85,7 @@ architecture decisions, but does not become the only reviewer or tester.
 - Full email/OTP password recovery and production mail-provider setup.
 - Complete user, request, schedule-type, holiday, contribution, archive, and
   reconciliation administration.
-- Every report type, bank-transfer formats, polished PDFs, and 13th-month
+- Every report type, polished deposit-slip/payslip PDFs, and 13th-month
   reporting.
 - Multiple biometric formats, overnight/split shifts, and complex punch
   correction rules.
@@ -104,32 +104,34 @@ Development that depends on an undecided item must not proceed by assumption.
 
 ### Business and schema decisions
 
-- [ ] Confirm the active branch count and branch seed data.
-- [ ] Approve the canonical employee fields, required fields, uniqueness, and
+- [x] Use configurable branch/site/device master data and ADR-0001's
+      three-branch/two-site demo topology; official display names remain a
+      production seed-data confirmation.
+- [x] Approve the canonical employee fields, required fields, uniqueness, and
       archive behavior.
-- [ ] Approve a payroll-run header plus employee-detail relationship, or
-      explicitly approve another cardinality.
-- [ ] Confirm which salary field is authoritative and remove duplicate sources
+- [x] Approve `payroll_period` → branch `payroll_run` → employee payroll detail.
+- [x] Confirm `salary.daily_rate` as authoritative and remove duplicate sources
       of truth.
-- [ ] Define payroll statuses, allowed transitions, return-reason storage, and
+- [x] Define payroll statuses, allowed transitions, return-reason storage, and
       final-record immutability.
-- [ ] Approve attendance and request audit fields.
-- [ ] Approve the single `.dat` record format and provide sanitized samples.
-- [ ] Approve timezone, pay period, schedule, grace period, overtime, missing
+- [x] Approve attendance and request audit fields.
+- [x] Approve ADR-0001's `.xls` workbook contract from the three supplied samples.
+- [x] Approve timezone, pay period, schedule, zero undocumented grace period, overtime, missing
       punch, rounding, and money precision rules.
-- [ ] Approve the exact SSS, PhilHealth, and Pag-IBIG fixture/version used in
-      the demo, including caps and rounding.
+- [x] Approve the Final Defense Reviewer example as the demo-only SSS,
+      PhilHealth, and Pag-IBIG fixture with half-up centavo rounding and an
+      explicit non-production disclaimer.
 
 ### Technical decisions
 
-- [ ] Select one validation library.
-- [ ] Select server-managed sessions or JWT and document logout/expiry rules.
-- [ ] Select a thin server-rendered UI or a separate client. Prefer the option
-      the team already knows; do not spend this phase building UI infrastructure.
-- [ ] Select the unit/integration test runner and HTTP test library.
-- [ ] Agree on the Node.js LTS, MySQL version, package manager, environment
+- [x] Use Zod for validation.
+- [x] Use MySQL-persisted server sessions with 30-minute idle and 12-hour
+      absolute expiry; logout destroys the server session.
+- [x] Use thin server-rendered EJS with progressive JavaScript.
+- [x] Use Vitest and Supertest.
+- [x] Use Node.js 24.x LTS, MySQL 8.4 LTS, npm, the ADR-0001 environment
       variable names, and local database workflow.
-- [ ] Define API contracts and standard success/error response shapes before
+- [x] Use ADR-0001's standard success/error envelopes before
       lanes implement controllers independently.
 
 If the business gate cannot be completed, use clearly labeled synthetic demo
@@ -211,7 +213,7 @@ Do not begin incompatible lane-specific schemas if this gate fails.
 
 - Implement employee CRUD needed by the demo, branch filter, biometric ID
   mapping, and one effective schedule.
-- Implement transactional `.dat` upload, parser integration, employee matching,
+- Implement transactional `.xls` upload, parser integration, employee matching,
   import batch summary, unmatched storage, and idempotent duplicate handling.
 - Preserve raw imported data rather than silently overwriting it.
 
@@ -443,7 +445,7 @@ and authorization tests is not done.
 | Risk | Control and fallback |
 |---|---|
 | Business/schema approval is delayed | Time-box the decision gate. Use documented synthetic demo rules and mark statutory/production behavior unverified. |
-| Real `.dat` format is unavailable | Support one agreed synthetic fixture format, isolate the parser, and do not claim device compatibility. |
+| Workbook variants differ from the supplied `.xls` samples | Keep parsing behind `AttendanceFileParser`, reject unknown structures transactionally, and add adapters only from sanitized evidence. |
 | Contribution rules are disputed | Use versioned, reviewer-approved golden fixtures; never silently copy current online values into historical payroll. |
 | Lanes conflict on models | Freeze core contracts on Day 1 and coordinate all migrations through Lane A. |
 | UI consumes the schedule | Use thin functional forms/views and prioritize the E2E business path over visual polish. |
@@ -459,7 +461,7 @@ Target a 12–15 minute demonstration:
 2. Sign in as HR Head and demonstrate role-protected navigation.
 3. Create or inspect an employee with branch, schedule, biometric ID, and
    salary configuration.
-4. Upload the agreed `.dat` fixture.
+4. Upload one supplied/sanitized `.xls` daily-log fixture.
 5. Show matched, duplicate, unmatched, invalid, or incomplete outcomes.
 6. Review calculated worked hours, late time, undertime, and overtime.
 7. Compute a payroll draft and compare its itemized result with the approved
@@ -475,7 +477,8 @@ Target a 12–15 minute demonstration:
 
 After this five-day MVP, plan subsequent iterations in dependency order:
 
-1. Resolve remaining canonical schema and statutory policy decisions.
+1. Confirm production branch names/master data and complete effective-dated
+   statutory policy tables before production claims.
 2. Complete user management, schedules/holidays, attendance reconciliation,
    and all three request workflows.
 3. Complete contribution maintenance, leave balances, salary history, and

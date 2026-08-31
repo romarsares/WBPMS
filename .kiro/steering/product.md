@@ -55,7 +55,10 @@ to it.
 3. User Management (accounts, roles, activate/deactivate/archive)
 4. Employee Management (employee records per branch)
 5. Work Schedule Management (calendar-based schedules, holidays)
-6. Attendance Management (HR uploads the biometric device's `.dat` export; the system parses it into a per-employee timesheet, with manual adjustment, hours/late/undertime/overtime computation)
+6. Attendance Management (HR uploads the biometric device's monthly `.xls`
+   daily-log export; the system expands its date/time matrix into preserved
+   punches and a per-employee timesheet, with manual adjustment and
+   hours/late/undertime/overtime computation)
 7. Request Management (leave, overtime, cash advance — submit/update/cancel/approve/reject)
 8. Payroll Management (salary computation, deductions, 13th-month pay, payslip generation, owner approval workflow)
 9. Manage Salary (salary structures, daily rates, historical rates)
@@ -79,7 +82,8 @@ to it.
 ## Out of scope (for now)
 
 - Mobile native apps (web-responsive only, desktop/laptop targeted).
-- Payment/disbursement integration with banks beyond generating a bank
-  transfer export file.
+- Electronic bank integration. The current BDO workflow uses a printable
+  deposit-slip preparation list, one aggregate weekly cheque, and manually
+  prepared employee deposit slips.
 - Multi-country payroll/tax rules (Philippines-specific: SSS, PhilHealth,
   Pag-IBIG).

@@ -4,6 +4,11 @@
 **Sources reviewed:** `five-day-development-roadmap.md`, `database-schema.md`,
 `database-documentation-revision-log.md`, `design.md`, `requirements.md`
 
+> **Decision update (2026-08-31):** [ADR-0001](adr/0001-development-baseline.md)
+> resolves the pre-kickoff gate for MVP development. This document remains a
+> consolidated rationale/reference; where its original open recommendations
+> conflict with ADR-0001, the ADR controls.
+
 This document consolidates every recommendation found across the project
 documentation into one reference. Items are grouped by concern area.
 Each entry notes its source document and, where applicable, whether it
@@ -11,38 +16,38 @@ is gated behind an approval decision before implementation work may begin.
 
 ---
 
-## 1. Pre-Kickoff Decisions (Gate — Must Resolve Before Coding)
+## 1. Pre-Kickoff Decisions (Resolved for MVP by ADR-0001)
 
-These items are listed as open checkboxes in the roadmap's mandatory
-decision gate (§4). No development that depends on an undecided item
-should proceed by assumption.
+These items originated as open checkboxes in the roadmap. ADR-0001 records
+their accepted MVP resolutions; production confirmations are listed
+separately in that ADR.
 
 ### 1.1 Business and Schema Decisions
 
-| # | Decision required | Source | Blocking what |
+| # | Accepted decision | Source | Resolution |
 |---|---|---|---|
-| B-1 | Confirm the active branch count (source says both 2 and 3). Approve branch seed data. | `roadmap §4`, `database-schema.md §5 issue 11`, `revision log §1` | Branch filtering, payroll runs, employee assignments, demo seeds |
-| B-2 | Approve the canonical employee attribute set — required fields, uniqueness rules, and archive behavior. | `roadmap §4`, `revision log §1`, `database-schema.md §6 rec 3` | `employee` migration, `EmployeeService`, Employee Management module |
-| B-3 | Approve a payroll-run header plus employee-detail relationship (or explicitly approve another cardinality). | `roadmap §4`, `database-schema.md §6 rec 4` | `payroll`, `payroll_earnings`, `deduction` migrations |
-| B-4 | Confirm which salary field is authoritative and remove duplicate sources of truth. | `roadmap §4` | `salary` migration, `SalaryService.getCurrentRate` |
-| B-5 | Define payroll statuses, allowed transitions, return-reason storage, and final-record immutability. | `roadmap §4` | `PayrollService` state machine, payroll approval flow |
-| B-6 | Approve attendance and request audit fields. | `roadmap §4` | `attendance_adjustment`, `audit_logs` migrations |
-| B-7 | Approve the single `.dat` record format and provide a sanitized sample file. | `roadmap §4` | `AttendanceService.parseDatFile`, all attendance import tests |
-| B-8 | Approve timezone, pay period, schedule, grace period, overtime, missing punch, rounding, and money precision rules. | `roadmap §4` | Every attendance and payroll calculation |
-| B-9 | Approve the exact SSS, PhilHealth, and Pag-IBIG fixture/version used in the demo, including caps and rounding. | `roadmap §4` | `ContributionEngine`, seeder data, payroll golden test cases |
-| B-10 | Confirm the `cash_advance_history` ↔ `request` relationship — is an approved cash-advance request the trigger for creating a repayment row? | `database-schema.md §8`, `design.md Data Models` | `CashAdvanceHistory` migration and `RequestService` |
-| B-11 | Decide whether geography is a strict province → city → barangay hierarchy. If yes, add `city.province_id` and `barangay.city_id` FKs explicitly. | `database-schema.md §6 rec 6` | `city`, `barangay` migrations |
+| B-1 | Use configurable branches/sites/devices; seed the documented three-branch/two-site demo topology. | ADR-0001 | ✅ Accepted |
+| B-2 | Use ADR-0001's required/optional employee fields, stable identity, effective branch history, and archive behavior. | ADR-0001 | ✅ Accepted |
+| B-3 | Use `payroll_period` → branch `payroll_run` → employee payroll detail. | ADR-0001 | ✅ Accepted |
+| B-4 | Use effective-dated `salary.daily_rate` as the only wage authority. | ADR-0001 | ✅ Accepted |
+| B-5 | Use the documented Draft/Computed/Pending/Approved/Returned lifecycle with return reason and final immutability. | ADR-0001 | ✅ Accepted |
+| B-6 | Use the richer attendance/request audit fields and immutable raw evidence. | ADR-0001 | ✅ Accepted |
+| B-7 | Parse the supplied monthly `.xls` matrix; no `.dat` adapter is assumed. | ADR-0001 + samples | ✅ Accepted |
+| B-8 | Use `Asia/Manila`, Friday–Thursday periods, documented shifts/formulas, no undocumented grace period, integer minutes, and decimal half-up rounding. | ADR-0001 | ✅ Accepted |
+| B-9 | Use only the labeled Final Defense Reviewer contribution example for the MVP; reject unsupported policy inputs. | ADR-0001 | ✅ Demo-only |
+| B-10 | An approved cash-advance request creates one repayment-history row. | ADR-0001 | ✅ Accepted |
+| B-11 | Keep geography flat for the MVP. | ADR-0001 | ✅ Accepted |
 
 ### 1.2 Technical Decisions
 
-| # | Decision required | Source | Blocking what |
+| # | Accepted decision | Source | Resolution |
 |---|---|---|---|
-| T-1 | Select one validation library (`zod` or `express-validator`). | `roadmap §4`, `tech.md` | All controllers and middleware |
-| T-2 | Select server-managed sessions or JWT. Document logout and expiry rules. | `roadmap §4`, `tech.md` | `AuthController`, `AuthMiddleware`, `REQN011` |
-| T-3 | Select a thin server-rendered UI or a separate SPA client. Prefer the option the team already knows. | `roadmap §4` | Lane D work, shared UI shell |
-| T-4 | Select the unit/integration test runner and HTTP test library. | `roadmap §4` | All test scaffolding |
-| T-5 | Agree on Node.js LTS version, MySQL version, package manager, environment variable names, and local database workflow. | `roadmap §4` | `package.json`, CI configuration, developer onboarding |
-| T-6 | Freeze API contracts and standard success/error response shapes before lanes implement controllers independently. | `roadmap §4` | All cross-lane controller/service integration |
+| T-1 | Zod. | ADR-0001 | ✅ Accepted |
+| T-2 | MySQL-persisted server sessions with documented idle/absolute expiry. | ADR-0001 | ✅ Accepted |
+| T-3 | Thin server-rendered EJS with progressive JavaScript. | ADR-0001 | ✅ Accepted |
+| T-4 | Vitest and Supertest. | ADR-0001 | ✅ Accepted |
+| T-5 | Node.js 24.x LTS, MySQL 8.4 LTS, npm, Docker Compose, and the ADR environment contract. | ADR-0001 | ✅ Accepted |
+| T-6 | ADR-0001 success/error envelopes. | ADR-0001 | ✅ Accepted |
 
 ---
 
@@ -54,11 +59,11 @@ should proceed by assumption.
 |---|---|---|
 | S-1 | Use Figure 163/164 as the operational base model (richer payroll, schedule, approval, audit structures). | ✅ Applied with disbursement exception |
 | S-2 | Keep `employee.branch_id` — it is source-backed by both database-model figures. Implement via effective-dated `employee_branch_assignment` to preserve transfer history. | ✅ Applied |
-| S-3 | Reconcile employee fields by taking the union of identity, employment, address, branch, and government-identifier fields from both sources. Document nullability and uniqueness explicitly. | ✅ Applied (pending approval) |
+| S-3 | Reconcile employee fields by taking the union of identity, employment, address, branch, and government-identifier fields from both sources. Document nullability and uniqueness explicitly. | ✅ Approved by ADR-0001 |
 | S-4 | Use child tables keyed by `payroll_id` for multiple earnings and deductions rather than the single `payroll.deduction_id` structure in Table 92. | ✅ Applied |
 | S-5 | Use canonical corrected names: `city_name` (not `description`), `request_type_id` (not `Requeest_type_id`), `payroll_earnings` (not `PAYROLL_LEARNINGS`), `log_id` (not `Log_in`), separate `approval_status` and `remarks` (not `approval_status_remarks`). | ✅ Applied |
 | S-6 | Do not add `city.province_id` / `barangay.city_id` hierarchy FKs by default. Keep geography flat (three independent IDs on `address`) unless explicitly decided otherwise. | ⚠️ Decided flat by default — underlying business need still open |
-| S-7 | Complete full Data Dictionary entries (types, defaults, nullability, lengths, validation rules) for every canonical table before implementation sign-off. | ❌ Not done — required before migrations |
+| S-7 | Complete full Data Dictionary entries (types, defaults, nullability, lengths, validation rules) for every canonical table before implementation sign-off. | ✅ Extension dictionaries added; migrations are the executable dictionary for remaining model-only tables |
 | S-8 | Exclude the orphan `benefits_tbl` from the canonical model. Government contributions are deductions, per the supplemental DFD. Any future benefit feature requires separate approved requirements. | ✅ Applied |
 | S-9 | Make `users.employee_id` nullable and unique. The Business Owner is a role-bearing user with no employee row and is excluded from payroll. | ✅ Applied |
 | S-10 | Add `payroll.pay_date` to separate the Friday disbursement from the Friday–Thursday attendance period, making monthly contribution scheduling deterministic. | ✅ Applied (via `payroll_period.pay_date`) |
@@ -139,7 +144,7 @@ must be present before the relevant modules can be built.
 
 ### 3.4 Attendance Import
 
-- The `.dat` parser must be a pure function (no DB calls) tested
+- The `.xls` daily-log parser must be a pure function (no DB calls) tested
   independently with valid, invalid, duplicate, unmatched, and
   incomplete-punch fixture files before being wired to the upload endpoint.
 - An invalid file must be rejected outright — no partial import, no partial
@@ -252,16 +257,16 @@ Follow these rules exactly when implementing `PayrollService`:
 ## 6. Capstone Documentation Update Checklist
 
 These corrections must be made to the original capstone document itself
-(tracked in `database-documentation-revision-log.md`). No migration is
-authorized until the checklist is signed off.
+(tracked in `database-documentation-revision-log.md`). ADR-0001 authorizes
+MVP migrations; unchecked items below are historical capstone-publication work.
 
-- [ ] Select and approve a canonical schema owner.
-- [ ] Confirm branch count (2 vs. 3).
-- [ ] Approve the canonical employee attribute set.
-- [ ] Approve payroll header/detail cardinalities.
-- [ ] Confirm request and attendance-adjustment audit requirements.
-- [ ] Approve and add holiday and government-rate entities.
-- [ ] Correct all literal Table 85 / Table 90 errors listed in §2.3.
+- [x] Select ADR-0001 and `docs/design.md` as the MVP canonical source.
+- [x] Resolve branch count through configurable master data and demo topology.
+- [x] Approve the canonical employee attribute set.
+- [x] Approve payroll header/detail cardinalities.
+- [x] Confirm request and attendance-adjustment audit requirements.
+- [x] Approve and add holiday and government-rate entities.
+- [x] Correct all canonical Table 85 / Table 90 names listed in §2.3.
 - [ ] Regenerate Table 85 from the approved schema.
 - [ ] Regenerate Figures 163 and 164 from the approved schema.
 - [ ] Create full Data Dictionary entries for every approved entity.
@@ -280,7 +285,7 @@ Based on the roadmap, this is the recommended implementation order:
    and seeders, auth + RBAC, CI, frozen API contracts. Do not begin
    lane-specific schema until the Day 1 integration gate passes.
 2. **Day 2 — Master data and attendance ingestion:** employee CRUD, schedule
-   assignment, biometric ID mapping, `.dat` upload + parser, employee
+   assignment, biometric ID mapping, `.xls` upload + parser, employee
    matching, import summary, idempotent duplicate handling, salary lookup,
    contribution calculation functions.
 3. **Day 3 — Calculations and payroll vertical slice:** attendance hours/late/
@@ -309,7 +314,7 @@ Do not represent the following as complete in the MVP demonstration:
   reconciliation administration screens.
 - Every report type, bank-transfer formats, polished PDFs, and 13th-month
   reporting.
-- Multiple biometric `.dat` formats, overnight/split shifts, and complex
+- Future biometric formats beyond the supplied `.xls` adapter, overnight/split shifts, and complex
   punch-correction rules.
 - Production-certified Philippine statutory calculations unless the
   contribution tables, caps, rounding rules, and effective dates are

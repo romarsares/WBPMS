@@ -445,17 +445,65 @@ migrations or ORM models are created.
     across two branches, while the stakeholder-benefit text refers to
     monitoring all three branches.
 
+### 5.1 Supplemental operational evidence
+
+The later HR follow-up and Final Defense Reviewer PDFs add operational
+evidence that was not represented in Tables 85–97 or Figures 163–164:
+
+- [`Follow-up-Questions-with-Answers-from-HR-1.pdf`](../../../docs/capstone_files/Follow-up-Questions-with-Answers-from-HR-1.pdf)
+- [`Final-Defense-Reviewer-1.pdf`](../../../docs/capstone_files/Final-Defense-Reviewer-1.pdf)
+
+1. Payroll is weekly: the recurring attendance period is Friday through
+   Thursday, Saturday is the rest day, attendance closes Thursday, Owner
+   approval occurs Friday morning, and disbursement/payslips occur Friday
+   afternoon. The first Sunday-through-Thursday biometric period was a
+   one-time transition, not a calendar variant.
+2. SSS, PhilHealth, and Pag-IBIG employee shares are deducted only on the
+   last Friday of the month. SSS and PhilHealth use EEMR/Monthly Basic
+   Salary, computed as `(daily_rate × 313) ÷ 12`, rather than variable
+   weekly earnings.
+3. The supplemental DFD routes `Government Contributions` into the D4
+   `Deductions` store and contains no Benefits store. This resolves the
+   canonical treatment of government contributions as deductions and
+   provides evidence to exclude the orphan `benefits_tbl` from the build.
+4. Holiday calculations require a holiday classification absent from the
+   source schema: regular-holiday work pays 200% and special-holiday work
+   pays 130%. Overtime pays 125%; the documents do not define how overtime
+   on a holiday compounds.
+5. Salary disbursement is not a bank-upload file: the company uses one
+   aggregate pay-to-cash cheque per week and one manually prepared BDO
+   deposit slip per employee. There is no ATM payroll or non-BDO flow.
+6. `employee_type` has confirmed values `Regular` and `Contractual`, with a
+   six-month contractual evaluation period.
+7. The Owner draws no salary. The canonical user model therefore permits a
+   Business Owner user with no employee row; this database consequence is
+   an implementation inference from the operational answer.
+8. Current employees have no income-tax withholding because the HR answer
+   states they remain at or below a ₱250,000 annual threshold. This is a
+   configurable current policy, not evidence for a permanent universal tax
+   exemption.
+9. Attendance policy includes memo/suspension and AWOL/termination review
+   thresholds. These require auditable HR-review flags, not automatic
+   employment actions.
+10. The three supplied biometric samples are legacy `.xls` monthly daily-log
+    matrices, not `.dat` punch streams. Each contains 138 enrollment rows,
+    fixed identity columns, date columns, and zero or more `HH:mm` tokens per
+    employee/day. They contain neither an in/out flag nor a transaction ID.
+    ADR-0001 defines the canonical import expansion and deduplication rules.
+
 ---
 
-## 6. Recommended canonical decisions
+## 6. Accepted canonical decisions
 
-These are recommendations for a buildable schema, not claims about what
-the original capstone consistently specifies.
+ADR-0001 accepts these decisions for MVP development. They are not claims
+about what the original capstone consistently specifies and do not certify
+production statutory master data.
 
 1. Use the Figure 163/164 operational model as the starting point because
    it contains richer payroll, schedule, approval, and audit structures.
-2. Keep `employee.branch_id`; it is source-backed by both database-model
-   figures and required by the narrative and branch filters.
+2. Preserve the source-backed employee/branch relationship through
+   effective-dated `employee_branch_assignment`; do not keep a mutable direct
+   branch field as the canonical source of current and historical assignment.
 3. Reconcile the employee fields by taking the union of required identity,
    employment, address, branch, and government-identifier fields, then
    document nullability and uniqueness explicitly.
@@ -463,35 +511,456 @@ the original capstone consistently specifies.
    deductions rather than the single `payroll.deduction_id` structure.
 5. Use `city_name`, `request_type_id`, `payroll_earnings`, `log_id`, and
    separate `approval_status`/`remarks` as canonical corrected names.
-6. Decide whether geography is a strict hierarchy. If it is, add explicit
-   `city.province_id` and `barangay.city_id` foreign keys; do not claim the
-   original schema already contains them.
+6. Keep the source's flat address links for the MVP. A strict
+   province→city→barangay hierarchy requires a future ADR and must not be
+   attributed to the original schema.
 7. Add complete Data Dictionary entries for every canonical table before
    implementation approval.
+8. Exclude the orphan `benefits_tbl` from the canonical model. Record
+   employee government shares in `deductions_tbl` and retain a separate
+   auditable contribution-calculation record for employee/employer shares.
+9. Make `users.employee_id` nullable and unique so employee-linked users
+   remain one-to-one while the non-salaried Business Owner can be user-only.
+10. Add `pay_date` and contribution-basis/audit fields required to enforce
+    the weekly cycle and last-Friday contribution schedule.
+11. Replace the assumed bank-file flow with a weekly disbursement batch
+    (one cheque) and employee deposit-slip records.
+12. Add configurable attendance sites/devices, effective device/branch
+    coverage, employee biometric enrollment, immutable raw punches, and
+    checksum-based workbook import batches.
+13. Add `payroll_period` and branch-scoped `payroll_run` above employee
+    payroll details, with unique period/branch and period/employee guards.
+14. Model an approved cash advance as one `cash_advance_history` record and
+    post repayments as payroll deductions.
 
 ---
 
 ## 7. Schema extensions (not part of the original documentation)
 
-These were proposed during later design work in this conversation to
-support features the requirements call for but the original schema never
-modeled. They are **not** sourced from the capstone document — listed here
-only so they're clearly separated from the source-of-truth schema above.
+These extensions support features the requirements call for but the original
+schema never modeled. They are **not** sourced from the capstone document —
+listed here so they are clearly separated from the source-of-truth schema
+above. Full Data Dictionary entries are provided for each table so that the
+implementation sign-off requirement (§6 recommendation #7) is satisfied for
+these extension tables.
 
-- `sss_bracket`, `philhealth_rate`, `pagibig_rate` — contribution bracket
-  and effective-rate tables (addresses issue #9).
-- `holiday_calendar` — holiday dates (addresses issue #10).
-- `employee.device_employee_id`, `attendance_import_batch`,
-  `unmatched_punch` — added to support the `.dat` file upload / timesheet
-  generation feature (a policy change made after the original
-  documentation was written; not in the capstone at all).
-- `city.province_id` and `barangay.city_id` — optional hierarchy fields if
-  the implementation requires referentially constrained geographic levels.
+The extension dictionaries below are reconciled to ADR-0001, including the
+real `.xls` workbook contract, effective branch/device history, branch-level
+payroll runs, and manual BDO disbursement workflow.
 
-`employee.branch_id` is **not** classified as an extension: it already
-appears in Figures 163 and 164, although it conflicts with Table 85 and
-Table 86.
+The employee→branch relationship is source-backed by Figures 163 and 164;
+the effective-dated assignment table is the implementation extension used to
+preserve that relationship over time.
 
-The implementation-oriented reconciliation currently appears in
-`design.md`. A future SQL migration should cite both this audit and the
-documentation revision record before resolving the remaining decisions.
+The accepted implementation reconciliation appears in `design.md` and
+ADR-0001. SQL migrations must cite both this audit and the ADR.
+
+---
+
+### 7.1 `attendance_site`
+
+Physical location of a biometric device (distinct from the organizational
+branch). Supports the two-device, two-site operational topology confirmed in
+the follow-up interview. Required by REQ018 AC3.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| site_id | Attendance site identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| site_code | Short code for the site | VARCHAR(20) | — | — | N | ✅ | e.g. `BANGA`, `SURALLAH` |
+| site_name | Full descriptive name | VARCHAR(100) | — | — | N | — | — |
+| address | Street / location description | VARCHAR(200) | — | — | Y | — | — |
+| timezone | IANA timezone identifier | VARCHAR(50) | — | — | N | — | Default `Asia/Manila` |
+| status | Operational status | ENUM('Active','Inactive') | — | — | N | — | Default `Active` |
+
+---
+
+### 7.2 `biometric_device`
+
+A registered biometric scanner. Each device belongs to one attendance site
+and has a known export file format. Required by REQ018 AC3.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| device_id | Device identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| site_id | Attendance site (FK → attendance_site) | INT UNSIGNED | — | ✅ | N | — | — |
+| device_code | Short identifier for the device | VARCHAR(30) | — | — | N | ✅ | e.g. `DEV-BANGA-01` |
+| device_name | Descriptive name | VARCHAR(100) | — | — | Y | — | — |
+| serial_number | Hardware serial number | VARCHAR(100) | — | — | Y | ✅ | — |
+| file_format | Export format identifier | VARCHAR(50) | — | — | N | — | MVP: `LDE_XLS_DAILY_LOG_V1` |
+| timezone | IANA timezone of the device | VARCHAR(50) | — | — | N | — | Default `Asia/Manila` |
+| status | Device status | ENUM('Active','Inactive','Retired') | — | — | N | — | Default `Active` |
+| installed_at | Date device was registered | DATE | — | — | Y | — | — |
+| retired_at | Date device was retired | DATE | — | — | Y | — | NULL while active |
+
+---
+
+### 7.3 `biometric_device_branch`
+
+Effective-dated N–M coverage between devices and organizational branches.
+Allows one device to serve multiple branches and one branch to be served by
+multiple devices. Required by REQ018 AC3, AC12.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| device_branch_id | Coverage record identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| device_id | Device (FK → biometric_device) | INT UNSIGNED | — | ✅ | N | — | — |
+| branch_id | Branch (FK → branch) | INT UNSIGNED | — | ✅ | N | — | — |
+| effective_from | Coverage start date | DATE | — | — | N | — | — |
+| effective_to | Coverage end date (NULL = current) | DATE | — | — | Y | — | — |
+| status | Record status | ENUM('Active','Inactive') | — | — | N | — | Default `Active` |
+
+Unique constraint: `(device_id, branch_id, effective_from)`.
+
+---
+
+### 7.4 `employee_branch_assignment`
+
+Effective-dated branch assignment for employees, enabling permanent transfers
+without rewriting historical records. Replaces a direct `employee.branch_id`
+column for canonical implementation. Required by REQ004 AC10–11, REQ010 AC14.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| branch_assignment_id | Assignment record identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| employee_id | Employee (FK → employee) | INT UNSIGNED | — | ✅ | N | — | — |
+| branch_id | Branch (FK → branch) | INT UNSIGNED | — | ✅ | N | — | — |
+| effective_from | Assignment start date | DATE | — | — | N | — | — |
+| effective_to | Assignment end date (NULL = current) | DATE | — | — | Y | — | — |
+| transfer_reason | Reason for the transfer | VARCHAR(255) | — | — | Y | — | NULL for initial assignment |
+| transferred_by | User who recorded the transfer (FK → users) | INT UNSIGNED | — | ✅ | Y | — | — |
+| created_at | Record creation timestamp | TIMESTAMP | — | — | N | — | DEFAULT CURRENT_TIMESTAMP |
+
+Constraint: no two assignments for the same `employee_id` may have
+overlapping `(effective_from, effective_to)` date ranges.
+
+---
+
+### 7.5 `employee_biometric_enrollment`
+
+Ties an employee to a device-specific identifier code for punch matching.
+Required by REQ018 AC4.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| enrollment_id | Enrollment record identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| employee_id | Employee (FK → employee) | INT UNSIGNED | — | ✅ | N | — | — |
+| device_id | Device (FK → biometric_device) | INT UNSIGNED | — | ✅ | N | — | — |
+| device_employee_code | Employee identifier as stored on the device | VARCHAR(50) | — | — | N | — | — |
+| effective_from | Enrollment start date | DATE | — | — | N | — | — |
+| effective_to | Enrollment end date (NULL = current) | DATE | — | — | Y | — | — |
+| status | Enrollment status | ENUM('Active','Inactive') | — | — | N | — | Default `Active` |
+
+Unique constraint: `(device_id, device_employee_code)` over non-overlapping
+date ranges — the same code on the same device must not map to two employees
+at the same time.
+
+---
+
+### 7.6 `holiday_calendar`
+
+Holiday dates with type classification and confirmed pay multipliers.
+Required by REQ030 and REQ047 (pay multipliers). Multipliers sourced from
+Final Defense Reviewer PDF (Regular = 2.00, Special = 1.30).
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| holiday_id | Holiday record identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| holiday_date | Date of the holiday | DATE | — | — | N | ✅ | — |
+| description | Holiday name or description | VARCHAR(100) | — | — | N | — | e.g. `Independence Day` |
+| holiday_type | Classification | ENUM('Regular','Special') | — | — | N | — | Drives pay multiplier |
+| pay_multiplier | Daily-rate multiplier when work is performed | DECIMAL(4,2) | — | — | N | — | Regular = 2.00; Special = 1.30 |
+| status | Record status | ENUM('Active','Inactive') | — | — | N | — | Default `Active` |
+
+---
+
+### 7.7 `attendance_import_batch`
+
+Audit record for each `.xls` daily-log upload. The file checksum provides
+idempotency — re-uploading the same file is detected and rejected.
+Required by REQ018 AC2, REQ024.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| import_batch_id | Batch identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| device_id | Source device (FK → biometric_device) | INT UNSIGNED | — | ✅ | N | — | — |
+| uploaded_by | HR user who uploaded the file (FK → users) | INT UNSIGNED | — | ✅ | N | — | — |
+| file_name | Original file name | VARCHAR(255) | — | — | N | — | — |
+| file_checksum | SHA-256 hash of the uploaded file | CHAR(64) | — | — | N | ✅ | Duplicate-upload guard |
+| uploaded_at | Upload timestamp | TIMESTAMP | — | — | N | — | DEFAULT CURRENT_TIMESTAMP |
+| records_parsed | Total punch records parsed from file | INT UNSIGNED | — | — | N | — | — |
+| records_matched | Punch records matched to an enrollment | INT UNSIGNED | — | — | N | — | — |
+| records_unmatched | Punch records with no matching enrollment | INT UNSIGNED | — | — | N | — | — |
+| duplicates_skipped | Records skipped as duplicate punches | INT UNSIGNED | — | — | N | — | — |
+| incomplete_days | Employee/date groups containing one punch | INT UNSIGNED | — | — | N | — | Default `0` |
+| multi_punch_days | Employee/date groups containing more than two punches | INT UNSIGNED | — | — | N | — | Default `0` |
+
+---
+
+### 7.8 `biometric_punch`
+
+Immutable staging record for every raw punch from an import. Unmatched
+punches remain here for HR reconciliation and are never dropped.
+Required by REQ018 AC5, REQ018 AC10, REQ024.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| punch_id | Punch record identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| import_batch_id | Source import batch (FK → attendance_import_batch) | INT UNSIGNED | — | ✅ | N | — | — |
+| device_id | Source device (FK → biometric_device) | INT UNSIGNED | — | ✅ | N | — | — |
+| employee_id | Matched employee (FK → employee, NULL if unmatched) | INT UNSIGNED | — | ✅ | Y | — | NULL until matched |
+| branch_assignment_id | Resolved branch assignment (FK → employee_branch_assignment) | INT UNSIGNED | — | ✅ | Y | — | NULL until resolved |
+| device_employee_code | Employee code as read from the device | VARCHAR(50) | — | — | N | — | — |
+| punched_at | Punch instant normalized from device-local `Asia/Manila` time | DATETIME | — | — | N | — | Preserve local source value below |
+| punch_type | Adapter-supplied in/out indicator | ENUM('In','Out','Unknown') | — | — | Y | — | NULL for ADR-0001 `.xls` source |
+| device_transaction_id | Device-native transaction ID if present | VARCHAR(50) | — | — | Y | — | NULL for ADR-0001 `.xls` source |
+| match_status | Resolution status | ENUM('matched','unmatched','coverage_exception','duplicate') | — | — | N | — | — |
+| source_department | `Dept` value from the workbook | VARCHAR(100) | — | — | Y | — | Evidence only; not branch authority |
+| source_user_id | `User ID` value from the workbook | VARCHAR(50) | — | — | Y | — | Evidence only |
+| source_employee_name | `Name` value from the workbook | VARCHAR(150) | — | — | Y | — | Evidence only; not identity authority |
+| raw_record | Original date-cell value and parser evidence | TEXT | — | — | N | — | Immutable; never updated |
+| source_workbook_row | One-based workbook row | INT UNSIGNED | — | — | N | — | — |
+| source_date_column | Original date-column label | VARCHAR(20) | — | — | N | — | e.g. `06/01 Mon` |
+| resolved_by | User who manually resolved the punch (FK → users) | INT UNSIGNED | — | ✅ | Y | — | NULL until resolved |
+| resolved_at | Timestamp of manual resolution | TIMESTAMP | — | — | Y | — | NULL until resolved |
+
+Unique constraint for the MVP adapter:
+`(device_id, device_employee_code, punched_at)`. The workbook has no native
+transaction ID, so this key plus the batch SHA-256 provides idempotency.
+
+---
+
+### 7.9 `attendance_policy_flag`
+
+HR-review alert raised when attendance thresholds are breached. The system
+never applies discipline automatically; HR records the reviewed action.
+Required by REQ006 AC16–17 (supplemental HR answer, p. 1).
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| flag_id | Flag identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| employee_id | Flagged employee (FK → employee) | INT UNSIGNED | — | ✅ | N | — | — |
+| flag_type | Policy threshold breached | ENUM('ConsecutiveLate','TardinessMemoCap','TwoWeekAbsence','ConsecutiveAWOL') | — | — | N | — | — |
+| triggering_date | Date the threshold was reached | DATE | — | — | N | — | — |
+| status | Review status | ENUM('Pending','Reviewed','Closed') | — | — | N | — | Default `Pending` |
+| reviewed_by | HR user who reviewed the flag (FK → users) | INT UNSIGNED | — | ✅ | Y | — | NULL until reviewed |
+| reviewed_at | Review timestamp | TIMESTAMP | — | — | Y | — | — |
+| action_taken | HR's documented response | VARCHAR(255) | — | — | Y | — | — |
+| notes | Supporting notes | TEXT | — | — | Y | — | — |
+
+---
+
+### 7.10 `payroll_period`
+
+Concrete Friday–Thursday pay period definition shared across all branch
+payroll runs. Separates the disbursement date (`pay_date`) from the
+attendance window. Required by REQ047 AC8.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| payroll_period_id | Period identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| period_start | First day of the attendance window (Friday) | DATE | — | — | N | ✅ | — |
+| period_end | Last day of the attendance window (Thursday) | DATE | — | — | N | — | — |
+| pay_date | Disbursement date (Friday of the following week) | DATE | — | — | N | — | Used for last-Friday contribution logic |
+| status | Period status | ENUM('Open','Closed','Approved') | — | — | N | — | Default `Open` |
+
+Unique constraint: `period_start` (one period per start date).
+
+---
+
+### 7.11 `payroll_run`
+
+One branch-scoped payroll transaction per period with its own approval state
+machine. Required by REQ050–051, REQ010 AC12–16.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| payroll_run_id | Run identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| payroll_period_id | Pay period (FK → payroll_period) | INT UNSIGNED | — | ✅ | N | — | — |
+| branch_id | Branch for this run (FK → branch) | INT UNSIGNED | — | ✅ | N | — | — |
+| status | Approval state | ENUM('Draft','Computed','PendingApproval','Approved','Returned') | — | — | N | — | Default `Draft` |
+| total_salary | Aggregate gross salary for the run | DECIMAL(15,2) | — | — | Y | — | NULL until computed |
+| total_deductions | Aggregate deductions for the run | DECIMAL(15,2) | — | — | Y | — | NULL until computed |
+| total_benefits | Aggregate benefits for the run | DECIMAL(15,2) | — | — | Y | — | NULL until computed |
+| net_pay | Aggregate net pay for the run | DECIMAL(15,2) | — | — | Y | — | NULL until computed |
+| computed_by | User who computed the run (FK → users) | INT UNSIGNED | — | ✅ | Y | — | — |
+| computed_at | Computation timestamp | TIMESTAMP | — | — | Y | — | — |
+| submitted_by | User who submitted for approval (FK → users) | INT UNSIGNED | — | ✅ | Y | — | — |
+| submitted_at | Submission timestamp | TIMESTAMP | — | — | Y | — | — |
+| approved_by | Owner who approved or returned (FK → users) | INT UNSIGNED | — | ✅ | Y | — | — |
+| approved_at | Approval/return timestamp | TIMESTAMP | — | — | Y | — | — |
+| return_reason | Reason if returned | VARCHAR(500) | — | — | Y | — | Required when status = Returned |
+
+Unique constraint: `(payroll_period_id, branch_id)` — one run per branch per period.
+
+---
+
+### 7.12 `sss_bracket`
+
+SSS salary bracket lookup table for contribution computation. Required by
+REQ061–062. Bracket data must be seeded from an approved version of the
+current SSS contribution schedule before any payroll computation.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| bracket_id | Bracket identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| salary_from | Lower bound of the monthly salary range (EEMR) | DECIMAL(10,2) | — | — | N | — | Inclusive |
+| salary_to | Upper bound of the monthly salary range (EEMR) | DECIMAL(10,2) | — | — | Y | — | NULL = no upper cap |
+| employee_share | Employee monthly contribution | DECIMAL(10,2) | — | — | N | — | — |
+| employer_share | Employer monthly contribution | DECIMAL(10,2) | — | — | N | — | — |
+| effective_date | Date this bracket set takes effect | DATE | — | — | N | — | — |
+
+> **Approval gate:** bracket rows must be reviewed and approved from the
+> current official SSS schedule before seeding into any environment.
+
+---
+
+### 7.13 `philhealth_rate`
+
+PhilHealth contribution rate, keyed by effective date. Required by
+REQ063. The current policy applies a percentage to the EEMR with a ceiling
+cap; the rate and cap must be seeded from the approved current schedule.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| rate_id | Rate record identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| rate_percent | Contribution rate as a percentage | DECIMAL(5,4) | — | — | N | — | e.g. `0.0500` for 5% |
+| monthly_ceiling | Maximum monthly EEMR subject to contribution | DECIMAL(10,2) | — | — | Y | — | NULL = no ceiling |
+| effective_date | Date this rate takes effect | DATE | — | — | N | ✅ | — |
+
+> **Approval gate:** must be seeded from the approved current PhilHealth
+> circular before payroll computation.
+
+---
+
+### 7.14 `pagibig_rate`
+
+Pag-IBIG contribution rate, keyed by effective date. Required by REQ064.
+Note: the supplemental calculation sheet does not establish EEMR as the
+Pag-IBIG basis — implementation should confirm the correct basis before
+seeding.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| rate_id | Rate record identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| rate_percent | Contribution rate as a percentage | DECIMAL(5,4) | — | — | N | — | — |
+| monthly_ceiling | Maximum monthly contribution | DECIMAL(10,2) | — | — | Y | — | NULL = no ceiling |
+| effective_date | Date this rate takes effect | DATE | — | — | N | ✅ | — |
+
+> **Approval gate:** must be seeded from the approved current Pag-IBIG
+> circular before payroll computation.
+
+---
+
+### 7.15 `contribution_record`
+
+Auditable record of each SSS/PhilHealth/Pag-IBIG calculation, including
+EEMR basis and both employee and employer shares. Employee shares are also
+posted as `deduction` rows on the last-Friday payroll of the month.
+Required by REQ058–064.
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| contribution_id | Record identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| payroll_id | Associated payroll row (FK → payroll) | INT UNSIGNED | — | ✅ | N | — | — |
+| contribution_type | Contribution program | ENUM('SSS','PhilHealth','PagIBIG') | — | — | N | — | — |
+| eemr_basis | EEMR used as computation basis | DECIMAL(12,2) | — | — | N | — | `(daily_rate × 313) ÷ 12` |
+| employee_share | Computed employee contribution | DECIMAL(10,2) | — | — | N | — | — |
+| employer_share | Computed employer contribution | DECIMAL(10,2) | — | — | N | — | Stored for reporting |
+| deduction_date | Date contribution was deducted (last Friday of month) | DATE | — | — | N | — | — |
+| status | Lock state | ENUM('Computed','Locked') | — | — | N | — | Default `Computed` |
+| locked_at | Timestamp when record was locked | TIMESTAMP | — | — | Y | — | NULL until locked |
+| locked_by | User who locked the record (FK → users) | INT UNSIGNED | — | ✅ | Y | — | NULL until locked |
+
+---
+
+### 7.16 `disbursement_batch`
+
+One aggregate pay-to-cash cheque per weekly payroll cycle. Supersedes
+Figure 163/164's per-payroll `cash_transaction` shape, which cannot
+represent the confirmed batch disbursement flow. Required by REQ073
+(Supplemental HR answer, pp. 2–3).
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| batch_id | Batch identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| period_start | Start of the attendance window covered | DATE | — | — | N | — | — |
+| period_end | End of the attendance window covered | DATE | — | — | N | — | — |
+| pay_date | Cheque/disbursement date | DATE | — | — | N | — | — |
+| bank_name | Bank where cheque is drawn | VARCHAR(100) | — | — | N | — | Currently BDO only |
+| cheque_number | Cheque number | VARCHAR(50) | — | — | Y | ✅ | NULL until issued |
+| cheque_total | Total aggregate amount | DECIMAL(15,2) | — | — | N | — | — |
+| status | Batch status | ENUM('Prepared','Issued','Reconciled') | — | — | N | — | Default `Prepared` |
+| prepared_by | User who prepared the batch (FK → users) | INT UNSIGNED | — | ✅ | N | — | — |
+| submitted_at | Timestamp batch was finalized | TIMESTAMP | — | — | Y | — | — |
+
+---
+
+### 7.17 `deposit_slip`
+
+One manually prepared BDO deposit slip per employee per weekly payroll.
+Required by REQ073 (Supplemental HR answer, pp. 2–3).
+
+| Attribute | Description | Data Type | PK | FK | Null? | Unique | Notes |
+|---|---|---|---|---|---|---|---|
+| slip_id | Slip identifier | INT UNSIGNED AUTO_INCREMENT | ✅ | — | N | — | — |
+| batch_id | Parent disbursement batch (FK → disbursement_batch) | INT UNSIGNED | — | ✅ | N | — | — |
+| payroll_id | Employee payroll row (FK → payroll) | INT UNSIGNED | — | ✅ | N | ✅ | One slip per payroll row |
+| bank_id | Employee bank details (FK → bank_details) | INT UNSIGNED | — | ✅ | N | — | — |
+| amount | Net pay amount to deposit | DECIMAL(12,2) | — | — | N | — | Must equal payroll.net_pay |
+| preparation_status | Slip preparation state | ENUM('Pending','Prepared','Deposited') | — | — | N | — | Default `Pending` |
+| prepared_at | Timestamp slip was prepared | TIMESTAMP | — | — | Y | — | — |
+
+---
+
+> **Geography hierarchy extension (not adopted by default):** Adding
+> `city.province_id` and `barangay.city_id` foreign keys would create a
+> province → city → barangay referential hierarchy. The source schema never
+> defines this — all three IDs are stored independently on `address`. This
+> is an available implementation option but must be explicitly decided before
+> any migration adds those columns. See §6 recommendation #6 and §8 for
+> the current decision status.
+
+---
+
+## 8. Adoption status (updated after `design.md` reconciliation)
+
+`design.md`'s Data Models section applies the
+recommendations in §6, with every table now labeled by provenance
+(`[Fig163/164]`, `[Table85/86]`, `[canonical correction]`,
+`[canonical baseline decision]`, `[extension]`). ADR-0001 approves this
+shape for MVP migrations; production master data and statutory certification
+remain separate gates.
+
+| # | Recommendation (§6) | Status in `design.md` | Notes |
+|---|---|---|---|
+| 1 | Use Fig. 163/164 as the operational base | ✅ Applied with a documented disbursement exception | Core operational tables follow Fig. 163/164. The later HR evidence supersedes `cash_transaction` with `disbursement_batch` + `deposit_slip`. |
+| 2 | Preserve employee/branch relationship | ✅ Applied through history | `employee_branch_assignment` replaces a mutable direct field while retaining the source-backed relationship. |
+| 3 | Union the employee fields | ✅ Applied | Required/optional fields and uniqueness are frozen in ADR-0001; device identity is normalized into effective enrollments. |
+| 4 | `payroll_id`-keyed child tables for earnings/deductions | ✅ Applied | `payroll` is a header row; `deduction` and `payroll_earnings` are children keyed by `payroll_id`, matching Fig. 163/164. Government employee shares post to `deduction`; `benefits_tbl` is excluded. |
+| 5 | Canonical corrected names (`city_name`, `request_type_id`, `payroll_earnings`, `log_id`→`audit_logs.log_id`, split `approval_status`/`remarks`) | ✅ Applied | All five corrections are in `design.md`'s table definitions. |
+| 6 | Decide geography hierarchy explicitly | ✅ Flat for MVP | `address` retains the source's direct geography references; a strict hierarchy is deferred. |
+| 7 | Complete Data Dictionary entries for every canonical table | ✅ Extension dictionaries complete; historical publication deferred | §7 provides full dictionaries for all 17 extension tables. Migration definitions complete the executable dictionary for model-only tables; regenerated capstone tables/figures remain documentation debt. |
+
+### Canonical resolution from supplemental evidence
+
+- **`benefits_tbl` is resolved for canonical implementation:** it remains
+  documented as a literal Table 85/95 artifact, but it is not migrated.
+  The supplemental DFD confirms that government contributions flow to
+  Deductions. A future non-government bonus/benefit feature would need its
+  own approved requirements and model.
+
+### Development-blocking conflicts
+
+None. ADR-0001 resolves branch topology through configurable master data,
+accepts the cash-advance request/history lifecycle, requires password hashing,
+selects the flat geography model, and defines the real `.xls` import contract.
+
+The following remain production confirmations rather than migration blockers:
+official branch display names, complete statutory tables/caps/effective dates,
+holiday-overtime compounding, and HR acceptance of production seed data.
+
+### Recommended next step
+
+Implement migrations from `design.md` and ADR-0001, preserving provenance in
+migration comments and tests. Do not describe the documented demo contribution
+fixture as production-certified statutory logic.

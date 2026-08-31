@@ -1,6 +1,6 @@
 # Database Documentation Revision Record
 
-**Revision date:** August 29, 2026
+**Revision date:** August 31, 2026
 
 **Source reviewed:** *Web-Based Payroll Management System for Light
 Diamond Enterprises*, Capstone Project Proposal, April 2026
@@ -16,8 +16,9 @@ and the referenced functional requirements. It is intended to support a
 controlled update of the capstone documentation without losing the wording
 or mistakes found in the original source.
 
-No production database migration is authorized by this record. It documents
-evidence, corrections, and decisions that still require approval.
+ADR-0001 now authorizes MVP migrations against the canonical `design.md`
+model. This record still does not certify production statutory master data
+or rewrite the historical capstone artifacts.
 
 ## Revision summary
 
@@ -46,7 +47,7 @@ capstone only through a documented revision:
 | CITY.`description` | CITY.`city_name` | Table 89 uses the more specific `city_name`. |
 | Table 90: “Data Dictionary of Cash Advance” | “Data Dictionary of Barangay” | The table body contains `barangay_id` and `barangay_name`. |
 
-## Schema conflicts requiring an approved decision
+## Schema conflicts and accepted MVP resolution
 
 ### 1. Employee
 
@@ -58,6 +59,8 @@ capstone only through a documented revision:
 - Recommended action: define one canonical employee table from verified
   requirements and HR input, then regenerate Table 85, both database-model
   figures, and the Data Dictionary from that decision.
+- **ADR-0001 resolution:** accepted required/optional fields, nullable
+  Owner/user linkage, effective branch assignments, and device enrollments.
 
 ### 2. Payroll, salary, earnings, and deductions
 
@@ -68,6 +71,8 @@ capstone only through a documented revision:
 - Recommended action: use a payroll header plus multiple earning and
   deduction rows, with effective-dated salary configuration kept
   separately.
+- **ADR-0001 resolution:** accepted `payroll_period` → branch `payroll_run`
+  → employee payroll detail, with child earnings/deductions/contributions.
 
 ### 3. Requests and attendance adjustments
 
@@ -79,6 +84,8 @@ capstone only through a documented revision:
 - Recommended action: prefer the richer model structures because they
   support approval history and auditable corrections, but fix the apparent
   `approved_date` FK marker error before approval.
+- **ADR-0001 resolution:** accepted the richer audit structures and treats
+  the `approved_date` FK marker as a source error.
 
 ### 4. Cash transactions and audit logs
 
@@ -88,6 +95,9 @@ capstone only through a documented revision:
 - Recommended action: confirm whether both employee and operational
   references are required rather than treating either representation as
   complete.
+- **ADR-0001 resolution:** audit logs reference users; weekly disbursement
+  uses one batch/cheque plus employee deposit slips instead of the historical
+  cash-transaction shape.
 
 ### 5. Missing requirement-backed structures
 
@@ -96,25 +106,44 @@ capstone only through a documented revision:
   REQ061–REQ064.
 - These are schema extensions because none of the database representations
   models them.
+- **ADR-0001 resolution:** both entity families are accepted for migrations;
+  only the documented contribution example is approved for the MVP fixture.
+
+## MVP development approval checklist
+
+- [x] Record the canonical authority and source-precedence rule in ADR-0001.
+- [x] Resolve the branch-count conflict through configurable branch/site/device
+  master data and a three-branch demo topology.
+- [x] Approve employee required/optional fields, identity, archive behavior,
+  branch history, and biometric enrollment.
+- [x] Approve payroll period/run/detail cardinalities and uniqueness.
+- [x] Approve salary authority and history behavior.
+- [x] Approve payroll statuses, audit fields, return reasons, and immutability.
+- [x] Approve the real `.xls` workbook contract from the sanitized samples.
+- [x] Approve MVP time, money, payroll-cycle, holiday, overtime, missing-punch,
+  and rounding behavior.
+- [x] Approve a traceable demo contribution fixture with an explicit
+  non-production disclaimer.
+- [x] Select the technical stack and API/error contracts.
+
+This checklist authorizes Tasks 1.1 and 1.2. Official master data, complete
+statutory policies, and HR production acceptance remain deployment gates.
 
 ## Capstone update checklist
 
-- [ ] Select and approve a canonical schema owner (project team plus HR
-  subject-matter owner).
-- [ ] Confirm whether the organization has two or three active branches.
-- [ ] Approve the canonical employee attribute set and required/optional
-  fields.
-- [ ] Approve payroll header/detail cardinalities.
-- [ ] Confirm request and attendance-adjustment audit requirements.
-- [ ] Add holiday and government-rate entities.
-- [ ] Correct the literal Table 85 and Table 90 errors listed above.
+- [x] Select ADR-0001 and `docs/design.md` as the MVP canonical schema source.
+- [x] Resolve branch counts as configurable data; flag official display names
+  for production confirmation.
+- [x] Approve the canonical employee attribute set and required/optional fields.
+- [x] Approve payroll header/detail cardinalities.
+- [x] Confirm request and attendance-adjustment audit requirements.
+- [x] Add holiday and government-rate entities to the canonical model.
+- [x] Correct the literal Table 85 and Table 90 errors in canonical naming.
 - [ ] Regenerate Table 85 from the approved schema.
 - [ ] Regenerate Figures 163 and 164 from the same schema definition.
 - [ ] Create full Data Dictionary entries for every approved entity.
-- [ ] Verify that every FK shown in the logical model exists in the physical
-  model and names the correct parent table.
-- [ ] Update `design.md`, SQL migrations, ORM models, and tests only after
-  the canonical decisions are recorded.
+- [ ] Verify regenerated logical/physical FKs after migrations exist.
+- [x] Update `design.md` after recording canonical decisions in ADR-0001.
 - [x] **`benefits_tbl` canonical exclusion** — Resolved. The supplemental
   DFD (Final Defense Reviewer PDF) routes Government Contributions into
   the D4 Deductions store and contains no Benefits store. `benefits_tbl`

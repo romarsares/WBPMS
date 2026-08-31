@@ -103,25 +103,25 @@ gates controller actions:
 - Implements REQ025–REQ031.
 
 ### AttendanceService
-- `parseDatFile(fileBuffer): RawPunch[]` — parses the biometric device's
-  exported `.dat` file into raw punch records (`deviceEmployeeId`,
-  `timestamp`, `inOutFlag`). Rejects the file outright (no partial import)
-  if the format is unrecognized.
+- `parseXlsDailyLog(fileBuffer): ParsedWorkbook` — validates the OLE/BIFF
+  `.xls` workbook, required identity headers, `MM/DD ddd` date columns, and
+  space-separated `HH:mm` tokens. It expands every token into an immutable
+  raw punch while retaining workbook row/column and raw-cell evidence.
 - `matchEmployees(deviceId, rawPunches): {matched: RawPunch[], unmatched:
   RawPunch[], coverageExceptions: RawPunch[]}` — resolves source device +
   employee code + punch timestamp against effective biometric enrollments,
   then validates the employee's effective branch against device coverage.
-- `generateTimesheet(matchedPunches): AttendanceRecord[]` — pairs
-  consecutive in/out punches per employee per day into `attendance` rows,
-  skipping or flagging punches that would duplicate an existing record
-  (REQ024).
-- `importFromDatFile(deviceId, fileBuffer, uploadedBy): ImportSummary` — loads
+- `generateTimesheet(matchedPunches): AttendanceRecord[]` — groups punches
+  per employee/day: one is incomplete, two use earliest/latest, and more
+  than two preserve every punch and create an HR-review flag. It never
+  silently discards intermediate punches.
+- `importFromXlsWorkbook(deviceId, fileBuffer, uploadedBy): ImportSummary` — loads
   device/site/format context and orchestrates
   the three steps above in a transaction and returns a summary (parsed /
-  matched / unmatched / duplicates-skipped counts) for the HR Head to
-  review; unmatched punches are persisted to the `biometric_punch` table
-  (with `match_status = 'unmatched'`) for manual reconciliation rather
-  than discarded.
+  matched / unmatched / duplicates-skipped / incomplete / multi-punch
+  counts) for the HR Head to review. Unmatched punches remain in
+  `biometric_punch` with `match_status = 'unmatched'` for manual
+  reconciliation rather than being discarded.
 - `getAttendanceFor(employeeId, dateRange): AttendanceRecord[]`
 - `computeHours(attendanceRecord, schedule): {hoursWorked, late, undertime, overtime}`
 - `flagIncomplete(): AttendanceRecord[]` — timesheet entries missing
@@ -135,6 +135,7 @@ gates controller actions:
 ```
 expected_in, expected_out  ← from employee's active WorkSchedule
 late          = max(0, actual_time_in - expected_in)
+late_amount   = late_minutes × PHP 1.00
 undertime     = max(0, expected_out - actual_time_out)   # if left early
 hours_worked  = actual_time_out - actual_time_in - unpaid_break
 overtime      = max(0, hours_worked - schedule.standard_hours)
@@ -160,6 +161,9 @@ overtime      = max(0, hours_worked - schedule.standard_hours)
 - Implements REQ053–REQ057.
 
 ### ContributionEngine
+- Loads a versioned `ContributionPolicy`; the MVP ships only the explicitly
+  labeled ADR-0001 demo fixture and rejects unsupported EEMR/policy inputs
+  instead of inventing bracket boundaries.
 - `computeEemr(dailyRate): number` — computes the contribution basis as
   `(dailyRate × 313) ÷ 12`. The supplemental calculation sheet calls this
   the Estimated Equivalent Monthly Rate (EEMR) and uses it as Monthly Basic
@@ -255,22 +259,20 @@ REQ074–REQ082.
 
 ## Data Models
 
-> **Status: draft canonical model — not yet approved.** This section
-> now applies the recommendations in `database-schema.md` §6 (use
+> **Status: accepted MVP development baseline.** ADR-0001 approves this
+> model for migrations and MVP implementation. It applies the recommendations
+> in `database-schema.md` §6 (use
 > Figure 163/164 as the operational base, union the employee fields,
-> use header+child rows for payroll) instead of silently blending
-> sources. However, the
-> [revision log](database-documentation-revision-log.md)'s approval
-> checklist is still unchecked — nothing here is authorized for a
-> production migration until that checklist is signed off. Every table
-> is labeled with its provenance:
+> use header+child rows for payroll) instead of silently blending sources.
+> Production master data and statutory certification remain outside this
+> approval. Every table is labeled with its provenance:
 > - **[Fig163/164]** — taken from the Logical/Physical Database Model
 >   diagrams, treated as the richer operational source.
 > - **[Table85/86]** — taken from the Final Relation / Data Dictionary.
 > - **[canonical correction]** — a source typo/inconsistency fixed per
 >   `database-schema.md` §1 and §5.
-> - **[union decision — pending approval]** — fields merged from more
->   than one conflicting source representation.
+> - **[canonical baseline decision]** — a documented merge or extension
+>   accepted for MVP development by ADR-0001.
 > - **[extension]** — not in any source table; added to satisfy a
 >   requirement (REQ ID cited) or a post-documentation feature change.
 
@@ -314,8 +316,8 @@ employee(employee_id PK, employee_number UNIQUE, employee_type,
          first_name, middle_initial, last_name, email UNIQUE, contact_number,
          birthdate, hire_date, id_picture, address_id FK, status,
          philhealth_number, pagibig_number, tin_number,
-         position)
-         -- [union decision — pending approval]:
+         position, contract_review_date, regularized_at, separation_date)
+         -- [canonical baseline decision]:
          --   employee_number, employee_type, email, hire_date,
          --     status, philhealth_number, pagibig_number, tin_number  ← [Fig163/164 only]
          --   middle_initial, id_picture, address_id                  ← [Table85/86 only]
@@ -359,21 +361,26 @@ attendance(attendance_id PK, employee_id FK, branch_assignment_id FK,
            schedule_id FK, attendance_date,
            time_in, time_out, hours_worked, late_minutes, undertime_minutes,
            overtime_hours, status,
-           source ENUM('dat_import','manual'), import_batch_id FK)
+           source ENUM('xls_import','manual'), import_batch_id FK)
            -- shape is [Fig163/164]; `source` and `import_batch_id` are
-           -- [extension: .dat file upload feature, post-documentation]
+           -- [extension: .xls workbook import feature, ADR-0001]
 
 attendance_import_batch(import_batch_id PK, device_id FK, uploaded_by FK -> users,
                           file_name, file_checksum UNIQUE, uploaded_at, records_parsed,
                           records_matched, records_unmatched,
-                          duplicates_skipped)                    -- [extension: .dat import feature]
+                          duplicates_skipped, incomplete_days,
+                          multi_punch_days)                     -- [extension: .xls import]
 
 biometric_punch(punch_id PK, import_batch_id FK, device_id FK,
                 employee_id FK NULL, branch_assignment_id FK NULL,
-                device_employee_code, punched_at, punch_type,
+                device_employee_code, punched_at, punch_type NULL,
                 device_transaction_id NULL, match_status, raw_record,
-                source_line, resolved_by FK -> users NULL, resolved_at NULL)
+                source_department, source_user_id, source_employee_name,
+                source_workbook_row, source_date_column,
+                resolved_by FK -> users NULL, resolved_at NULL)
                 -- [extension: immutable raw punch/audit staging]
+                -- ADR-0001's `.xls` source has neither punch type nor
+                -- transaction ID; both remain nullable for future adapters.
 
 attendance_adjustment(adjustment_id PK, attendance_id FK, adjusted_by FK -> users,
                        adjustment_type, old_time_in, new_time_in,
@@ -476,8 +483,7 @@ cash_advance_history(history_id PK, employee_id FK, payroll_id FK, advance_date,
                       -- Relationship to `request` (a cash-advance-type request):
                       -- an Approved cash-advance `request` is expected to create
                       -- one `cash_advance_history` row for repayment tracking.
-                      -- This link is a DECISION, not stated by any source —
-                      -- confirm with the approval checklist before building.
+                      -- This canonical lifecycle is accepted by ADR-0001.
 
 audit_logs(log_id PK, user_id FK -> users, action_performed, table_affected,
            record_id, action_date, description)  -- [Fig163/164]
@@ -526,11 +532,11 @@ audit_logs(log_id PK, user_id FK -> users, action_performed, table_affected,
   errors to the Presentation tier; never partially persist a record.
 - **Authorization errors**: any action outside the RBAC table above
   returns `403` and is written to `audit_logs`.
-- **Invalid `.dat` file**: rejected outright at upload time with no
-  partial import — the file must be re-exported/re-uploaded.
+- **Invalid `.xls` workbook**: rejected outright at upload time with no
+  partial import when the signature, headers, date columns, or time tokens
+  violate ADR-0001's workbook contract.
 - **Duplicate punches on re-import** (REQ024): the import routine skips
-  or flags duplicate device transactions, or duplicate
-  device+code+timestamp+punch-type records, and reports the count
+  duplicate file checksums or device+code+local-timestamp records and reports the count
   rather than silently overwriting data.
 - **Unmatched punches**: punches whose device employee identifier doesn't
   resolve to an effective `employee_biometric_enrollment` remain in
@@ -564,8 +570,8 @@ audit_logs(log_id PK, user_id FK -> users, action_performed, table_affected,
   historical upload, and branch payroll compute→submit→approve/return lifecycle.
 - **Performance checks** against the non-functional targets (REQN003–006):
   dashboard load, payroll computation, and report generation timing under
-  representative data volume (all company branches — see `product.md` for
-  the unresolved branch-count note — and the full employee roster).
+  representative data volume (all configured company branches and the full
+  declared employee roster).
 - **Manual/UAT scenarios** mirrored from the original documentation's
   screenshots (e.g., login, password reset, payroll submission/approval,
   employee payslip download) to confirm parity with the specified

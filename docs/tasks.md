@@ -1,19 +1,14 @@
 # Implementation Plan
 
 - [ ] 1. Project and database foundation
-  - [ ] 1.0 **Approval gate — do not skip:** work through the "Capstone
-        update checklist" in `database-documentation-revision-log.md`
-        with the business owner/HR subject-matter owner. In particular:
-        confirm official branch names and employee distribution (observed
-        counts are seed data, not limits — see `product.md`), approve the canonical `employee` attribute set,
-        approve payroll header/detail cardinalities, and decide the
-        `benefit` table's relationship (it has no FK to anything in any
-        source — see `design.md` Data Models). Do not proceed to 1.2
-        until these are checked off; `design.md`'s current schema is a
-        **draft** built from audit recommendations, not an approved one.
-  - [ ] 1.1 Scaffold Node.js/TypeScript project structure per `structure.md` (`src/{models,controllers,services,middleware,routes}`, `migrations/`, `seeders/`)
-  - [ ] 1.2 Once 1.0 is approved, write Sequelize migrations implementing every table in `design.md` Data Models (post-approval version), with FKs and indexes on lookup columns (`employee_id`, `date`, `status`); resolve every table still marked "pending approval" or "conflict not yet resolved" in `design.md` before writing its migration
-  - [ ] 1.3 Seed reference data: `role`, `request_type`, `sss_bracket`, `philhealth_rate`, `pagibig_rate`, and confirmed initial branches/sites/devices without hardcoding their counts into application rules
+  - [x] 1.0 **Development approval gate:** [ADR-0001](adr/0001-development-baseline.md) records the accepted MVP
+        schema, configurable branch/site/device topology, employee fields,
+        payroll cardinalities, `.xls` import contract, demo calculation rules,
+        and technical choices. Production branch display names and complete
+        statutory policies remain deployment gates, not migration blockers.
+  - [ ] 1.1 Scaffold Node.js/TypeScript project structure per `.kiro/steering/structure.md` (`src/{models,controllers,services,middleware,routes}`, `migrations/`, `seeders/`)
+  - [ ] 1.2 Write Sequelize migrations implementing the ADR-0001-approved tables in `design.md`, with FKs, uniqueness rules, and indexes on lookup columns (`employee_id`, effective dates, period/branch, status)
+  - [ ] 1.3 Seed roles/request types, ADR-0001's labeled demo contribution fixture, and configurable demo branches/sites/devices without hardcoding counts into application rules
   - [ ] 1.4 Configure DB connection (`config/database.ts`) and base Sequelize model setup
   - _Requirements: foundation for all_
 
@@ -43,14 +38,14 @@
   - [ ] 5.3 Unit test: schedule validity-period handling (overlapping periods rejected/handled)
   - _Requirements: 5_
 
-- [ ] 6. Attendance Management module (`.dat` file upload → timesheet)
+- [ ] 6. Attendance Management module (`.xls` daily-log upload → timesheet)
   - [ ] 6.1 Implement configurable `attendance_site`, `biometric_device`, effective `biometric_device_branch` coverage, and `employee_biometric_enrollment` master-data services/UI
-  - [ ] 6.2 Implement device-aware `.dat` upload endpoint (multipart upload, active device/format validation) rejecting unrecognized formats outright
-  - [ ] 6.3 Implement pure `parseDatFile` to extract device employee code, timestamp, punch type, transaction ID when present, and raw/source-line evidence
-  - [ ] 6.4 Implement device+code+punch-time matching against effective enrollments and branch assignments; retain unmatched and out-of-coverage punches in `biometric_punch`
-  - [ ] 6.5 Detect duplicate files by checksum and duplicate punches by device transaction ID or device+code+timestamp+type (REQ024)
-  - [ ] 6.6 Wrap parse → match → stage → generate in a transaction recorded as a device-aware `attendance_import_batch`; return totals grouped by resolved branch
-  - [ ] 6.7 Implement `generateTimesheet` and preserve the effective branch assignment on attendance
+  - [ ] 6.2 Implement device-aware `.xls` upload endpoint with OLE/BIFF signature, header, date-column, and `HH:mm` token validation
+  - [ ] 6.3 Implement pure `parseXlsDailyLog` to expand `Enroll ID` + date + every time token while retaining Dept/Name/raw cell/row/column evidence
+  - [ ] 6.4 Implement device+enrollment-code+punch-time matching against effective enrollments and branch assignments; retain unmatched and out-of-coverage punches in `biometric_punch`
+  - [ ] 6.5 Detect duplicate files by SHA-256 and duplicate punches by device+code+local timestamp (REQ024)
+  - [ ] 6.6 Wrap parse → match → stage → generate in a transaction recorded as a device-aware `attendance_import_batch`; return branch-grouped matched/unmatched/duplicate/incomplete/multi-punch totals
+  - [ ] 6.7 Implement `generateTimesheet`: one punch incomplete, two earliest/latest, more than two preserved and flagged; preserve the effective branch assignment
   - [ ] 6.8 Implement `computeHours` and `flagIncomplete` against the effective schedule
   - [ ] 6.9 Implement manual adjustment and unmatched/coverage-exception reconciliation with audit evidence (REQ023)
   - [ ] 6.10 `AttendanceController` + views: choose device (branch is derived), upload once, view grouped branch summary and employee timesheets
@@ -74,16 +69,14 @@
   - _Requirements: 8_
 
 - [ ] 9. Benefits and Deductions module
-  - [ ] 9.0 Resolve the `benefit` table conflict flagged in `design.md`
-        (no FK to `employee` or `payroll` in any source representation)
-        before building this module — decide whether benefits become
-        `payroll.total_benefits`-only, or a proper `payroll_id`-keyed
-        child table like `deduction`/`payroll_earnings`
-  - [ ] 9.1 `ContributionEngine.computeSSS` against `sss_bracket` table, including bracket-boundary tests
-  - [ ] 9.2 `ContributionEngine.computePhilHealth` / `computePagIbig` against current rate tables
+  - [x] 9.0 ADR-0001 resolution: do not migrate the orphan `benefit` table;
+        government employee shares are deductions with auditable
+        `contribution_record` rows
+  - [ ] 9.1 Implement a versioned contribution-policy adapter and the exact ADR-0001 demo fixture; reject unsupported EEMR/policy combinations
+  - [ ] 9.2 Implement EEMR, last-Friday scheduling, employee deduction posting, and employer-share recording
   - [ ] 9.3 Contribution record CRUD + lock/unlock (REQ058–REQ062)
   - [ ] 9.4 `ContributionController` + views
-  - [ ] 9.5 Unit tests for each contribution calculation at bracket edges and typical salaries
+  - [ ] 9.5 Golden tests for the documented ₱460 daily-rate example, last-Friday behavior, rounding, and unsupported-policy rejection
   - _Requirements: 9_
 
 - [ ] 10. Payroll Processing module
@@ -101,7 +94,7 @@
 - [ ] 11. Reports Management module
   - [ ] 11.1 `ReportService.generate` for Payroll, Attendance, Request, Contributions, 13th-Month report types (REQ065–REQ069)
   - [ ] 11.2 Print output for payroll summary, employee payslip, transaction slip (REQ070–REQ072)
-  - [ ] 11.3 Export to downloadable file (PDF/CSV, incl. bank transfer file format) (REQ073)
+  - [ ] 11.3 Generate PDF/CSV reports and the printable BDO deposit-slip preparation list; no bank-upload file/API (REQ073)
   - [ ] 11.4 `ReportController` + views with type/period selection
   - [ ] 11.5 Performance test: report generation within 5s (REQN006)
   - _Requirements: 11_

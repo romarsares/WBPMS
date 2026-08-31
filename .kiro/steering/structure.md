@@ -45,7 +45,7 @@ group, a service (where computation is involved), and a spec folder under
 | Request Management | `routes/requests.ts` → `RequestController` | `request`, `request_type` |
 | Payroll | `routes/payroll.ts` → `PayrollController`, `PayrollService` | `payroll`, `payroll_earnings`, `payslip` |
 | Manage Salary | `routes/salary.ts` → `SalaryController` | `salary`, salary history table |
-| Benefits & Deductions | `routes/contributions.ts` → `ContributionController`, `ContributionEngine` | `deduction`, `benefit`, SSS/PhilHealth/Pag-IBIG bracket tables |
+| Contributions & Deductions | `routes/contributions.ts` → `ContributionController`, `ContributionEngine` | `deduction`, `contribution_record`, SSS/PhilHealth/Pag-IBIG policy tables |
 | Reports | `routes/reports.ts` → `ReportController` | reads across modules |
 | Employee self-service | `routes/portal.ts` → `EmployeePortalController` | reuses attendance/request/payslip tables, scoped to `employee_id` |
 
@@ -62,6 +62,10 @@ group, a service (where computation is involved), and a spec folder under
   tags in code comments and commit messages, e.g. `// implements REQ047`.
 
 ## Spec-driven workflow (how Kiro should work on this project)
+
+ADR-0001 (`docs/adr/0001-development-baseline.md`) is the accepted MVP
+decision baseline. `docs/` is canonical; `.kiro` specification files mirror
+it for tooling and must not independently redefine business rules.
 
 1. Before implementing a module, open its spec in `.kiro/specs/<module>/`
    and confirm `requirements.md` is approved.
