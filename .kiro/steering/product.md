@@ -17,13 +17,24 @@ records.
 ## Problem it solves
 
 - Payroll is computed by hand in spreadsheets — slow, error-prone, and hard
-  to audit across three branches.
+  to audit across the company's branches.
 - Attendance (from a biometric scanner) is reconciled manually against
   payroll.
 - Employees have no self-service way to check attendance, leave balances,
   request leave/overtime/cash advances, or retrieve payslips.
 - Government-mandated contributions (SSS, PhilHealth, Pag-IBIG) and 13th
   month pay are computed manually each cycle.
+
+> **Operational topology clarification:** follow-up interview evidence reports
+> two physical biometric devices: one at the Banga site and one at Surallah.
+> The Banga device appears to serve two adjacent operational branches/business
+> units (Construction Supplies and an Auto Supplies unit whose official name
+> remains to be confirmed). This explains why source material can describe
+> two physical locations while referring to three operational branches.
+> Neither the observed branch count nor device count is a product limit:
+> authorized HR users configure branches, attendance sites, biometric devices,
+> and which branches each device serves. Exact branch names and employee
+> distribution remain master data rather than hardcoded values.
 
 ## Users and roles
 
@@ -44,7 +55,10 @@ to it.
 3. User Management (accounts, roles, activate/deactivate/archive)
 4. Employee Management (employee records per branch)
 5. Work Schedule Management (calendar-based schedules, holidays)
-6. Attendance Management (HR uploads the biometric device's `.dat` export; the system parses it into a per-employee timesheet, with manual adjustment, hours/late/undertime/overtime computation)
+6. Attendance Management (HR uploads the biometric device's monthly `.xls`
+   daily-log export; the system expands its date/time matrix into preserved
+   punches and a per-employee timesheet, with manual adjustment and
+   hours/late/undertime/overtime computation)
 7. Request Management (leave, overtime, cash advance — submit/update/cancel/approve/reject)
 8. Payroll Management (salary computation, deductions, 13th-month pay, payslip generation, owner approval workflow)
 9. Manage Salary (salary structures, daily rates, historical rates)
@@ -68,7 +82,8 @@ to it.
 ## Out of scope (for now)
 
 - Mobile native apps (web-responsive only, desktop/laptop targeted).
-- Payment/disbursement integration with banks beyond generating a bank
-  transfer export file.
+- Electronic bank integration. The current BDO workflow uses a printable
+  deposit-slip preparation list, one aggregate weekly cheque, and manually
+  prepared employee deposit slips.
 - Multi-country payroll/tax rules (Philippines-specific: SSS, PhilHealth,
   Pag-IBIG).

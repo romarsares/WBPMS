@@ -450,8 +450,8 @@ migrations or ORM models are created.
 The later HR follow-up and Final Defense Reviewer PDFs add operational
 evidence that was not represented in Tables 85–97 or Figures 163–164:
 
-- [`Follow-up-Questions-with-Answers-from-HR-1.pdf`](capstone_files/Follow-up-Questions-with-Answers-from-HR-1.pdf)
-- [`Final-Defense-Reviewer-1.pdf`](capstone_files/Final-Defense-Reviewer-1.pdf)
+- [`Follow-up-Questions-with-Answers-from-HR-1.pdf`](../../../docs/capstone_files/Follow-up-Questions-with-Answers-from-HR-1.pdf)
+- [`Final-Defense-Reviewer-1.pdf`](../../../docs/capstone_files/Final-Defense-Reviewer-1.pdf)
 
 1. Payroll is weekly: the recurring attendance period is Friday through
    Thursday, Saturday is the rest day, attendance closes Thursday, Owner

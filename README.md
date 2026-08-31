@@ -8,10 +8,10 @@ requests, approvals, payslips, and reports.
 
 ## Project status
 
-This repository is currently in the **requirements, design, and database
-reconciliation phase**. It contains the capstone source files and the
-implementation documentation, but it does not yet contain an executable
-application, `package.json`, database migrations, or deployment
+This repository has an **accepted MVP development baseline** in ADR-0001.
+Requirements, architecture, schema shape, the biometric `.xls` contract,
+and technical choices are ready for implementation. It does not yet contain
+an executable application, `package.json`, database migrations, or deployment
 configuration.
 
 The planned implementation uses Node.js, TypeScript, Express, Sequelize,
@@ -21,7 +21,7 @@ the project foundation is scaffolded.
 ## Goals
 
 - Reduce the manual payroll cycle currently managed through spreadsheets.
-- Import biometric attendance from an exported `.dat` file and generate
+- Import biometric attendance from an exported monthly `.xls` workbook and generate
   employee timesheets.
 - Calculate hours worked, lateness, undertime, overtime, deductions, and
   net pay consistently.
@@ -51,7 +51,7 @@ to the authenticated employee.
 3. User management
 4. Employee and branch management
 5. Work schedules and holiday calendars
-6. Biometric `.dat` attendance import and timesheet generation
+6. Biometric `.xls` attendance import and timesheet generation
 7. Leave, overtime, and cash-advance requests
 8. Salary structures and historical rates
 9. Government contributions, benefits, and deductions
@@ -84,23 +84,23 @@ the user interface.
 
 | Area | Planned choice |
 |---|---|
-| Runtime | Node.js LTS with TypeScript |
+| Runtime | Node.js 24.x LTS with TypeScript |
 | Web framework | Express |
 | Database | MySQL |
 | ORM and migrations | Sequelize |
-| Validation | Zod or `express-validator` |
-| Authentication | BCrypt plus JWT or server-managed sessions |
-| User interface | HTML/CSS/JavaScript or a lightweight React client |
+| Validation | Zod |
+| Authentication | BCrypt plus server-managed sessions |
+| User interface | Server-rendered EJS/HTML/CSS with progressive JavaScript |
 | PDF/report generation | PDFKit or Puppeteer |
 | Testing | Unit, integration, performance, RBAC, and end-to-end tests |
 
 ## Attendance import workflow
 
 ```text
-HR uploads biometric .dat file
+HR uploads biometric daily-log .xls workbook
               |
               v
-Validate and parse punch records
+Validate the workbook and expand date-cell time tokens
               |
               v
 Match device IDs to employees
@@ -128,8 +128,11 @@ device identifiers are retained for HR review.
 | [Design](docs/design.md) | Application architecture, service interfaces, reconciled data model, error handling, and testing strategy. |
 | [Technology stack](docs/tech.md) | Planned runtime, framework, database, integrations, and non-functional constraints. |
 | [Implementation plan](docs/tasks.md) | Module-by-module implementation and testing checklist. |
+| [Five-day development roadmap](docs/five-day-development-roadmap.md) | Collaborative MVP scope, ownership lanes, daily integration gates, and delivery workflow. |
+| [Consolidated recommendations](docs/recommendation.md) | Cross-document recommendations with their ADR-0001 resolution status. |
 | [Database schema audit](docs/database-schema.md) | Source-literal database evidence, cross-source conflicts, and recommended canonical decisions. |
-| [Database revision record](docs/database-documentation-revision-log.md) | Corrections made, unresolved decisions, and the checklist for updating the capstone documentation. |
+| [Database revision record](docs/database-documentation-revision-log.md) | Corrections, accepted MVP resolutions, and remaining capstone-publication work. |
+| [Development baseline ADR](docs/adr/0001-development-baseline.md) | Accepted MVP decisions, workbook contract, technology choices, and production caveats. |
 
 Original reference material is retained under
 [`docs/capstone_files`](docs/capstone_files/), including the
@@ -158,22 +161,18 @@ Dictionary but present in the logical and physical models. Holiday dates
 and government contribution rate/bracket structures are required by the
 functional requirements but are absent from all source database models.
 
-Do not generate migrations directly from only one source diagram. Review
-the [schema audit](docs/database-schema.md) and approve the decisions in
-the [revision record](docs/database-documentation-revision-log.md) first.
+Do not generate migrations directly from only one source diagram. Use the
+[schema audit](docs/database-schema.md), [revision record](docs/database-documentation-revision-log.md),
+and accepted [development baseline ADR](docs/adr/0001-development-baseline.md).
 
-## Known pre-implementation decisions
+## Development baseline
 
-- Confirm whether Light Diamond Enterprises currently has two or three
-  branches; the source document contains both statements.
-- Approve one canonical employee attribute set.
-- Approve payroll header/detail relationships for multiple earnings and
-  deductions.
-- Define effective-dated holiday and government-contribution tables.
-- Correct the apparent `approved_date` foreign-key marker in the logical
-  request model.
-- Update the PHP references in the first section of `docs/tasks.md` and its
-  `.kiro` mirror to the approved Node.js/TypeScript structure before coding.
+ADR-0001 closes the MVP development gate: organization topology is
+configurable, employee and payroll cardinalities are frozen, the orphan
+benefit table is excluded, the real `.xls` workbook contract is documented,
+and the technical choices are selected. Production still requires official
+branch display names, full effective-dated statutory contribution policies,
+holiday-overtime treatment, and HR acceptance testing.
 
 ## Non-functional targets
 
@@ -186,15 +185,13 @@ the [revision record](docs/database-documentation-revision-log.md) first.
 
 ## Recommended implementation sequence
 
-1. Approve the unresolved database and branch decisions.
-2. Update the implementation plan so it consistently targets
-   Node.js/TypeScript.
-3. Scaffold the application, migrations, seeders, and automated tests.
-4. Implement authentication and RBAC before the business modules.
-5. Build employee, schedule, attendance, request, salary, and contribution
+1. Scaffold the Node.js/TypeScript application, migrations, seeders, and tests
+   from ADR-0001.
+2. Implement authentication and RBAC before the business modules.
+3. Build employee, schedule, attendance, request, salary, and contribution
    modules.
-6. Integrate payroll, approval, payslip, and reporting workflows.
-7. Complete role-scoped end-to-end and performance verification.
+4. Integrate payroll, approval, payslip, and reporting workflows.
+5. Complete role-scoped end-to-end and performance verification.
 
 Implementation work should retain the original `REQ0xx` and `REQNxxx`
 identifiers in tests, issues, and relevant commit messages for
