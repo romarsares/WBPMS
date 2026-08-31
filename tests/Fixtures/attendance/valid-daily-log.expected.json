@@ -1,0 +1,25 @@
+{
+  "parserVersion": "LDE_XLS_DAILY_LOG_V1",
+  "sourceYear": 2026,
+  "sourceMonth": 8,
+  "punches": [
+    {
+      "enrollmentCode": "00123",
+      "localTimestamp": "2026-08-03 08:01",
+      "sourceRow": 2,
+      "sourceColumn": "E"
+    },
+    {
+      "enrollmentCode": "00123",
+      "localTimestamp": "2026-08-03 17:10",
+      "sourceRow": 2,
+      "sourceColumn": "E"
+    },
+    {
+      "enrollmentCode": "00123",
+      "localTimestamp": "2026-08-04 08:00",
+      "sourceRow": 2,
+      "sourceColumn": "F"
+    }
+  ]
+}

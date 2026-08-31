@@ -16,8 +16,10 @@ an executable application, `composer.json`, database migrations, or deployment
 configuration.
 
 The planned implementation uses frameworkless PHP 8.5, Composer, PDO, Phinx,
-PhpSpreadsheet, and MySQL. Installation and runtime commands will become
-applicable after the project foundation is scaffolded.
+PhpSpreadsheet, and MySQL. The initial Developer B attendance/user-flow
+contracts, parser, calculations, templates, and unit tests are now scaffolded;
+the shared runtime, database migrations, authentication, and repository
+foundation are still required before the web application can run end-to-end.
 
 ## Goals
 
@@ -139,6 +141,7 @@ device identifiers are retained for HR review.
 | [PHP/parser ADR](docs/adr/0003-frameworkless-php-and-xls-parser.md) | Frameworkless PHP baseline, dependency choices, XLS parser contract, and upload controls. |
 | [Canonical schema v1.1](docs/capstone_files/Canonical-Database-Schema-v1.1.md) | Typed implementation dictionary and capstone correction addendum. |
 | [PHP/parser capstone addendum](docs/capstone_files/Capstone-Implementation-Stack-and-Parser-Addendum-v1.0.md) | Capstone-facing frameworkless PHP and verified XLS import implementation record. |
+| [Revised Capstone Final v1.1](docs/capstone_files/Capstone-1-Final-Revised-v1.1.md) | Editable consolidated capstone revision based on the approved project documentation. |
 
 Original reference material is retained under
 [`docs/capstone_files`](docs/capstone_files/), including the
