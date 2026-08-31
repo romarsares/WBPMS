@@ -27,19 +27,19 @@
     </source>
 
     <php>
-        <!-- Testing environment — uses wbpms_test database -->
+        <!-- Testing environment — uses wbpms database -->
         <env name="APP_ENV"            value="testing" />
-        <env name="APP_BASE_URL"       value="http://localhost" />
+        <env name="APP_BASE_URL"       value="http://localhost/wbpms/public" />
         <env name="APP_KEY"            value="test-key-32-chars-placeholder!!!!" />
         <env name="DB_HOST"            value="127.0.0.1" />
         <env name="DB_PORT"            value="3306" />
-        <env name="DB_NAME"            value="wbpms_test" />
+        <env name="DB_NAME"            value="wbpms" />
         <env name="DB_USER"            value="root" />
-        <env name="DB_PASSWORD"        value="" />
+        <env name="DB_PASSWORD"        value="cbsadmin" />
         <env name="TEST_DB_HOST"       value="127.0.0.1" />
         <env name="TEST_DB_PORT"       value="3306" />
-        <env name="TEST_DB_NAME"       value="wbpms_test" />
+        <env name="TEST_DB_NAME"       value="wbpms" />
         <env name="TEST_DB_USER"       value="root" />
-        <env name="TEST_DB_PASSWORD"   value="" />
+        <env name="TEST_DB_PASSWORD"   value="cbsadmin" />
     </php>
 </phpunit>

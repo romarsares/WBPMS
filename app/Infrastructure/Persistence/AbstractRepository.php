@@ -25,9 +25,12 @@ use Wbpms\Infrastructure\Database\Connection;
  */
 abstract class AbstractRepository
 {
+    protected Connection $connection;
+
     public function __construct(
-        protected readonly Connection $connection
+        Connection $connection
     ) {
+        $this->connection = $connection;
     }
 
     /**

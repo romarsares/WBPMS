@@ -20,13 +20,13 @@ use Wbpms\Infrastructure\Session\DatabaseSessionHandler;
  */
 final class DatabaseSessionHandlerTest extends TestCase
 {
-    private function makePdo(): PDO&MockObject
+    private function makePdo(): PDO
     {
         /** @var PDO&MockObject $pdo */
         return $this->createMock(PDO::class);
     }
 
-    private function makeStmt(mixed $fetchReturn = false, bool $executeReturn = true): PDOStatement&MockObject
+    private function makeStmt(mixed $fetchReturn = false, bool $executeReturn = true): PDOStatement
     {
         /** @var PDOStatement&MockObject $stmt */
         $stmt = $this->createMock(PDOStatement::class);

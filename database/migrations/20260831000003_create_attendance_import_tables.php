@@ -134,10 +134,10 @@ final class CreateAttendanceImportTables extends AbstractMigration
             ->addForeignKey('import_batch_id', 'attendance_import_batch', 'import_batch_id', ['delete' => 'RESTRICT', 'update' => 'CASCADE'])
             ->create();
 
-        // Check: xls_import rows must reference a batch; manual rows must not.
-        $this->execute("ALTER TABLE attendance ADD CONSTRAINT chk_attendance_source "
-            . "CHECK ((source='xls_import' AND import_batch_id IS NOT NULL) "
-            . "OR (source='manual' AND import_batch_id IS NULL))");
+        // NOTE: MySQL 8.0+ does not allow a CHECK constraint to reference a column
+        // that also participates in a foreign key referential action.
+        // The source/import_batch_id integrity rule is enforced in AttendanceImportService
+        // and AttendanceService at the application layer instead.
 
         // -------------------------------------------------------------------
         // attendance_punch — links attendance rows to raw biometric_punch evidence
@@ -154,7 +154,7 @@ final class CreateAttendanceImportTables extends AbstractMigration
             ->addColumn('punch_id', 'biginteger', ['signed' => false, 'null' => false])
             ->addColumn('evidence_role', 'enum', ['values' => ['TimeIn', 'Intermediate', 'TimeOut', 'Unclassified'], 'null' => false])
             ->addColumn('created_at', 'datetime', ['null' => false, 'default' => 'CURRENT_TIMESTAMP'])
-            ->addIndex(['punch_id'], ['unique' => true, 'name' => 'uq_ap_punch_id', 'comment' => 'Each punch linked to at most one attendance record'])
+            ->addIndex(['punch_id'], ['unique' => true, 'name' => 'uq_ap_punch_id'])
             ->addForeignKey('attendance_id', 'attendance', 'attendance_id', ['delete' => 'RESTRICT', 'update' => 'CASCADE'])
             ->addForeignKey('punch_id', 'biometric_punch', 'punch_id', ['delete' => 'RESTRICT', 'update' => 'CASCADE'])
             ->create();

@@ -11,11 +11,11 @@ use Wbpms\Infrastructure\Session\DatabaseSessionHandler;
 // Load environment variables from .env file if present.
 // In production, variables are injected by the server/container environment.
 if (file_exists(APP_ROOT . '/.env')) {
-    $dotenv = Dotenv::createImmutable(APP_ROOT);
+    $dotenv = Dotenv::createUnsafeMutable(APP_ROOT);
     $dotenv->load();
 }
 
-$dotenv = Dotenv::createImmutable(APP_ROOT);
+$dotenv = Dotenv::createUnsafeMutable(APP_ROOT);
 $dotenv->required([
     'APP_ENV',
     'APP_BASE_URL',

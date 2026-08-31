@@ -70,6 +70,18 @@ final class Router
         $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
         $path       = parse_url($requestUri, PHP_URL_PATH) ?? '/';
 
+        // Strip the subdirectory base so routes registered as '/health' match
+        // whether the app runs at document root or under e.g. /wbpms/public/.
+        // SCRIPT_NAME is e.g. '/wbpms/public/index.php'; base is '/wbpms/public'.
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        $base       = rtrim(dirname($scriptName), '/');
+        if ($base !== '' && $base !== '/' && str_starts_with($path, $base)) {
+            $path = substr($path, strlen($base));
+        }
+        if ($path === '' || $path === false) {
+            $path = '/';
+        }
+
         // Normalize trailing slash (keep root as-is).
         if ($path !== '/' && str_ends_with($path, '/')) {
             $path = rtrim($path, '/');
@@ -87,11 +99,8 @@ final class Router
                 continue;
             }
 
-            // CSRF: verify token for all mutating requests and all protected routes.
-            if (
-                in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)
-                || !empty($route['roles'])
-            ) {
+            // CSRF: verify token only for state-mutating requests.
+            if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
                 CsrfMiddleware::verify();
             }
 

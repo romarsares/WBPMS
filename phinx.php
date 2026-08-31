@@ -13,7 +13,7 @@ declare(strict_types=1);
 
 // Load .env when running Phinx from the CLI (outside front controller).
 if (file_exists(__DIR__ . '/.env')) {
-    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+    $dotenv = Dotenv\Dotenv::createUnsafeMutable(__DIR__);
     $dotenv->load();
 }
 
@@ -27,29 +27,29 @@ return [
         'default_environment'     => 'development',
         'development' => [
             'adapter' => 'mysql',
-            'host'    => $_ENV['DB_HOST']     ?? '127.0.0.1',
-            'name'    => $_ENV['DB_NAME']     ?? 'wbpms',
-            'user'    => $_ENV['DB_USER']     ?? 'root',
-            'pass'    => $_ENV['DB_PASSWORD'] ?? '',
-            'port'    => (int) ($_ENV['DB_PORT'] ?? 3306),
+            'host'    => getenv('DB_HOST')     ?: '127.0.0.1',
+            'name'    => getenv('DB_NAME')     ?: 'wbpms',
+            'user'    => getenv('DB_USER')     ?: 'root',
+            'pass'    => getenv('DB_PASSWORD') ?: '',
+            'port'    => (int) (getenv('DB_PORT') ?: 3306),
             'charset' => 'utf8mb4',
         ],
         'testing' => [
             'adapter' => 'mysql',
-            'host'    => $_ENV['TEST_DB_HOST']     ?? '127.0.0.1',
-            'name'    => $_ENV['TEST_DB_NAME']     ?? 'wbpms_test',
-            'user'    => $_ENV['TEST_DB_USER']     ?? 'root',
-            'pass'    => $_ENV['TEST_DB_PASSWORD'] ?? '',
-            'port'    => (int) ($_ENV['TEST_DB_PORT'] ?? 3306),
+            'host'    => getenv('TEST_DB_HOST')     ?: '127.0.0.1',
+            'name'    => getenv('TEST_DB_NAME')     ?: 'wbpms',
+            'user'    => getenv('TEST_DB_USER')     ?: 'root',
+            'pass'    => getenv('TEST_DB_PASSWORD') ?: '',
+            'port'    => (int) (getenv('TEST_DB_PORT') ?: 3306),
             'charset' => 'utf8mb4',
         ],
         'production' => [
             'adapter' => 'mysql',
-            'host'    => $_ENV['DB_HOST']     ?? '127.0.0.1',
-            'name'    => $_ENV['DB_NAME']     ?? 'wbpms',
-            'user'    => $_ENV['DB_USER']     ?? 'root',
-            'pass'    => $_ENV['DB_PASSWORD'] ?? '',
-            'port'    => (int) ($_ENV['DB_PORT'] ?? 3306),
+            'host'    => getenv('DB_HOST')     ?: '127.0.0.1',
+            'name'    => getenv('DB_NAME')     ?: 'wbpms',
+            'user'    => getenv('DB_USER')     ?: 'root',
+            'pass'    => getenv('DB_PASSWORD') ?: '',
+            'port'    => (int) (getenv('DB_PORT') ?: 3306),
             'charset' => 'utf8mb4',
         ],
     ],

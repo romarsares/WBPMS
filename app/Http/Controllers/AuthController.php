@@ -131,8 +131,7 @@ final class AuthController
 
     private function redirectToDashboard(string $roleName): void
     {
-        // Placeholder until dashboards are implemented
-        $this->redirect('/health');
+        $this->redirect('/dashboard');
     }
 
     private function redirect(string $path): void

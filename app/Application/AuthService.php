@@ -22,9 +22,12 @@ use Wbpms\Infrastructure\Database\Connection;
  */
 final class AuthService
 {
+    private Connection $connection;
+
     public function __construct(
-        private readonly Connection $connection
+        Connection $connection
     ) {
+        $this->connection = $connection;
     }
 
     /**
