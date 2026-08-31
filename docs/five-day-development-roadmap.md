@@ -19,30 +19,30 @@ MVP is retained as follow-up work rather than silently removed.
 
 ## 2. Recommended team
 
-This plan is optimized for **four developers plus an available business/HR
-reviewer**.
+This plan is optimized for **two developers plus an available business/HR
+reviewer**. It commits to one tested vertical slice rather than parallel,
+independent modules.
 
-| Lane | Suggested owner | Primary responsibility |
+| Workstream | Suggested owner | Primary responsibility |
 |---|---|---|
-| A — Platform and security | Developer A / technical lead | Project scaffold, database, migrations, seeders, authentication, RBAC, CI, shared middleware |
-| B — People and attendance | Developer B | Employee, schedule, biometric mapping, `.xls` daily-log parser, attendance calculation and exceptions |
-| C — Payroll domain | Developer C | Salary, approved contribution rules, payroll calculation, approval state machine, payslip data |
-| D — Experience and quality | Developer D | Thin role-specific UI, API integration, dashboards, automated integration/E2E tests, demo data and documentation |
+| A — Foundation and payroll | Developer A / integration lead | PHP scaffold, PDO/Phinx, seed data, authentication/RBAC, transaction/audit infrastructure, salary/contribution fixtures, payroll calculation, approval state, and daily integration |
+| B — Attendance and user flow | Developer B | Employee/schedule/device setup, strict `.xls` parser, attendance import/calculation, role-specific PHP views, fixtures, and end-to-end verification |
 | Product/domain review | Business Owner and HR Head | Same-day decisions on schema, payroll rules, fixtures, and acceptance evidence |
 
-### Team-size adjustments
+### Working agreement for two developers
 
-- **Two developers:** combine A+C and B+D. Commit only authentication,
-  employees, fixture-based attendance, simplified payroll, approval, and a
-  payslip view.
-- **Three developers:** combine A+D; keep B and C separate. Testing remains a
-  shared responsibility.
-- **Five or more developers:** assign a dedicated integration/QA owner and,
-  only after the committed scope is stable, assign another developer to the
-  stretch backlog.
+- Each developer owns one workstream and reviews the other developer's pull
+  requests. No change merges without the other developer's review and a
+  passing focused test run.
+- Developer A runs the daily integration gate; Developer B can block a merge
+  that breaks attendance evidence, fixtures, or the HR workflow.
+- Merge at least once per day. Avoid long-lived branches and work that cannot
+  be demonstrated through the shared vertical slice.
+- If either developer is unavailable, freeze feature work and limit activity
+  to documented defect fixes, tests, and setup work.
 
-One person must be the integration lead each day. The technical lead owns
-architecture decisions, but does not become the only reviewer or tester.
+The active task-by-task ownership, dependencies, and handoffs are maintained
+in the [two-developer task distribution](two-developer-task-distribution.md).
 
 ## 3. Scope for this phase
 
@@ -50,26 +50,22 @@ architecture decisions, but does not become the only reviewer or tester.
 
 - Frameworkless PHP 8.5/Composer/PDO/Phinx/MySQL project that can be installed,
   migrated, seeded, statically analyzed, tested, and started from a clean checkout.
-- Login with hashed passwords and RBAC for Business Owner, HR Head, and
-  Employee.
-- Employee list/create/update and branch assignment using synthetic demo
+- Seeded login/RBAC for Business Owner, HR Head, and Employee; password
+  recovery and user-administration screens remain deferred.
+- HR create/update for the demo employee, one effective schedule, branch
+  assignment, salary, and biometric enrollment/device mapping using synthetic
   data.
-- One effective employee schedule and biometric device ID mapping.
-- Upload and parse the documented legacy `.xls` daily-log format.
-- Match punches, retain unmatched entries, prevent duplicate imports, flag
-  incomplete entries, and calculate hours/late/undertime/overtime for the
-  agreed schedule rules.
-- Effective salary assignment and domain-approved contribution fixtures.
-- Payroll calculation for one pay period with transparent calculation
-  details.
-- Payroll state flow: `Draft`/`Computed` → `PendingOwnerApproval` → `Approved` or
-  Returned, including a return reason and protection against double approval.
-- Employee-scoped payslip view; one employee must never see another
-  employee's data.
-- Minimal audit entries for sign-in failures, attendance adjustment/import,
-  payroll computation, submission, approval, and return.
-- Automated unit and integration tests for the critical calculations and
-  authorization boundaries.
+- One strict legacy `.xls` import path using `LDE_XLS_DAILY_LOG_V1`:
+  validation, matching, duplicate protection, unmatched retention, attendance
+  generation, and late/undertime/overtime/incomplete flags.
+- Payroll calculation for one Friday-through-Thursday period using the
+  documented demo contribution fixture and an itemized, auditable result.
+- `Draft`/`Computed` → `PendingOwnerApproval` → `Approved` or `Returned`, with
+  return reason and double-approval protection.
+- One employee-scoped payslip view and the minimal audit records needed to
+  prove sign-in, import, computation, submission, approval, and return.
+- PHPUnit coverage for parser, attendance, payroll, RBAC, and the primary
+  three-role end-to-end journey.
 
 ### P1 — stretch only after P0 passes the integration gate
 
@@ -134,7 +130,7 @@ Development that depends on an undecided item must not proceed by assumption.
 - [x] Use PhpSpreadsheet's explicit `Reader\Xls` behind the pure
       `LdeXlsDailyLogParser`, with ADR-0003 upload and resource controls.
 - [x] Use ADR-0001's standard success/error envelopes before
-      lanes implement controllers independently.
+      the two developers implement controllers independently.
 - [x] Use ADR-0002 and the v1.1 capstone schema addendum for migration types,
       keys, lineage, lifecycle enums, and integrity tests.
 
@@ -157,39 +153,28 @@ rules and exclude statutory-correctness claims from the phase outcome.
 
 ### Parallel implementation
 
-**Lane A**
+**Developer A — foundation and payroll**
 
 - Scaffold the frameworkless PHP/Composer application using the structure in
   `.kiro/steering/structure.md`.
-- Add configuration validation, database connection, error handling, health
-  endpoint, PHPStan/PHPUnit/PHP syntax scripts, and CI.
-- Create the first approved Phinx migrations and reference-data seeders.
-- Implement password hashing, login, authenticated identity, and role guards.
+- Add configuration, PDO connection, error handling, health endpoint,
+  PHPStan/PHPUnit/PHP syntax scripts, CI, Phinx baseline migrations, and
+  synthetic seed data.
+- Implement password hashing, login, authenticated identity, role guards, and
+  the transaction/audit infrastructure needed by later flows.
+- Define payroll-period, payroll-run, payroll-detail, salary, contribution,
+  and payslip repository contracts; create the first golden payroll examples.
 
-**Lane B**
+**Developer B — attendance and user flow**
 
-- Finalize employee, schedule, attendance-import, punch, and adjustment
-  contracts with Lane A.
 - Create sanitized valid, invalid, duplicate, unmatched, and incomplete-punch
-  fixture files.
-- Implement the parser as a pure function with unit tests before wiring upload.
-
-**Lane C**
-
-- Finalize payroll-run, payroll-detail, salary, contribution, deduction, and
-  payslip contracts with Lane A.
-- Create reviewed golden examples showing every payroll input and expected
-  output.
-- Implement pure calculation functions and unit tests without waiting for the
-  controllers or UI.
-
-**Lane D**
-
-- Establish the shared UI shell, route-aware navigation, API client/form
-  conventions, and three role landing pages.
-- Create integration-test helpers, database reset/seed utilities, and the
+  fixtures and expected parser outputs.
+- Implement the pure `LdeXlsDailyLogParser` and parser tests before any upload
+  controller is wired.
+- Define the employee, schedule, enrollment, import-batch, punch, and
+  attendance contracts with Developer A.
+- Establish the minimal PHP layout, role-aware navigation, test helpers, and
   initial login/RBAC smoke test.
-- Document the demo journey and test-user credentials using synthetic data.
 
 ### Day 1 integration gate
 
@@ -206,70 +191,51 @@ Do not begin incompatible lane-specific schemas if this gate fails.
 
 ## Day 2 — Master data and attendance ingestion
 
-**Lane A**
+**Developer A — foundation and payroll**
 
-- Complete shared PDO repository contracts and Phinx migration ordering.
-- Add request validation, authorization error handling, upload limits, and
-  transaction helpers.
-- Review Lane B/C schema usage and prevent duplicated models or migrations.
+- Complete shared PDO repository contracts, Phinx migration ordering, request
+  validation, authorization errors, upload transaction helpers, and audit
+  writes.
+- Implement effective salary lookup, read-only approved contribution fixture,
+  and unit-tested contribution/gross-net calculation functions.
+- Review every migration and repository contract with Developer B before merge.
 
-**Lane B**
+**Developer B — attendance and user flow**
 
-- Implement employee CRUD needed by the demo, branch filter, biometric ID
-  mapping, and one effective schedule.
-- Implement transactional `.xls` upload, parser integration, employee matching,
-  import batch summary, unmatched storage, and idempotent duplicate handling.
-- Preserve raw imported data rather than silently overwriting it.
-
-**Lane C**
-
-- Implement effective salary lookup and read-only approved contribution data.
-- Complete unit-tested contribution and gross/net calculation functions using
-  the reviewed golden examples.
-- Expose calculation previews with a traceable breakdown.
-
-**Lane D**
-
-- Build thin HR screens for employees, schedules, and attendance upload.
-- Display parsed/matched/unmatched/duplicate counts and clear validation errors.
-- Add employee and attendance integration tests, including RBAC denial cases.
+- Implement HR create/update for the demo employee, branch assignment,
+  biometric enrollment, and one effective schedule.
+- Implement transactional `.xls` upload, parser integration, matching, import
+  summary, unmatched storage, and idempotent duplicate handling.
+- Build thin HR views for employee/schedule/upload and show safe validation
+  errors and parsed/matched/unmatched/duplicate counts.
 
 ### Day 2 integration gate
 
 An HR Head can create a demo employee, assign a schedule and biometric ID,
 upload the agreed fixture, and see deterministic import results. Re-uploading
-the same fixture does not duplicate attendance. CI remains green.
+the same fixture does not duplicate attendance. Developer A reviews the
+attendance merge; CI remains green.
 
 ## Day 3 — Attendance calculations and payroll vertical slice
 
-**Lane A**
+**Developer A — foundation and payroll**
 
-- Stabilize shared transactions, audit logging, and protected route wiring.
-- Resolve integration defects rather than adding optional infrastructure.
+- Implement payroll computation from attendance, salary, and approved
+  contribution/deduction inputs.
+- Persist immutable calculation snapshots and itemized employee payroll details;
+  prevent duplicate runs for the same period/branch scope.
+- Stabilize shared transactions, audit logging, and protected route wiring;
+  resolve integration defects before optional infrastructure.
 
-**Lane B**
+**Developer B — attendance and user flow**
 
 - Generate daily attendance records and calculate hours worked, late minutes,
   undertime, and overtime using the approved rules.
-- Flag incomplete records and expose a review list.
-- Add boundary tests for schedule start/end, duplicate punches, missing punches,
-  and unmatched employees.
-
-**Lane C**
-
-- Implement payroll computation using attendance, salary, and approved
-  contribution/deduction inputs.
-- Persist an immutable calculation snapshot and itemized employee payroll
-  details.
-- Prevent duplicate payroll runs for the same approved scope/period according
-  to the ADR.
-
-**Lane D**
-
-- Build attendance review and payroll computation/review screens.
-- Add the first end-to-end integration test: login → employee → attendance
-  import → payroll computation.
-- Validate currency, `MM/DD/YY`, and 24-hour formatting.
+- Flag incomplete records, expose a minimal review list, and build attendance
+  review/payroll-computation screens with Developer A's service contracts.
+- Add boundary tests for schedule start/end, duplicate and missing punches,
+  unmatched employees, plus the first end-to-end test: login → employee →
+  attendance import → payroll computation.
 
 ### Day 3 integration gate
 
@@ -280,32 +246,22 @@ and optional modules are incomplete.
 
 ## Day 4 — Approval, payslip, security, and feature freeze
 
-**Lane A**
-
-- Perform RBAC regression across every protected endpoint.
-- Add ownership checks for employee-scoped records, security headers, safe
-  error responses, and audit coverage.
-- Review migration/seed repeatability from an empty database.
-
-**Lane B**
-
-- Complete critical attendance exception and manual-adjustment behavior needed
-  by the demo.
-- Help fix cross-module defects in payroll inputs.
-
-**Lane C**
+**Developer A — foundation and payroll**
 
 - Complete submit, approve, and return transitions with a required return
-  reason.
-- Enforce final payroll immutability and double-approval protection.
-- Expose itemized payslip data and payroll summary data.
+  reason, final payroll immutability, and double-approval protection.
+- Expose itemized payslip/payroll summary data and review migration/seed
+  repeatability from an empty database.
+- Pair with Developer B on the Owner approval and Employee payslip views.
 
-**Lane D**
+**Developer B — attendance and user flow**
 
-- Build Owner approval/return and Employee payslip views.
-- Ensure Employee A cannot access Employee B's attendance or payslip.
-- Complete the P0 end-to-end test and, if P0 is green by midday, take only one
-  agreed P1 stretch item.
+- Complete only the attendance exceptions necessary for the demo; defer manual
+  adjustment UI unless all P0 work is green.
+- Perform RBAC and employee-ownership regression, including Employee A's
+  attempted access to Employee B's attendance or payslip.
+- Complete the P0 end-to-end test, security headers, safe errors, and audit
+  coverage with Developer A.
 
 ### Day 4 integration gate and freeze
 
@@ -317,14 +273,15 @@ By midday, stop accepting P0 feature expansion. After the freeze, merge only:
 - Required demo/documentation corrections
 
 The complete three-role demo journey must pass from a clean seeded database.
+No P1 work begins until both developers agree the P0 gate is green.
 
 ## Day 5 — Hardening, acceptance, and handoff
 
 ### Morning hardening
 
 - Run all unit, integration, and end-to-end tests.
-- Run lint, type checking, build, migration-up, migration-down where safe, and
-  clean reseed checks.
+- Run PHPStan, PHPUnit, PHP syntax checks, migration-up, migration-down where
+  safe, and clean reseed checks.
 - Test Chrome, Firefox, and Edge on the critical demo paths.
 - Test invalid login, forbidden routes, cross-employee access, bad upload,
   duplicate upload, incomplete punch, invalid payroll transition, and double
@@ -344,7 +301,7 @@ The complete three-role demo journey must pass from a clean seeded database.
 ### Day 5 exit gate
 
 - Clean setup instructions work on another developer machine or clean CI job.
-- All P0 tests and the production build pass.
+- All P0 tests, PHPStan, and PHP syntax/dependency checks pass.
 - No open critical/high security or payroll-calculation defect remains.
 - Demo data contains no real employee personal information.
 - The acceptance record identifies what passed, failed, and was deferred.
@@ -355,10 +312,10 @@ The complete three-role demo journey must pass from a clean seeded database.
 ### Repository workflow
 
 - Protect `main`; never push feature work directly to it.
-- Use short-lived branches such as `feature/REQ018-dat-parser`,
+- Use short-lived branches such as `feature/REQ018-xls-parser`,
   `fix/REQN007-owner-route`, or `test/REQ047-payroll-golden-case`.
 - Link every pull request to its issue and applicable `REQ0xx`/`REQNxxx` IDs.
-- Require at least one reviewer outside the author's lane and passing CI.
+- Require the other developer as reviewer and passing CI.
 - Keep pull requests small and single-purpose. Prefer several reviewed slices
   over one end-of-day module dump.
 - Squash merge feature branches unless migration history requires otherwise.
@@ -369,14 +326,14 @@ The complete three-role demo journey must pass from a clean seeded database.
 
 ### Ownership boundaries
 
-- Lane A coordinates migration order and shared middleware; other lanes may
-  propose schema changes through reviewed PRs.
-- Lane B owns attendance parsing/calculation behavior and fixtures.
-- Lane C owns monetary formulas, precision, rounding, and payroll transitions.
-- Lane D owns shared presentation conventions and the E2E suite.
-- Every lane owns its own unit and integration tests; testing is not handed off
-  only to Lane D.
-- Any contract/schema change is announced immediately to all affected lanes.
+- Developer A coordinates migration order, shared middleware, money precision,
+  payroll transitions, and the daily integration gate.
+- Developer B owns attendance parsing/calculation behavior, fixtures, shared
+  presentation conventions, and the end-to-end suite.
+- Both developers own unit/integration tests for their work and review the
+  other developer's migration, security, and business-rule changes.
+- Any contract/schema change is announced and reviewed before either developer
+  begins dependent work.
 
 ### Daily cadence
 
@@ -451,7 +408,7 @@ and authorization tests is not done.
 | Business/schema approval is delayed | Time-box the decision gate. Use documented synthetic demo rules and mark statutory/production behavior unverified. |
 | Workbook variants differ from the supplied `.xls` samples | Keep parsing behind `AttendanceFileParser`, reject unknown structures transactionally, and add adapters only from sanitized evidence. |
 | Contribution rules are disputed | Use versioned, reviewer-approved golden fixtures; never silently copy current online values into historical payroll. |
-| Lanes conflict on models | Freeze core contracts on Day 1 and coordinate all migrations through Lane A. |
+| Developers conflict on models | Freeze core contracts on Day 1, review every migration together, and let Developer A coordinate merge order. |
 | UI consumes the schedule | Use thin functional forms/views and prioritize the E2E business path over visual polish. |
 | Integration happens too late | Merge at least daily; require a real vertical path by Day 3 and freeze features on Day 4. |
 | Sensitive information leaks | Use synthetic data, environment-managed secrets, authorization tests, and private generated-file storage. |

@@ -1,5 +1,9 @@
 # Implementation Plan
 
+> **Two-developer P0 assignment:** See
+> [two-developer task distribution](two-developer-task-distribution.md) for
+> active owners, exact task IDs, dependencies, handoffs, and deferred work.
+
 - [ ] 1. Project and database foundation
   - [x] 1.0 **Development approval gate:** [ADR-0001](adr/0001-development-baseline.md) records the accepted MVP
         schema, configurable branch/site/device topology, employee fields,

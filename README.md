@@ -129,7 +129,8 @@ device identifiers are retained for HR review.
 | [Design](docs/design.md) | Application architecture, service interfaces, reconciled data model, error handling, and testing strategy. |
 | [Technology stack](docs/tech.md) | Planned runtime, framework, database, integrations, and non-functional constraints. |
 | [Implementation plan](docs/tasks.md) | Module-by-module implementation and testing checklist. |
-| [Five-day development roadmap](docs/five-day-development-roadmap.md) | Collaborative MVP scope, ownership lanes, daily integration gates, and delivery workflow. |
+| [Two-developer task distribution](docs/two-developer-task-distribution.md) | Active P0 ownership, task IDs, handoffs, and deferred work for the current team. |
+| [Five-day development roadmap](docs/five-day-development-roadmap.md) | Two-developer MVP scope, ownership workstreams, daily integration gates, and delivery workflow. |
 | [Consolidated recommendations](docs/recommendation.md) | Cross-document recommendations with their ADR-0001/ADR-0002 resolution status. |
 | [Database schema audit](docs/database-schema.md) | Source-literal database evidence, cross-source conflicts, and recommended canonical decisions. |
 | [Database revision record](docs/database-documentation-revision-log.md) | Corrections, accepted MVP resolutions, and remaining capstone-publication work. |

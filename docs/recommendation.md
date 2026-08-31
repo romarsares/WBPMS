@@ -132,7 +132,7 @@ must be present before the relevant modules can be built.
 - Restrict every protected route via PHP middleware that checks `role_id`
   against the RBAC table in `design.md`.
 - Write an RBAC smoke test on Day 1 (at least one allowed and one denied
-  route per role) before other lanes proceed.
+  route per role) before the two workstreams proceed.
 
 ### 3.3 Business Logic Placement
 
@@ -233,10 +233,11 @@ Follow these rules exactly when implementing `PayrollService`:
   missing punch, zero salary, SSS bracket boundaries, last-Friday vs.
   non-last-Friday contribution runs.
 - Integration-test each Controller against a seeded test database.
-- Write tests before wiring controllers — Lane B and Lane C must have
-  unit-tested pure functions on Day 1 regardless of UI or DB readiness.
-- Lane D owns E2E tests; every other lane owns its own unit and integration
-  tests. Testing is not handed off to one person.
+- Write tests before wiring controllers. Developer A must have unit-tested
+  payroll/contribution functions and Developer B must have a unit-tested XLS
+  parser on Day 1, regardless of UI or DB readiness.
+- Developer B owns the end-to-end suite; both developers own unit and
+  integration tests for their work. Testing is not handed off to one person.
 - Never commit real employee personal data, payroll data, or database dumps
   to the repository.
 
@@ -246,20 +247,19 @@ Follow these rules exactly when implementing `PayrollService`:
 
 - Protect `main`; never push feature work directly.
 - Use short-lived branches named after requirement IDs, e.g.,
-  `feature/REQ018-dat-parser`, `fix/REQN007-owner-route`.
+  `feature/REQ018-xls-parser`, `fix/REQN007-owner-route`.
 - Link every pull request to its issue and applicable `REQ0xx`/`REQNxxx`
   identifiers. Use those same identifiers in code comments (`// implements REQ047`).
-- Require at least one reviewer outside the author's lane and passing CI
-  before merging.
+- Require the other developer's review and passing CI before merging.
 - Never rewrite a migration that teammates have already consumed; add a
   corrective migration instead.
 - Never commit secrets, real employee data, database dumps, or generated
   payslips containing personal information.
 - Keep pull requests small and single-purpose. Prefer reviewed slices over
   end-of-day module dumps.
-- Lane A owns migration ordering and shared middleware; other lanes propose
-  schema changes through reviewed PRs.
-- Announce any contract/schema change immediately to all affected lanes.
+- Developer A owns migration ordering and shared middleware; Developer B
+  proposes schema changes through reviewed pull requests.
+- Announce any contract/schema change immediately to the other developer.
 
 ---
 
