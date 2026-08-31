@@ -5,9 +5,10 @@
 `database-documentation-revision-log.md`, `design.md`, `requirements.md`
 
 > **Decision update (2026-08-31):** [ADR-0001](adr/0001-development-baseline.md)
-> resolves the pre-kickoff gate for MVP development. This document remains a
-> consolidated rationale/reference; where its original open recommendations
-> conflict with ADR-0001, the ADR controls.
+> resolves the domain gate; [ADR-0002](adr/0002-schema-integrity-corrections.md)
+> and the [v1.1 capstone addendum](capstone_files/Canonical-Database-Schema-v1.1.md)
+> provide the migration-level integrity contract. This document remains a
+> consolidated rationale/reference; where it conflicts, the ADRs/addendum control.
 
 This document consolidates every recommendation found across the project
 documentation into one reference. Items are grouped by concern area.
@@ -30,12 +31,12 @@ separately in that ADR.
 | B-2 | Use ADR-0001's required/optional employee fields, stable identity, effective branch history, and archive behavior. | ADR-0001 | ✅ Accepted |
 | B-3 | Use `payroll_period` → branch `payroll_run` → employee payroll detail. | ADR-0001 | ✅ Accepted |
 | B-4 | Use effective-dated `salary.daily_rate` as the only wage authority. | ADR-0001 | ✅ Accepted |
-| B-5 | Use the documented Draft/Computed/Pending/Approved/Returned lifecycle with return reason and final immutability. | ADR-0001 | ✅ Accepted |
+| B-5 | Store the lifecycle only on `payroll_run` using `Draft`, `Computed`, `PendingOwnerApproval`, `Approved`, and `Returned`, with return reason and final immutability. | ADR-0001 + ADR-0002 | ✅ Accepted |
 | B-6 | Use the richer attendance/request audit fields and immutable raw evidence. | ADR-0001 | ✅ Accepted |
 | B-7 | Parse the supplied monthly `.xls` matrix; no `.dat` adapter is assumed. | ADR-0001 + samples | ✅ Accepted |
 | B-8 | Use `Asia/Manila`, Friday–Thursday periods, documented shifts/formulas, no undocumented grace period, integer minutes, and decimal half-up rounding. | ADR-0001 | ✅ Accepted |
 | B-9 | Use only the labeled Final Defense Reviewer contribution example for the MVP; reject unsupported policy inputs. | ADR-0001 | ✅ Demo-only |
-| B-10 | An approved cash-advance request creates one repayment-history row. | ADR-0001 | ✅ Accepted |
+| B-10 | An approved cash-advance request creates one obligation; each weekly repayment creates a separate payroll/deduction-linked child row. | ADR-0001 + ADR-0002 | ✅ Accepted |
 | B-11 | Keep geography flat for the MVP. | ADR-0001 | ✅ Accepted |
 
 ### 1.2 Technical Decisions
@@ -63,7 +64,7 @@ separately in that ADR.
 | S-4 | Use child tables keyed by `payroll_id` for multiple earnings and deductions rather than the single `payroll.deduction_id` structure in Table 92. | ✅ Applied |
 | S-5 | Use canonical corrected names: `city_name` (not `description`), `request_type_id` (not `Requeest_type_id`), `payroll_earnings` (not `PAYROLL_LEARNINGS`), `log_id` (not `Log_in`), separate `approval_status` and `remarks` (not `approval_status_remarks`). | ✅ Applied |
 | S-6 | Do not add `city.province_id` / `barangay.city_id` hierarchy FKs by default. Keep geography flat (three independent IDs on `address`) unless explicitly decided otherwise. | ⚠️ Decided flat by default — underlying business need still open |
-| S-7 | Complete full Data Dictionary entries (types, defaults, nullability, lengths, validation rules) for every canonical table before implementation sign-off. | ✅ Extension dictionaries added; migrations are the executable dictionary for remaining model-only tables |
+| S-7 | Complete full Data Dictionary entries (types, defaults, nullability, lengths, validation rules) for every canonical table before implementation sign-off. | ✅ Completed in the v1.1 capstone addendum |
 | S-8 | Exclude the orphan `benefits_tbl` from the canonical model. Government contributions are deductions, per the supplemental DFD. Any future benefit feature requires separate approved requirements. | ✅ Applied |
 | S-9 | Make `users.employee_id` nullable and unique. The Business Owner is a role-bearing user with no employee row and is excluded from payroll. | ✅ Applied |
 | S-10 | Add `payroll.pay_date` to separate the Friday disbursement from the Friday–Thursday attendance period, making monthly contribution scheduling deterministic. | ✅ Applied (via `payroll_period.pay_date`) |
@@ -138,7 +139,7 @@ must be present before the relevant modules can be built.
 - Payroll computation must persist an immutable calculation snapshot —
   approved payroll records must never be mutated.
 - The payroll approval state machine
-  (`Draft → Computed → Pending Owner Approval → Approved / Returned`)
+  (`Draft → Computed → PendingOwnerApproval → Approved / Returned`)
   must be enforced at the application layer with a database-level unique
   constraint preventing double approval.
 
@@ -257,10 +258,12 @@ Follow these rules exactly when implementing `PayrollService`:
 ## 6. Capstone Documentation Update Checklist
 
 These corrections must be made to the original capstone document itself
-(tracked in `database-documentation-revision-log.md`). ADR-0001 authorizes
-MVP migrations; unchecked items below are historical capstone-publication work.
+(tracked in `database-documentation-revision-log.md`). ADR-0001 as amended by
+ADR-0002 authorizes MVP migrations; unchecked items below are historical
+capstone-publication work.
 
-- [x] Select ADR-0001 and `docs/design.md` as the MVP canonical source.
+- [x] Select ADR-0001, ADR-0002, `docs/design.md`, and the v1.1 capstone
+      addendum as the canonical sources.
 - [x] Resolve branch count through configurable master data and demo topology.
 - [x] Approve the canonical employee attribute set.
 - [x] Approve payroll header/detail cardinalities.
@@ -269,11 +272,12 @@ MVP migrations; unchecked items below are historical capstone-publication work.
 - [x] Correct all canonical Table 85 / Table 90 names listed in §2.3.
 - [ ] Regenerate Table 85 from the approved schema.
 - [ ] Regenerate Figures 163 and 164 from the approved schema.
-- [ ] Create full Data Dictionary entries for every approved entity.
+- [x] Create a full typed canonical dictionary in the v1.1 capstone addendum.
 - [ ] Verify every FK in the logical model exists in the physical model
       with the correct parent-table reference.
-- [ ] Update `design.md`, SQL migrations, ORM models, and tests only after
-      the canonical decisions are recorded and signed off.
+- [x] Update `design.md` and implementation tasks after the canonical
+      decisions are recorded and signed off; migrations/models/tests remain
+      implementation work.
 
 ---
 

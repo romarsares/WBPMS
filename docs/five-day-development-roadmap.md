@@ -62,7 +62,7 @@ architecture decisions, but does not become the only reviewer or tester.
 - Effective salary assignment and domain-approved contribution fixtures.
 - Payroll calculation for one pay period with transparent calculation
   details.
-- Payroll state flow: Draft/Computed → Pending Owner Approval → Approved or
+- Payroll state flow: `Draft`/`Computed` → `PendingOwnerApproval` → `Approved` or
   Returned, including a return reason and protection against double approval.
 - Employee-scoped payslip view; one employee must never see another
   employee's data.
@@ -133,6 +133,8 @@ Development that depends on an undecided item must not proceed by assumption.
       variable names, and local database workflow.
 - [x] Use ADR-0001's standard success/error envelopes before
       lanes implement controllers independently.
+- [x] Use ADR-0002 and the v1.1 capstone schema addendum for migration types,
+      keys, lineage, lifecycle enums, and integrity tests.
 
 If the business gate cannot be completed, use clearly labeled synthetic demo
 rules and exclude statutory-correctness claims from the phase outcome.

@@ -17,6 +17,12 @@ name is shown separately when a source label is clearly misspelled. Tables
 or fields introduced during later design work are kept in Section 7 as
 explicit schema extensions.
 
+> **Implementation update (ADR-0002):** the authoritative migration-level
+> dictionary is
+> [`Canonical-Database-Schema-v1.1.md`](../../../docs/capstone_files/Canonical-Database-Schema-v1.1.md).
+> The historical dictionaries below remain source evidence; where they differ,
+> ADR-0002 and the v1.1 addendum take precedence.
+
 ### Source coverage summary
 
 | Source section | Coverage | Detail provided |
@@ -537,6 +543,11 @@ production statutory master data.
 
 ## 7. Schema extensions (not part of the original documentation)
 
+> **Version note:** these are the v1.0 extension proposals. ADR-0002 corrects
+> their missing lineage, policy-version, lifecycle, and uniqueness rules. Use
+> the v1.1 capstone addendum—not this historical proposal—as the migration
+> dictionary.
+
 These extensions support features the requirements call for but the original
 schema never modeled. They are **not** sourced from the capstone document —
 listed here so they are clearly separated from the source-of-truth schema
@@ -939,7 +950,7 @@ remain separate gates.
 | 4 | `payroll_id`-keyed child tables for earnings/deductions | ✅ Applied | `payroll` is a header row; `deduction` and `payroll_earnings` are children keyed by `payroll_id`, matching Fig. 163/164. Government employee shares post to `deduction`; `benefits_tbl` is excluded. |
 | 5 | Canonical corrected names (`city_name`, `request_type_id`, `payroll_earnings`, `log_id`→`audit_logs.log_id`, split `approval_status`/`remarks`) | ✅ Applied | All five corrections are in `design.md`'s table definitions. |
 | 6 | Decide geography hierarchy explicitly | ✅ Flat for MVP | `address` retains the source's direct geography references; a strict hierarchy is deferred. |
-| 7 | Complete Data Dictionary entries for every canonical table | ✅ Extension dictionaries complete; historical publication deferred | §7 provides full dictionaries for all 17 extension tables. Migration definitions complete the executable dictionary for model-only tables; regenerated capstone tables/figures remain documentation debt. |
+| 7 | Complete Data Dictionary entries for every canonical table | ✅ Completed by ADR-0002 addendum | The v1.1 capstone addendum defines types, nullability, controlled values, keys, checks, indexes, and cross-row enforcement for the complete canonical model. |
 
 ### Canonical resolution from supplemental evidence
 
@@ -951,9 +962,12 @@ remain separate gates.
 
 ### Development-blocking conflicts
 
-None. ADR-0001 resolves branch topology through configurable master data,
-accepts the cash-advance request/history lifecycle, requires password hashing,
-selects the flat geography model, and defines the real `.xls` import contract.
+None after ADR-0002. The second integrity review resolved the remaining
+migration blockers: workbook year resolution, attendance grain/raw lineage,
+one payroll status authority, period/detail consistency, calculation snapshots,
+contribution/deduction linkage, temporal enforcement, persisted sessions,
+unauthenticated audit events, request/leave/cash-advance lifecycles, and
+period-level disbursement.
 
 The following remain production confirmations rather than migration blockers:
 official branch display names, complete statutory tables/caps/effective dates,
@@ -961,6 +975,24 @@ holiday-overtime compounding, and HR acceptance of production seed data.
 
 ### Recommended next step
 
-Implement migrations from `design.md` and ADR-0001, preserving provenance in
-migration comments and tests. Do not describe the documented demo contribution
-fixture as production-certified statutory logic.
+Implement migrations from the v1.1 capstone addendum, `design.md`, ADR-0001,
+and ADR-0002, in that precedence order. Preserve provenance in migration
+comments and tests. Do not describe the documented demo contribution fixture
+as production-certified statutory logic.
+
+## 9. ADR-0002 correction summary
+
+| Integrity risk | Canonical correction |
+|---|---|
+| Incomplete implementation dictionary | The v1.1 capstone addendum supplies one typed dictionary for all canonical tables. |
+| Three payroll status spellings and duplicated detail status | Store only `payroll_run.status` using `PendingOwnerApproval`; employee payroll rows carry no approval fields. |
+| Duplicate attendance and missing raw-punch lineage | `UNIQUE(employee_id, attendance_date)` plus `attendance_punch`. |
+| `MM/DD ddd` headers lack a year | Import batch requires `source_year` and `source_month`; parser validates month and weekday. |
+| Opaque payroll amounts | Payroll snapshots salary/rate; line items store quantity, rate, multiplier, source FKs, and calculation JSON. |
+| Duplicate/untraceable contribution posting | Unique payroll/program, unique deduction FK, and exact contribution-policy version. |
+| Temporal overlaps | Half-open periods, bound checks, one-open-row guards, parent-key locking, and overlap tests. |
+| Owner recovery and persisted-session ambiguity | Account-owned email, hashed reset challenge, and migration-owned sessions table. |
+| Failed-login events could not satisfy audit FK | Nullable actor plus attempted identifier, event, IP, user agent, and request ID. |
+| Request, leave, and cash-advance gaps | Type-specific request details, leave entitlement/ledger, request-linked obligation, and repayment child rows. |
+| One cheque incorrectly scoped to one branch run | One unique disbursement batch per payroll period, after all included runs are Approved. |
+| Non-unique payslips/current bank ambiguity | Unique payslip per payroll and effective-dated BDO bank history. |

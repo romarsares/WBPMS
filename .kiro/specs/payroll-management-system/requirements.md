@@ -49,6 +49,10 @@ access only the features permitted for my role.
 6. WHEN a Business Owner account is created THEN the system SHALL permit
    the account to exist without an employee profile because the Owner does
    not draw an employee salary. [Supplemental HR answer, p. 3]
+7. WHEN any account is created THEN the system SHALL store a unique account
+   recovery email independently of the optional employee email, store only a
+   hashed password/OTP, persist the server session in MySQL, and expire reset
+   challenges after use or timeout. [REQ002, REQN011; ADR-0002]
 
 ### Requirement 2: Dashboard
 
@@ -126,6 +130,9 @@ data.
     assignment without rewriting historical attendance, payroll, or payslips.
 11. FOR any calendar date, THE SYSTEM SHALL permit exactly one effective branch
     assignment per employee.
+12. WHEN a contractual review occurs THEN the system SHALL preserve its due
+    date, outcome (`Regularized`, `Renewed`, or `Separated`), effective date,
+    reviewer, notes, and any next review date as history. [ADR-0002]
 
 ### Requirement 5: Work Schedule Management
 
@@ -151,6 +158,9 @@ working days and hours.
    represented as the rest day and the normal payroll week SHALL contain
    six working days from Friday through Thursday. Individual shifts may be
    07:00–16:00 or 08:00–17:00. [Supplemental HR answer, p. 2]
+8. FOR any calendar instant, THE SYSTEM SHALL permit at most one effective
+   work schedule per employee; effective periods SHALL be preserved rather
+   than overwritten. [REQ026; ADR-0002]
 
 ### Requirement 6: Attendance Management
 
@@ -230,6 +240,12 @@ live connection to the device.
     THEN the system SHALL flag the employee for HR review under the
     company's AWOL/termination policy. The system SHALL NOT terminate an
     employee automatically. [Supplemental HR answer, p. 1]
+19. WHEN HR uploads a workbook THEN HR SHALL provide the workbook year and
+    month; the parser SHALL verify that every `MM/DD ddd` header agrees with
+    that selection before creating a timestamp. [ADR-0002]
+20. FOR a given employee and attendance date, THE SYSTEM SHALL store at most
+    one generated attendance row and SHALL link every raw punch used as
+    evidence to that row, including intermediate punches. [REQ024; ADR-0002]
 
 ### Requirement 7: Request Management (Leave, Overtime, Cash Advance)
 
@@ -259,6 +275,16 @@ auditable.
    REQ039, REQ044]
 7. WHEN the HR Head searches requests by employee THEN the system SHALL
    return matching records. [REQ035, REQ040, REQ045]
+8. WHEN a request is stored THEN the system SHALL keep exactly one detail row
+   matching its type: leave dates/days, overtime date/time/minutes, or cash-
+   advance amount. Archival metadata SHALL remain separate from its decision
+   status. [REQ032–REQ046; ADR-0002]
+9. WHEN leave entitlement changes or approved sick leave is consumed THEN the
+   system SHALL append a leave-ledger entry; the current balance SHALL be
+   derived from that ledger. [REQ078; ADR-0002]
+10. WHEN a cash advance is approved THEN the system SHALL create exactly one
+    request-linked obligation; each later payroll repayment SHALL create a
+    separate repayment row linked to the exact deduction. [ADR-0001, ADR-0002]
 
 ### Requirement 8: Manage Salary
 
@@ -278,6 +304,8 @@ current, auditable pay configuration.
 4. WHEN the HR Head archives an outdated salary configuration THEN the
    system SHALL exclude it from active use while keeping it queryable.
    [REQ057]
+5. FOR any effective date, THE SYSTEM SHALL resolve exactly one salary rate
+   per employee and reject overlapping salary periods. [ADR-0002]
 
 ### Requirement 9: Benefits and Deductions (Government Contributions)
 
@@ -316,6 +344,9 @@ deductions are accurate and compliant.
    SHALL calculate only the ADR-0001 demo fixture and clearly label it
    non-production; an unsupported EEMR/policy combination SHALL fail visibly
    rather than extrapolate a contribution bracket.
+10. WHEN a contribution is posted THEN the system SHALL store the exact
+    approved policy version, allow at most one row per payroll/program, and
+    link the employee share to exactly one payroll deduction row. [ADR-0002]
 
 ### Requirement 10: Payroll Processing
 
@@ -380,6 +411,19 @@ Owner for approval, so that payroll is accurate, auditable, and controlled.
 16. WHEN all branch payroll runs are viewed THEN the system SHALL provide both
     branch totals and a consolidated company total without making branch or
     device counts fixed application constants.
+17. WHEN payroll detail is persisted THEN it SHALL snapshot the selected
+    salary/daily rate and store each earning/deduction's quantity, unit rate,
+    multiplier where applicable, source records, formula evidence, and final
+    rounded amount. [REQ047; ADR-0002]
+18. THE SYSTEM SHALL store approval state only on the branch `payroll_run`,
+    using `Draft`, `Computed`, `PendingOwnerApproval`, `Approved`, or
+    `Returned`; employee payroll details SHALL NOT duplicate that state.
+19. WHEN a payroll period is created THEN it SHALL start Friday, end the next
+    Thursday, and use the immediately following Friday as `pay_date`; invalid
+    calendars SHALL be rejected. [Supplemental HR answer, pp. 2–3; ADR-0002]
+20. WHEN a payroll run becomes `Approved` THEN its employee payroll rows,
+    earning/deduction lines, contribution records, and payslip SHALL be
+    immutable. [REQ051; ADR-0002]
 
 ### Requirement 11: Reports Management
 
@@ -408,6 +452,9 @@ operations and satisfy documentation requirements.
    manually prepared BDO deposit slip per employee; no ATM payroll flow or
    non-BDO bank flow is currently in scope. [Supplemental HR answer,
    pp. 2–3]
+6. FOR a payroll period, THE SYSTEM SHALL permit at most one aggregate cheque
+   batch, created only after all included branch runs are `Approved`; each
+   payroll row SHALL have at most one payslip and one deposit slip. [ADR-0002]
 
 ### Requirement 12: Employee Self-Service Portal
 
@@ -457,6 +504,10 @@ routine information.
     [REQN010]
 11. THE SYSTEM SHALL require secure login authentication (hashed
     passwords, session/token-based auth). [REQN011]
+11a. WHEN an unauthenticated action such as a failed login is audited THEN the
+    audit record SHALL allow a null user reference while retaining the event
+    type, attempted identifier, request ID, IP address, and user agent.
+    [ADR-0002]
 
 ### Localization / Formatting
 12. THE SYSTEM SHALL use English as the primary language. [REQN012]

@@ -16,9 +16,10 @@ and the referenced functional requirements. It is intended to support a
 controlled update of the capstone documentation without losing the wording
 or mistakes found in the original source.
 
-ADR-0001 now authorizes MVP migrations against the canonical `design.md`
-model. This record still does not certify production statutory master data
-or rewrite the historical capstone artifacts.
+ADR-0001 authorizes the domain baseline. ADR-0002 and the v1.1 capstone
+schema addendum now authorize the corrected migration contract. This record
+still does not certify production statutory master data or rewrite the
+historical PDF evidence.
 
 ## Revision summary
 
@@ -32,6 +33,16 @@ or rewrite the historical capstone artifacts.
 | DBR-006 | Relationships from Table 85, the Data Dictionary, and Figures 163–164 were combined into one diagram. | Relationships are now grouped by source, with conflicts called out. | Prevents incorrect FK direction and cardinality assumptions. |
 | DBR-007 | The only explicitly noted gaps were branch linkage, holiday dates, and government brackets. | The audit now also records employee, payroll, request, attendance-adjustment, cash-transaction, earnings, audit-log, and branch-count conflicts. | Expands the correction scope before schema implementation. |
 | DBR-008 | `users_tbl.password` was documented as a plain `varchar` column with no hashing specification. | Renamed to `password_hash` in `design.md`'s canonical `users` table. The source never specifies hashing; the rename is an implementation extension required by REQN011 (secure login). The original source spelling is preserved in §3.3 of `database-schema.md` for traceability. | Prevents a migration from creating a column named `password` that tempts plain-text storage; aligns the data model with the `bcrypt` requirement in `tech.md`. |
+| DBR-009 | `MM/DD ddd` workbook headers were treated as complete dates. | Import batches now require a source year/month and validate header weekday/month before creating UTC punch instants. | Prevents ambiguous or incorrectly dated attendance. |
+| DBR-010 | Attendance had no declared employee/day uniqueness or exact punch lineage. | Added unique daily grain plus `attendance_punch`. | Prevents duplicate payroll inputs and preserves every punch used as evidence. |
+| DBR-011 | Payroll approval state appeared on both run and employee detail with three spellings. | `payroll_run.status` is the only authority and uses `PendingOwnerApproval`. | Prevents contradictory approval/finality state. |
+| DBR-012 | Payroll lines stored only type/description/amount. | Salary/rate and line calculation inputs/source references are snapshotted. | Makes approved payroll reproducible and auditable. |
+| DBR-013 | Contribution tables lacked one policy/version authority and exact deduction linkage. | Added versioned policy, unique payroll/program, and unique deduction FK. | Prevents duplicate or untraceable government deductions. |
+| DBR-014 | Effective-dated tables stated non-overlap without an enforceable implementation rule. | Adopted half-open intervals, bound checks, parent-row locking, overlap queries, and concurrency tests. | Protects historical employee, device, schedule, salary, and policy resolution. |
+| DBR-015 | MySQL sessions, password reset data, and unauthenticated audit events were not modeled. | Added migration-owned sessions, hashed reset challenges, account-owned email, and nullable-user security audit evidence. | Completes the selected authentication architecture and failed-login audit trail. |
+| DBR-016 | Request archival/type details, leave balance, and multi-week cash-advance repayment were under-modeled. | Added type details, leave entitlement/ledger, request-linked cash-advance obligation, and repayment child rows. | Satisfies the documented request lifecycles without overwriting balances. |
+| DBR-017 | The aggregate cheque was associated operationally with a branch run. | `disbursement_batch` is unique per payroll period and includes all approved branch runs. | Matches the one-cheque-per-week HR evidence. |
+| DBR-018 | Payslip and current bank-account cardinalities were implied only. | Payslip is unique per payroll; bank details are effective-dated with one current active BDO account enforced by service. | Prevents duplicate payslips and ambiguous deposit preparation. |
 
 ## Literal source corrections retained
 
@@ -125,13 +136,17 @@ capstone only through a documented revision:
 - [x] Approve a traceable demo contribution fixture with an explicit
   non-production disclaimer.
 - [x] Select the technical stack and API/error contracts.
+- [x] Approve ADR-0002's typed canonical dictionary, attendance lineage,
+  payroll snapshot, lifecycle, temporal, authentication, and reconciliation
+  constraints.
 
 This checklist authorizes Tasks 1.1 and 1.2. Official master data, complete
 statutory policies, and HR production acceptance remain deployment gates.
 
 ## Capstone update checklist
 
-- [x] Select ADR-0001 and `docs/design.md` as the MVP canonical schema source.
+- [x] Select ADR-0001, ADR-0002, `docs/design.md`, and the v1.1 capstone
+  addendum as the canonical schema sources.
 - [x] Resolve branch counts as configurable data; flag official display names
   for production confirmation.
 - [x] Approve the canonical employee attribute set and required/optional fields.
@@ -141,9 +156,12 @@ statutory policies, and HR production acceptance remain deployment gates.
 - [x] Correct the literal Table 85 and Table 90 errors in canonical naming.
 - [ ] Regenerate Table 85 from the approved schema.
 - [ ] Regenerate Figures 163 and 164 from the same schema definition.
-- [ ] Create full Data Dictionary entries for every approved entity.
+- [x] Create a typed canonical Data Dictionary for every approved entity in
+  `capstone_files/Canonical-Database-Schema-v1.1.md`.
 - [ ] Verify regenerated logical/physical FKs after migrations exist.
 - [x] Update `design.md` after recording canonical decisions in ADR-0001.
+- [x] Update `design.md`, requirements, implementation tasks, and schema audit
+  after recording integrity corrections in ADR-0002.
 - [x] **`benefits_tbl` canonical exclusion** — Resolved. The supplemental
   DFD (Final Defense Reviewer PDF) routes Government Contributions into
   the D4 Deductions store and contains no Benefits store. `benefits_tbl`

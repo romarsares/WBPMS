@@ -61,7 +61,7 @@ gates controller actions:
 
 ### AuthController / AuthService
 - `login(credentials): Session`
-- `requestPasswordReset(email): void` → sends OTP
+- `requestPasswordReset(accountEmail): void` → stores a hashed, expiring OTP
 - `verifyOtpAndReset(email, otp, newPassword): void`
 - Enforces REQ001, REQ002, REQN007, REQN011.
 
@@ -103,9 +103,10 @@ gates controller actions:
 - Implements REQ025–REQ031.
 
 ### AttendanceService
-- `parseXlsDailyLog(fileBuffer): ParsedWorkbook` — validates the OLE/BIFF
+- `parseXlsDailyLog(fileBuffer, sourceYear, sourceMonth): ParsedWorkbook` — validates the OLE/BIFF
   `.xls` workbook, required identity headers, `MM/DD ddd` date columns, and
-  space-separated `HH:mm` tokens. It expands every token into an immutable
+  space-separated `HH:mm` tokens. It also verifies that every header month and
+  weekday agrees with the selected source year/month. It expands every token into an immutable
   raw punch while retaining workbook row/column and raw-cell evidence.
 - `matchEmployees(deviceId, rawPunches): {matched: RawPunch[], unmatched:
   RawPunch[], coverageExceptions: RawPunch[]}` — resolves source device +
@@ -115,7 +116,8 @@ gates controller actions:
   per employee/day: one is incomplete, two use earliest/latest, and more
   than two preserve every punch and create an HR-review flag. It never
   silently discards intermediate punches.
-- `importFromXlsWorkbook(deviceId, fileBuffer, uploadedBy): ImportSummary` — loads
+- `importFromXlsWorkbook(deviceId, sourceYear, sourceMonth, fileBuffer,
+  uploadedBy): ImportSummary` — loads
   device/site/format context and orchestrates
   the three steps above in a transaction and returns a summary (parsed /
   matched / unmatched / duplicates-skipped / incomplete / multi-punch
@@ -133,12 +135,12 @@ gates controller actions:
 
 **Computation rule (late/undertime/overtime)** — unchanged:
 ```
-expected_in, expected_out  ← from employee's active WorkSchedule
-late          = max(0, actual_time_in - expected_in)
-late_amount   = late_minutes × PHP 1.00
-undertime     = max(0, expected_out - actual_time_out)   # if left early
-hours_worked  = actual_time_out - actual_time_in - unpaid_break
-overtime      = max(0, hours_worked - schedule.standard_hours)
+expected_in, expected_out  ← from employee's effective WorkSchedule
+late_minutes       = max(0, actual_time_in - expected_in)
+late_amount        = late_minutes × PHP 1.00
+undertime_minutes  = max(0, expected_out - actual_time_out)   # if left early
+worked_minutes     = actual_time_out - actual_time_in - break_minutes
+overtime_minutes   = max(0, worked_minutes - schedule.standard_minutes)
 ```
 
 ### RequestService
@@ -161,7 +163,7 @@ overtime      = max(0, hours_worked - schedule.standard_hours)
 - Implements REQ053–REQ057.
 
 ### ContributionEngine
-- Loads a versioned `ContributionPolicy`; the MVP ships only the explicitly
+- Loads an Approved, effective `contribution_policy_version`; the MVP ships only the explicitly
   labeled ADR-0001 demo fixture and rejects unsupported EEMR/policy inputs
   instead of inventing bracket boundaries.
 - `computeEemr(dailyRate): number` — computes the contribution basis as
@@ -202,12 +204,13 @@ overtime      = max(0, hours_worked - schedule.standard_hours)
   6. Apply zero income-tax withholding only while the employee's projected
      annual taxable income is within the currently stated ₱250,000
      threshold. Keep the threshold configurable.
-  7. Persist `payroll`, `payroll_earnings`, `deduction`, and
-     `contribution_record` rows and generate `payslip` rows.
+  7. Persist the selected salary/rate snapshot and itemized calculation inputs
+     on `payroll`, `payroll_earnings`, `deduction`, and `contribution_record`,
+     then generate the unique `payslip` row.
 - `compute13thMonthPay(employeeId, year): amount` — total basic salary
   paid over the year ÷ 12.
-- `submitForApproval(payrollRunId): void` — HR Head → status `Pending
-  Owner Approval`.
+- `submitForApproval(payrollRunId): void` — HR Head → stored status
+  `PendingOwnerApproval` (display label “Pending Owner Approval”).
 - `ownerReview(payrollRunId, decision: Approved|Returned, note?): void`
 - Implements REQ047–REQ051.
 
@@ -219,11 +222,11 @@ first biometric period (Sunday through Thursday, five days) is migration
 history, not a second calendar rule.
 
 ### DisbursementService
-- `prepareDepositSlipList(payrollRunId): DepositSlipPreparationList` —
+- `prepareDepositSlipList(payrollPeriodId): DepositSlipPreparationList` —
   printable rows containing employee name, personal BDO account, and exact
   net pay for manual transcription to bank slips.
-- `recordWeeklyCheque(payrollRunId, chequeNumber, totalAmount): DisbursementBatch`
-  — one pay-to-cash cheque for the aggregate weekly payroll.
+- `recordWeeklyCheque(payrollPeriodId, chequeNumber, totalAmount): DisbursementBatch`
+  — one pay-to-cash cheque across every Approved branch run in the weekly period.
 - `recordDepositSlip(batchId, payrollId, bankDetailsId): DepositSlip` — one
   manually prepared deposit slip per employee.
 - The current workflow is BDO-only and has no ATM payroll, bank API, or
@@ -240,8 +243,8 @@ history, not a second calendar rule.
 
 **Payroll approval state machine:**
 ```
-Draft → Computed → Pending Owner Approval → Approved (final)
-                                       └──→ Returned → Computed (revise)
+Draft → Computed → PendingOwnerApproval → Approved (final)
+                                      └──→ Returned → Computed (revise)
 ```
 
 ### ReportService
@@ -259,8 +262,12 @@ REQ074–REQ082.
 
 ## Data Models
 
-> **Status: accepted MVP development baseline.** ADR-0001 approves this
-> model for migrations and MVP implementation. It applies the recommendations
+> **Status: accepted development baseline, amended by ADR-0002.** ADR-0001
+> approves the domain model and ADR-0002 supplies the integrity corrections
+> required for migrations. The authoritative column types, nullability,
+> defaults, keys, checks, and indexes are in
+> [`Canonical-Database-Schema-v1.1.md`](../../../docs/capstone_files/Canonical-Database-Schema-v1.1.md).
+> This model applies the recommendations
 > in `database-schema.md` §6 (use
 > Figure 163/164 as the operational base, union the employee fields,
 > use header+child rows for payroll) instead of silently blending sources.
@@ -277,16 +284,22 @@ REQ074–REQ082.
 >   requirement (REQ ID cited) or a post-documentation feature change.
 
 ```
-role(role_id PK, role_name)                                    -- [Fig163/164]
+role(role_id PK, role_name UNIQUE)                             -- [Fig163/164]
 
-users(user_id PK, employee_id FK -> employee NULL UNIQUE, username, password_hash,
-      role_id FK, status)
+users(user_id PK, employee_id FK -> employee NULL UNIQUE,
+      username UNIQUE, account_email UNIQUE, password_hash, role_id FK, status)
       -- [Fig163/164] for shape; `password` renamed `password_hash` as an
       -- [extension] — REQN011 requires hashed storage, source just says
       -- "password" with no stated hashing.
       -- employee_id is nullable so the non-salaried Business Owner can be
       -- a role-bearing user without a fabricated employee/payroll record
       -- [canonical inference from Supplemental HR answer, p. 3].
+
+password_reset_challenge(challenge_id PK, user_id FK, otp_hash, expires_at,
+                         attempts_remaining, consumed_at NULL, created_at)
+                         -- [extension: REQ002; OTP values are never stored raw]
+
+sessions(session_id PK, expires_at, data)                       -- [extension: ADR-0001 MySQL-persisted sessions]
 
 branch(branch_id PK, branch_code UNIQUE, branch_name, location, status)
                                                                -- [Fig163/164 + configurable master-data extension]
@@ -316,7 +329,7 @@ employee(employee_id PK, employee_number UNIQUE, employee_type,
          first_name, middle_initial, last_name, email UNIQUE, contact_number,
          birthdate, hire_date, id_picture, address_id FK, status,
          philhealth_number, pagibig_number, tin_number,
-         position, contract_review_date, regularized_at, separation_date)
+         position, contract_review_date)
          -- [canonical baseline decision]:
          --   employee_number, employee_type, email, hire_date,
          --     status, philhealth_number, pagibig_number, tin_number  ← [Fig163/164 only]
@@ -335,6 +348,12 @@ employee(employee_id PK, employee_number UNIQUE, employee_type,
          -- keyed by effective_date; the employee list should join current
          -- salary rather than duplicate the rate on employee.
 
+employment_contract_review(review_id PK, employee_id FK, review_due_date,
+                           outcome ENUM('Regularized','Renewed','Separated'),
+                           effective_date, next_review_date NULL,
+                           reviewed_by FK -> users NULL, notes, created_at)
+                           -- [extension: auditable contractual outcomes]
+
 employee_branch_assignment(branch_assignment_id PK, employee_id FK, branch_id FK,
                            effective_from, effective_to, transfer_reason,
                            transferred_by FK -> users, created_at)
@@ -348,8 +367,8 @@ employee_biometric_enrollment(enrollment_id PK, employee_id FK, device_id FK,
                               -- device+code over non-overlapping periods
 
 work_schedule(schedule_id PK, employee_id FK, working_days, rest_days,
-              break_duration, work_start_time, work_end_time,
-              effective_start_date, effective_end_date, status)  -- [Fig163/164]
+              break_minutes, work_start_time, work_end_time, standard_minutes,
+              effective_from, effective_to, status)              -- [Fig163/164 + ADR-0002]
 
 holiday_calendar(holiday_id PK, holiday_date, description,
                  holiday_type ENUM('Regular','Special'), pay_multiplier,
@@ -359,21 +378,24 @@ holiday_calendar(holiday_id PK, holiday_date, description,
 
 attendance(attendance_id PK, employee_id FK, branch_assignment_id FK,
            schedule_id FK, attendance_date,
-           time_in, time_out, hours_worked, late_minutes, undertime_minutes,
-           overtime_hours, status,
-           source ENUM('xls_import','manual'), import_batch_id FK)
+           time_in NULL, time_out NULL, hours_worked_minutes, late_minutes,
+           undertime_minutes, overtime_minutes, status,
+           source ENUM('xls_import','manual'), import_batch_id FK NULL)
            -- shape is [Fig163/164]; `source` and `import_batch_id` are
            -- [extension: .xls workbook import feature, ADR-0001]
+           -- unique employee+attendance_date defines the MVP daily grain.
 
 attendance_import_batch(import_batch_id PK, device_id FK, uploaded_by FK -> users,
-                          file_name, file_checksum UNIQUE, uploaded_at, records_parsed,
-                          records_matched, records_unmatched,
-                          duplicates_skipped, incomplete_days,
-                          multi_punch_days)                     -- [extension: .xls import]
+                        file_name, file_checksum UNIQUE, source_year,
+                        source_month, parser_version, status, uploaded_at,
+                        completed_at NULL, records_parsed, records_matched,
+                        records_unmatched, duplicates_skipped, incomplete_days,
+                        multi_punch_days)                       -- [extension: .xls import]
 
 biometric_punch(punch_id PK, import_batch_id FK, device_id FK,
                 employee_id FK NULL, branch_assignment_id FK NULL,
-                device_employee_code, punched_at, punch_type NULL,
+                device_employee_code, source_local_at, punched_at_utc,
+                punch_type NULL,
                 device_transaction_id NULL, match_status, raw_record,
                 source_department, source_user_id, source_employee_name,
                 source_workbook_row, source_date_column,
@@ -381,6 +403,10 @@ biometric_punch(punch_id PK, import_batch_id FK, device_id FK,
                 -- [extension: immutable raw punch/audit staging]
                 -- ADR-0001's `.xls` source has neither punch type nor
                 -- transaction ID; both remain nullable for future adapters.
+
+attendance_punch(attendance_id PK/FK, punch_id PK/FK UNIQUE, evidence_role,
+                 created_at)
+                 -- [extension: exact raw-punch lineage for each timesheet row]
 
 attendance_adjustment(adjustment_id PK, attendance_id FK, adjusted_by FK -> users,
                        adjustment_type, old_time_in, new_time_in,
@@ -393,27 +419,30 @@ attendance_policy_flag(flag_id PK, employee_id FK, flag_type,
                        reviewed_at, action_taken, notes)
                        -- [extension: supplemental HR attendance policy]
 
-request_type(request_type_id PK, type_name)                     -- [Table85/86, canonical correction: `Requeest_type_id` typo]
+request_type(request_type_id PK, type_name UNIQUE, status)      -- [Table85/86 + ADR-0002]
 
-request(request_id PK, employee_id FK, request_type_id FK, start_date, end_date,
-        amount, reason, status, approved_by FK -> users, approved_date)
-        -- [Fig163/164] — richer than Table85's request_date-only version;
-        -- adopted per §6. A `Pending`/`Approved`/`Rejected` status enum is
-        -- assumed; source lists `status` as a bare varchar.
+request(request_id PK, employee_id FK, request_type_id FK, reason, status,
+        submitted_at, reviewed_by FK -> users NULL, reviewed_at NULL,
+        review_notes, archived_by FK -> users NULL, archived_at NULL)
+        -- [Fig163/164 + ADR-0002]: decision status is separate from archive
+        -- metadata; type-specific fields are normalized below.
 
-salary(salary_id PK, employee_id FK, daily_rate, effective_date, status)  -- [Fig163/164]
-        -- replaces Table85's simpler (salary_id, basic_salary) shape;
-        -- effective_date + status is how salary history/"current rate"
-        -- (REQ055–REQ057) is modeled, rather than a separate is_current flag.
+leave_request_detail(request_id PK/FK, leave_type, start_date, end_date,
+                     days_requested)
+overtime_request_detail(request_id PK/FK, overtime_date, start_time, end_time,
+                        requested_minutes)
+cash_advance_request_detail(request_id PK/FK, amount)
 
-deduction(deduction_id PK, payroll_id FK, deduction_type, description, amount)  -- [Fig163/164]
-        -- NOTE: figure model keys deductions to `payroll_id` only, not
-        -- `employee_id` (employee is reachable via payroll). Table85's
-        -- version had no `payroll_id` at all. Adopted per §6 recommendation
-        -- #4 (child rows keyed by payroll_id).
-        -- SSS, PhilHealth, and Pag-IBIG employee shares are deduction rows
-        -- only on the last-Friday payroll of the month. The supplemental
-        -- DFD routes Government Contributions into D4 Deductions.
+leave_entitlement(entitlement_id PK, employee_id FK, leave_type, leave_year,
+                  entitled_days)
+leave_ledger(entry_id PK, entitlement_id FK, request_id FK NULL UNIQUE,
+             entry_type, days_delta, recorded_by FK -> users NULL, notes,
+             created_at)
+             -- [extensions: REQ078; append-only balance authority]
+
+salary(salary_id PK, employee_id FK, daily_rate, effective_from, effective_to,
+       status, created_by FK -> users NULL)                    -- [Fig163/164 + ADR-0002]
+       -- effective periods preserve history and select one authoritative rate.
 
 -- `benefit(benefit_id, benefit_type, amount)` remains a literal
 -- Table85/95 artifact but is excluded from the canonical model: it has no
@@ -421,75 +450,104 @@ deduction(deduction_id PK, payroll_id FK, deduction_type, description, amount)  
 -- contributions are deductions; any future bonus/benefit feature must be
 -- separately specified rather than inferred from this orphan table.
 
-sss_bracket(bracket_id PK, salary_from, salary_to, employee_share, employer_share)  -- [extension: REQ061-062]
-philhealth_rate(rate_id PK, rate_percent, effective_date)         -- [extension: REQ063-064]
-pagibig_rate(rate_id PK, rate_percent, effective_date)            -- [extension: REQ063-064]
+payroll_policy_version(policy_id PK, policy_code, version, effective_from,
+                       effective_to, eemr_days_per_year,
+                       annual_tax_threshold, late_rate_per_minute,
+                       rounding_mode, demo_only, status,
+                       approved_by FK -> users NULL, approved_at NULL)
 
-contribution_record(contribution_id PK, payroll_id FK,
+contribution_policy_version(contribution_policy_id PK, policy_code, version,
+                            effective_from, effective_to, demo_only, status,
+                            approved_by FK -> users NULL, approved_at NULL)
+
+sss_bracket(bracket_id PK, contribution_policy_id FK, salary_from, salary_to,
+            employee_share, employer_share, effective_from, effective_to)
+philhealth_rate(rate_id PK, contribution_policy_id FK UNIQUE, rate_decimal,
+                basis_floor, basis_ceiling)
+pagibig_rate(rate_id PK, contribution_policy_id FK UNIQUE, rate_decimal,
+             basis_ceiling, employee_fixed_amount, employer_fixed_amount)
+
+contribution_record(contribution_id PK, payroll_id FK, deduction_id FK UNIQUE,
+                    contribution_policy_id FK,
                     contribution_type ENUM('SSS','PhilHealth','PagIBIG'),
                     eemr_basis, employee_share, employer_share,
-                    deduction_date, status, locked_at, locked_by FK -> users)
+                    deduction_date, calculation_details, status,
+                    locked_at, locked_by FK -> users NULL)
                     -- [extension: REQ058-064 + supplemental monthly cadence]
+                    -- unique payroll+contribution_type prevents double posting.
 
 payroll_period(payroll_period_id PK, period_start, period_end, pay_date, status)
                -- [extension: concrete cutoff shared by branch runs]
+               -- Friday start, Thursday end, immediately-following-Friday pay.
 
-payroll_run(payroll_run_id PK, payroll_period_id FK, branch_id FK, status,
-            total_salary, total_deductions, total_benefits, net_pay,
+payroll_run(payroll_run_id PK, payroll_period_id FK, branch_id FK,
+            payroll_policy_id FK,
+            status ENUM('Draft','Computed','PendingOwnerApproval','Approved','Returned'),
+            gross_pay, total_deductions, net_pay,
             computed_by FK -> users, computed_at, submitted_by FK -> users,
-            submitted_at, approved_by FK -> users, approved_at, return_reason)
+            submitted_at, reviewed_by FK -> users, reviewed_at, return_reason,
+            lock_version)
             -- [extension: branch transaction]; unique period+branch
 
 payroll(payroll_id PK, payroll_run_id FK, payroll_period_id FK,
-        employee_id FK, branch_assignment_id FK, pay_date,
-        total_salary, total_deductions, total_benefits, net_pay, status,
-        approved_by FK -> users, approved_date, remarks)  -- [Fig163/164]
+        employee_id FK, branch_assignment_id FK, salary_id FK,
+        daily_rate_snapshot, gross_pay, total_deductions, net_pay)  -- [Fig163/164 + ADR-0002]
         -- replaces Table85/Table92's (salary_id, deduction_id) shape per
         -- §6 recommendation #4: payroll is a header row; earnings and
         -- deductions are child rows keyed by payroll_id. Unique
         -- payroll_period_id+employee_id prevents cross-branch double payment.
-        -- total_benefits is a source-backed aggregate and must not contain
-        -- SSS/PhilHealth/Pag-IBIG, which are deductions.
+        -- payroll_run is the only approval/status authority. A composite FK
+        -- guarantees payroll.payroll_period_id equals the parent run's period.
 
-payroll_earnings(earning_id PK, payroll_id FK, earning_type, description, amount)  -- [Fig163/164]
-        -- NOTE: keyed by payroll_id only, no employee_id (matches
-        -- deduction's shape above; employee reachable via payroll).
-        -- Table85 misspelled this entity `PAYROLL_LEARNINGS` and keyed it
-        -- by employee_id instead — corrected per §1/§5.
+payroll_earnings(earning_id PK, payroll_id FK, earning_type, description,
+                 source_attendance_id FK NULL, source_request_id FK NULL,
+                 quantity, unit_rate, multiplier, amount, calculation_details)
+                 -- [Fig163/164 + ADR-0002: auditable calculation snapshot]
 
-payslip(payslip_id PK, payroll_id FK, issue_date, file_path, generated_by FK -> users)  -- [Fig163/164]
+deduction(deduction_id PK, payroll_id FK, deduction_type, description,
+          source_attendance_id FK NULL, quantity, unit_rate, amount,
+          calculation_details)
+          -- Government shares post only on the last-Friday payroll.
+
+payslip(payslip_id PK, payroll_id FK UNIQUE, issue_date, file_path,
+        generated_by FK -> users NULL, generated_at, content_hash)  -- [Fig163/164 + ADR-0002]
         -- drops Table85/Table96's redundant employee_id (reachable via payroll_id)
 
 bank_details(bank_id PK, employee_id FK, bank_name, account_name,
-             account_number, account_type, created_at)  -- [Fig163/164]
+             account_number, account_type, effective_from, effective_to,
+             status, created_at)  -- [Fig163/164 + ADR-0002]
 
-disbursement_batch(batch_id PK, period_start, period_end, pay_date,
+disbursement_batch(batch_id PK, payroll_period_id FK UNIQUE,
                    bank_name, cheque_number, cheque_total, status,
                    prepared_by FK -> users, submitted_at)
                    -- [canonical extension from Supplemental HR answer,
                    -- pp. 2-3: one aggregate pay-to-cash cheque per week]
 
 deposit_slip(slip_id PK, batch_id FK, payroll_id FK UNIQUE, bank_id FK,
-             amount, preparation_status, prepared_at)
+             amount, status, prepared_at)
              -- [canonical extension: one manual BDO deposit slip per employee]
 
 -- Fig163/164's `cash_transaction(payroll_id, bank_id, ...)` is retained in
 -- the source audit but superseded here because it cannot represent one
 -- cheque funding many employee deposit slips.
 
-cash_advance_history(history_id PK, employee_id FK, payroll_id FK, advance_date,
-                      amount, deducted_amount, remaining_balance, status, remarks)
-                      -- [Table85/97 shape, present in Fig163 but absent from Fig164]
+cash_advance_history(history_id PK, request_id FK UNIQUE, employee_id FK,
+                     original_amount, remaining_balance, status, approved_at)
+                      -- [Table85/97 lineage + ADR-0002 normalized obligation]
                       -- Relationship to `request` (a cash-advance-type request):
                       -- an Approved cash-advance `request` is expected to create
-                      -- one `cash_advance_history` row for repayment tracking.
-                      -- This canonical lifecycle is accepted by ADR-0001.
+                      -- one obligation row for repayment tracking.
 
-audit_logs(log_id PK, user_id FK -> users, action_performed, table_affected,
-           record_id, action_date, description)  -- [Fig163/164]
+cash_advance_repayment(repayment_id PK, history_id FK, payroll_id FK,
+                       deduction_id FK UNIQUE, amount, created_at)
+                       -- one child row per weekly repayment
+
+audit_logs(log_id PK, user_id FK -> users NULL, event_type, action_performed,
+           table_affected, record_id, attempted_identifier, request_id,
+           ip_address, user_agent, action_at, description)  -- [Fig163/164 + ADR-0002]
         -- Table85 instead used (Log_in, employee_id, action, log_date) keyed
         -- to employee_id. Adopted the Fig163/164 version per §6 since not
-        -- every audited action is employee-initiated (HR/Owner users too);
+        -- every audited action is authenticated (for example failed login);
         -- `Log_in` corrected to `log_id` per §1.
 ```
 
@@ -501,22 +559,26 @@ audit_logs(log_id PK, user_id FK -> users, action_performed, table_affected,
   Business Owner is a user without an employee row and is excluded from
   payroll.
 - `employee 1—N attendance`, `employee 1—N work_schedule` (history via
-  `effective_start_date`/`effective_end_date`).
+  `effective_from`/`effective_to`).
 - `attendance_site 1—N biometric_device`; `biometric_device N—M branch` via
   effective-dated `biometric_device_branch`, so counts are never hardcoded.
 - `employee N—M biometric_device` through effective-dated
   `employee_biometric_enrollment`; matching uses device + code + punch time.
 - `attendance_import_batch N—1 biometric_device` and `1—N biometric_punch`;
-  generated attendance preserves the effective employee branch assignment.
-- `employee 1—N request`, `request N—1 request_type`.
+  `attendance N—M biometric_punch` through `attendance_punch`; generated
+  attendance preserves the effective employee branch assignment and exact
+  source evidence.
+- `employee 1—N request`, `request N—1 request_type`, with exactly one matching
+  leave/overtime/cash-advance detail row. Leave balance is derived from the
+  append-only `leave_ledger`.
 - `payroll_period 1—N payroll_run`, one per selected branch; each
   `payroll_run 1—N payroll`, and each employee occurs once per period based on
   the assignment effective at period start.
 - `payroll 1—N payroll_earnings`, `payroll 1—N deduction`, `payroll 1—1 payslip`,
   and `payroll 1—N contribution_record`.
-- `disbursement_batch 1—N deposit_slip`; each `deposit_slip` references one
+- `payroll_period 1—0..1 disbursement_batch 1—N deposit_slip`; each slip references one
   employee payroll row and that employee's BDO bank details.
-- `salary` keeps history via `effective_date`/`status` rather than mutating
+- `salary` keeps history via `effective_from`/`effective_to` rather than mutating
   rows in place (supports REQ055–REQ057).
 - `attendance_adjustment` references the original `attendance` row —
   imported punch data is never overwritten, only annotated (audit-safe).
@@ -525,6 +587,10 @@ audit_logs(log_id PK, user_id FK -> users, action_performed, table_affected,
 - The orphan source `benefit` table has no canonical relationship and is
   not implemented; government contributions are `deduction` rows backed by
   auditable `contribution_record` calculations.
+- `payroll_run.status` is the sole approval authority. Employee payroll rows
+  snapshot their salary and calculation inputs but carry no approval state.
+- Every effective-dated write locks its employee/device/policy parent and
+  rejects overlaps using the half-open interval rules in ADR-0002.
 
 ## Error Handling
 
@@ -550,7 +616,7 @@ audit_logs(log_id PK, user_id FK -> users, action_performed, table_affected,
   prevent repeated generation and cross-branch double payment.
 - **Insufficient leave balance** (REQ078): reject at submission time with
   the employee's current balance shown.
-- **Payroll approval race**: `payroll.status` transitions are guarded by
+- **Payroll approval race**: `payroll_run.status` transitions are guarded by
   a check constraint / application-level lock so a run can't be approved
   twice or edited once `Approved`.
 - **Report/print/export failures**: surface a retry-safe error; report
