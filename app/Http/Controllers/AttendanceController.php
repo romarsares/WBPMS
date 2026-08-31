@@ -24,24 +24,39 @@ final class AttendanceController
         $config = require APP_ROOT . '/config/database.php';
         $pdo    = (new Connection($config))->pdo();
 
-        // Summary stats
+        // Canonical schema v1.1 attendance columns:
+        //   hours_worked_minutes, late_minutes, undertime_minutes, overtime_minutes
+        //   status ENUM('Complete','Incomplete','ReviewRequired','Approved')
+        // — 'worked_minutes' and 'is_incomplete' do not exist.
+
         $total = (int) $pdo->query("SELECT COUNT(*) FROM attendance")->fetchColumn();
+
         $complete = (int) $pdo->query(
-            "SELECT COUNT(*) FROM attendance WHERE time_in IS NOT NULL AND time_out IS NOT NULL"
+            "SELECT COUNT(*) FROM attendance WHERE status = 'Complete' OR status = 'Approved'"
         )->fetchColumn();
-        $incomplete = $total - $complete;
-        $unmatched  = (int) $pdo->query(
+
+        $incomplete = (int) $pdo->query(
+            "SELECT COUNT(*) FROM attendance WHERE status = 'Incomplete' OR status = 'ReviewRequired'"
+        )->fetchColumn();
+
+        $unmatched = (int) $pdo->query(
             "SELECT COUNT(*) FROM biometric_punch WHERE employee_id IS NULL"
         )->fetchColumn();
 
         // Recent attendance rows
         $rows = $pdo->query(
-            "SELECT a.attendance_id, e.employee_number,
+            "SELECT a.attendance_id,
+                    e.employee_number,
                     CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
                     b.branch_name,
-                    a.attendance_date, a.time_in, a.time_out,
-                    a.worked_minutes, a.late_minutes, a.undertime_minutes,
-                    a.overtime_minutes, a.is_incomplete
+                    a.attendance_date,
+                    a.time_in,
+                    a.time_out,
+                    a.hours_worked_minutes  AS worked_minutes,
+                    a.late_minutes,
+                    a.undertime_minutes,
+                    a.overtime_minutes,
+                    CASE WHEN a.status IN ('Incomplete','ReviewRequired') THEN 1 ELSE 0 END AS is_incomplete
                FROM attendance a
                JOIN employee e ON e.employee_id = a.employee_id
                LEFT JOIN employee_branch_assignment eba

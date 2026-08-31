@@ -24,6 +24,11 @@ final class RequestsController
         $config = require APP_ROOT . '/config/database.php';
         $pdo    = (new Connection($config))->pdo();
 
+        // Columns per canonical schema v1.1:
+        //   request: request_id, employee_id, request_type_id, reason, status,
+        //            submitted_at, reviewed_by, reviewed_at, review_notes,
+        //            archived_by, archived_at, created_at, updated_at
+        // 'remarks' does not exist — use 'reason' for the request note.
         $rows = $pdo->query(
             "SELECT r.request_id,
                     CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
@@ -31,10 +36,12 @@ final class RequestsController
                     rt.type_name,
                     r.status,
                     r.submitted_at,
-                    r.remarks
+                    r.reason AS remarks,
+                    r.review_notes
                FROM request r
-               JOIN employee e  ON e.employee_id  = r.employee_id
-               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+               JOIN employee e       ON e.employee_id       = r.employee_id
+               JOIN request_type rt  ON rt.request_type_id  = r.request_type_id
+              WHERE r.archived_at IS NULL
               ORDER BY r.submitted_at DESC
               LIMIT 200"
         )->fetchAll();

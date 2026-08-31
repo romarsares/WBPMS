@@ -41,12 +41,13 @@ final class SalaryController
               LIMIT 300"
         )->fetchAll();
 
-        $total   = count($rows);
-        $active  = count(array_filter($rows, fn($r) => $r['status'] === 'Active'));
-        $avgRate = $total > 0
-            ? array_sum(array_column($rows, 'daily_rate')) / $total
-            : 0;
-        $maxRate = $total > 0 ? max(array_column($rows, 'daily_rate')) : 0;
+        $total  = count($rows);
+        $active = count(array_filter($rows, fn($r) => $r['status'] === 'Active'));
+
+        // PDO returns DECIMAL columns as strings — cast explicitly before arithmetic.
+        $rates  = array_map(fn($r) => (float) $r['daily_rate'], $rows);
+        $avgRate = $total > 0 ? array_sum($rates) / $total : 0.0;
+        $maxRate = $total > 0 ? max($rates) : 0.0;
 
         $title      = 'Salary Management';
         $activePage = 'salary';

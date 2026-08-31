@@ -20,15 +20,16 @@ use Wbpms\Http\View\Formatter;
         </div>
         <table>
             <thead>
-                <tr><th>PROGRAM</th><th>EFFECTIVE FROM</th><th>EFFECTIVE TO</th><th>STATUS</th></tr>
+                <tr><th>PROGRAM</th><th>VERSION</th><th>EFFECTIVE FROM</th><th>EFFECTIVE TO</th><th>STATUS</th></tr>
             </thead>
             <tbody>
             <?php if (empty($policies)): ?>
-                <tr><td colspan="4" class="muted" style="text-align:center;padding:24px">No policies defined.</td></tr>
+                <tr><td colspan="5" class="muted" style="text-align:center;padding:24px">No policies defined.</td></tr>
             <?php else: foreach ($policies as $p):
                 $badge = $p['status'] === 'Approved' ? 'ok' : 'off'; ?>
                 <tr>
                     <td style="font-weight:700"><?= Formatter::escape($p['program']) ?></td>
+                    <td><?= Formatter::escape($p['version']) ?></td>
                     <td><?= Formatter::date($p['effective_from']) ?></td>
                     <td><?= $p['effective_to'] ? Formatter::date($p['effective_to']) : '<span class="muted">Current</span>' ?></td>
                     <td><span class="badge <?= $badge ?>"><?= Formatter::escape($p['status']) ?></span></td>
@@ -45,21 +46,23 @@ use Wbpms\Http\View\Formatter;
         </div>
         <table>
             <thead>
-                <tr><th>EMPLOYEE</th><th>PROGRAM</th><th>PERIOD</th><th>EE SHARE</th><th>ER SHARE</th></tr>
+                <tr><th>EMPLOYEE</th><th>PROGRAM</th><th>PERIOD</th><th>EE SHARE</th><th>ER SHARE</th><th>STATUS</th></tr>
             </thead>
             <tbody>
             <?php if (empty($records)): ?>
-                <tr><td colspan="5" class="muted" style="text-align:center;padding:24px">No records yet.</td></tr>
-            <?php else: foreach ($records as $r): ?>
+                <tr><td colspan="6" class="muted" style="text-align:center;padding:24px">No records yet.</td></tr>
+            <?php else: foreach ($records as $r):
+                $badge = $r['status'] === 'Locked' ? 'ok' : 'wait'; ?>
                 <tr>
                     <td>
                         <div style="font-weight:700"><?= Formatter::escape($r['employee_name']) ?></div>
                         <div class="muted"><?= Formatter::escape($r['employee_number']) ?></div>
                     </td>
                     <td><?= Formatter::escape($r['program']) ?></td>
-                    <td><?= Formatter::escape($r['period_label'] ?? '—') ?></td>
+                    <td class="muted" style="font-size:13px"><?= Formatter::date($r['period_start']) ?> – <?= Formatter::date($r['period_end']) ?></td>
                     <td>₱<?= number_format((float)$r['employee_share'], 2) ?></td>
                     <td>₱<?= number_format((float)$r['employer_share'], 2) ?></td>
+                    <td><span class="badge <?= $badge ?>"><?= Formatter::escape($r['status']) ?></span></td>
                 </tr>
             <?php endforeach; endif; ?>
             </tbody>

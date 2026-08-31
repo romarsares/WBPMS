@@ -535,3 +535,30 @@ a { text-decoration: none; color: inherit; }
     .content { padding: 0; }
     .panel { box-shadow: none; }
 }
+
+
+/* -----------------------------------------------------------------------
+   Additional button variants (User Management CRUD)
+   ----------------------------------------------------------------------- */
+.btn-warn, button.btn-warn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 4px; font-weight: 700;
+    font-size: 14px; cursor: pointer; text-decoration: none;
+    border: 1px solid #d97706; background: #fffbeb; color: #92400e;
+    transition: background 0.15s;
+}
+.btn-warn:hover, button.btn-warn:hover { background: #fef3c7; }
+
+.btn-danger, button.btn-danger {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px; border-radius: 4px; font-weight: 700;
+    font-size: 14px; cursor: pointer; text-decoration: none;
+    border: 1px solid #dc2626; background: #fef2f2; color: #991b1b;
+    transition: background 0.15s;
+}
+.btn-danger:hover, button.btn-danger:hover { background: #fee2e2; }
+
+.btn-sm, button.btn-sm {
+    padding: 5px 11px !important;
+    font-size: 12px !important;
+}

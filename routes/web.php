@@ -132,4 +132,15 @@ $router->add('GET', '/benefits',  [\Wbpms\Http\Controllers\BenefitsController::c
 $router->add('GET', '/my-attendance', [\Wbpms\Http\Controllers\EmployeePortalController::class, 'myAttendance'], ['Employee']);
 $router->add('GET', '/my-requests',   [\Wbpms\Http\Controllers\EmployeePortalController::class, 'myRequests'],   ['Employee']);
 $router->add('GET', '/my-payslips',   [\Wbpms\Http\Controllers\EmployeePortalController::class, 'myPayslips'],   ['Employee']);
->>>>>>> cd3c46aa7b672775ed0b8601054e78037aa9d780
+
+// ---------------------------------------------------------------------------
+// Business Owner — User Management CRUD
+// ---------------------------------------------------------------------------
+
+$router->add('GET',  '/users',              [\Wbpms\Http\Controllers\UserController::class, 'index'],  ['BusinessOwner']);
+$router->add('GET',  '/users/create',       [\Wbpms\Http\Controllers\UserController::class, 'create'], ['BusinessOwner']);
+$router->add('POST', '/users',              [\Wbpms\Http\Controllers\UserController::class, 'store'],  ['BusinessOwner']);
+$router->add('GET',  '/users/{id}/edit',    [\Wbpms\Http\Controllers\UserController::class, 'edit'],   ['BusinessOwner']);
+$router->add('POST', '/users/{id}',          [\Wbpms\Http\Controllers\UserController::class, 'update'], ['BusinessOwner']);
+$router->add('POST', '/users/{id}/toggle',   [\Wbpms\Http\Controllers\UserController::class, 'toggle'], ['BusinessOwner']);
+$router->add('POST', '/users/{id}/archive',  [\Wbpms\Http\Controllers\UserController::class, 'archive'], ['BusinessOwner']);

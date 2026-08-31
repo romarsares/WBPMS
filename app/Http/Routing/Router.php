@@ -71,15 +71,23 @@ final class Router
         $path       = parse_url($requestUri, PHP_URL_PATH) ?? '/';
 
         // Strip the subdirectory base so routes registered as '/health' match
-        // whether the app runs at document root or under e.g. /wbpms/public/.
-        // SCRIPT_NAME is e.g. '/wbpms/public/index.php'; base is '/wbpms/public'.
+        // whether the app runs at document root or under /wbpms/public/.
+        //
+        // SCRIPT_NAME = '/wbpms/public/index.php' → base = '/wbpms/public'
+        // dirname() on Windows may use backslash; normalize with str_replace.
         $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-        $base       = rtrim(dirname($scriptName), '/');
+        $base       = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
+
         if ($base !== '' && $base !== '/' && str_starts_with($path, $base)) {
             $path = substr($path, strlen($base));
         }
+
+        // Guarantee a leading slash.
         if ($path === '' || $path === false) {
             $path = '/';
+        }
+        if ($path[0] !== '/') {
+            $path = '/' . $path;
         }
 
         // Normalize trailing slash (keep root as-is).
@@ -124,6 +132,16 @@ final class Router
         }
 
         // 404 — no matching route.
+        // For browser requests redirect to login; for API/JSON requests return JSON.
+        $acceptsHtml = str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'text/html');
+        $base        = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+
+        if ($acceptsHtml) {
+            http_response_code(302);
+            header('Location: ' . $base . '/login');
+            exit;
+        }
+
         http_response_code(404);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode([

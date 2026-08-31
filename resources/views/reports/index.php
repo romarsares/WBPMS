@@ -53,7 +53,9 @@ use Wbpms\Http\View\Formatter;
             <tr><td colspan="6" class="muted" style="text-align:center;padding:28px">No approved payroll runs yet.</td></tr>
         <?php else: foreach ($payrollSummary as $r): ?>
             <tr>
-                <td style="font-weight:700"><?= Formatter::escape($r['period_label']) ?></td>
+                <td style="font-weight:700">
+                    <?= Formatter::date($r['period_start']) ?> – <?= Formatter::date($r['period_end']) ?>
+                </td>
                 <td><?= Formatter::escape($r['branch_name']) ?></td>
                 <td style="text-align:center"><?= (int)$r['emp_count'] ?></td>
                 <td>₱<?= number_format((float)$r['gross'], 2) ?></td>

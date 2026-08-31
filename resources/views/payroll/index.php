@@ -38,12 +38,15 @@ use Wbpms\Http\View\Formatter;
             $label = match($r['status']) {
                 'PendingOwnerApproval' => 'Pending Approval',
                 default => $r['status'],
-            }; ?>
+            };
+            // Build a human-readable period label from period_start and period_end
+            $periodLabel = Formatter::date($r['period_start']) . ' – ' . Formatter::date($r['period_end']);
+            ?>
             <tr>
                 <td><?= Formatter::escape($r['branch_name']) ?></td>
                 <td>
-                    <div style="font-weight:700"><?= Formatter::escape($r['period_label']) ?></div>
-                    <div class="muted"><?= Formatter::date($r['period_start']) ?> – <?= Formatter::date($r['period_end']) ?></div>
+                    <div style="font-weight:700"><?= $periodLabel ?></div>
+                    <div class="muted">Pay: <?= Formatter::date($r['pay_date']) ?></div>
                 </td>
                 <td style="text-align:center"><?= (int)$r['employee_count'] ?></td>
                 <td>₱<?= number_format((float)$r['gross_total'], 2) ?></td>
