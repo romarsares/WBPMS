@@ -246,6 +246,24 @@ live connection to the device.
 20. FOR a given employee and attendance date, THE SYSTEM SHALL store at most
     one generated attendance row and SHALL link every raw punch used as
     evidence to that row, including intermediate punches. [REQ024; ADR-0002]
+21. WHEN a workbook is uploaded THEN the system SHALL verify the `.xls`
+    extension, OLE compound-file signature, SHA-256 checksum, one-sheet
+    contract, and configurable file/row/column/token limits before database
+    persistence. MIME detection SHALL be advisory and SHALL NOT be the only
+    file-type control. [ADR-0003]
+22. WHILE an uploaded workbook is processed, THE SYSTEM SHALL use a randomized
+    temporary path outside the public web directory, SHALL NOT construct a path
+    from the client filename, and SHALL remove the temporary file after success
+    or failure. [ADR-0003]
+23. WHEN the MVP parser decodes a workbook THEN it SHALL use the dedicated
+    legacy-XLS adapter `LDE_XLS_DAILY_LOG_V1`, reject formula-bearing or
+    unsupported structures, preserve leading zeroes in `Enroll ID`, and return
+    stable row/column-scoped validation codes without exposing server paths or
+    stack traces. [ADR-0003]
+24. THE workbook parser SHALL have no database, HTTP, session, employee-match,
+    attendance-calculation, or payroll dependency. The import service SHALL
+    perform matching and all persistence in one transaction after parsing, and
+    any failure SHALL roll back the complete batch. [ADR-0003]
 
 ### Requirement 7: Request Management (Leave, Overtime, Cash Advance)
 

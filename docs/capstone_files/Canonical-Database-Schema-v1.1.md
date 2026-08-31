@@ -58,7 +58,8 @@ and nullable respectively.
   DATETIME(0) NULL`; `created_at`; index `(user_id, expires_at)`.
 - `sessions`: `session_id VARCHAR(128) PK`; `expires_at BIGINT UNSIGNED NN`;
   `data MEDIUMTEXT NN`; index `expires_at`. This table is migration-owned even
-  when the selected Express session-store package can auto-create it.
+  when the project-owned PHP `SessionHandlerInterface` creates or manages
+  session rows at runtime.
 - `audit_logs`: `log_id BIGINT UNSIGNED PK`; `user_id BIGINT UNSIGNED NULL FK
   users`; `event_type VARCHAR(50) NN`; `action_performed VARCHAR(100) NN`;
   `table_affected VARCHAR(64) NULL`; `record_id BIGINT UNSIGNED NULL`;
@@ -162,6 +163,17 @@ and nullable respectively.
   `resolved_by BIGINT UNSIGNED NULL FK users`; `resolved_at DATETIME(0) NULL`;
   `created_at`; UQ
   `(device_id, device_employee_code, source_local_at)`.
+
+### PHP parser implementation note (ADR-0003)
+
+The schema is implementation-stack neutral. The accepted frameworkless PHP
+implementation uses a project-owned `SessionHandlerInterface` against
+`sessions`, PDO repositories, and Phinx migrations. The legacy workbook adapter
+persisted in `attendance_import_batch.parser_version` is
+`LDE_XLS_DAILY_LOG_V1`; it decodes only the approved OLE/BIFF `.xls` matrix,
+emits immutable raw punches, and leaves matching/persistence to the transactional
+attendance import service. This is an implementation extension, not a change to
+the approved data model.
 - `attendance`: `attendance_id BIGINT UNSIGNED PK`; `employee_id BIGINT
   UNSIGNED NN FK employee`; `branch_assignment_id BIGINT UNSIGNED NN FK
   employee_branch_assignment`; `schedule_id BIGINT UNSIGNED NN FK

@@ -2,76 +2,97 @@
 inclusion: always
 ---
 
-# Project & Code Structure Conventions
+# Project and Code Structure Conventions
 
-## Suggested repository layout
+## Required repository layout
 
-```
-payroll-system/
-├── src/
-│   ├── config/
-│   │   └── database.ts          # Sequelize connection config
-│   ├── models/                  # one Sequelize model per DB entity
-│   ├── controllers/              # one controller group per module (see below)
-│   ├── services/                 # business logic: PayrollService, ContributionEngine, etc.
-│   ├── middleware/                # auth/role guards, validation
-│   ├── routes/                   # Express routers, one per module, mounted in app.ts
-│   ├── views/  or  client/        # server-rendered templates, or a separate frontend app
-│   └── app.ts                     # Express app setup
-├── migrations/                   # Sequelize migrations (schema evolution)
-├── seeders/                       # reference data: roles, request types, contribution brackets
+```text
+wbpms/
+├── app/
+│   ├── Application/             # use cases and transaction orchestration
+│   ├── Domain/                  # entities, DTOs, value objects, calculators
+│   ├── Http/
+│   │   ├── Controllers/         # HTTP only: bind, authorize, render/respond
+│   │   ├── Middleware/          # auth, RBAC, CSRF, request ID
+│   │   └── Routing/             # explicit route dispatcher
+│   └── Infrastructure/
+│       ├── Database/            # PDO connection factory/transaction helper
+│       ├── Persistence/         # repository implementations and SQL
+│       ├── Session/             # database SessionHandlerInterface
+│       └── Reports/             # PDF/mail adapters
+├── bootstrap/
+├── config/
+├── database/
+│   ├── migrations/              # Phinx schema evolution
+│   └── seeds/                   # synthetic/demo reference data
+├── public/
+│   └── index.php                # only web-accessible entry point
+├── resources/views/             # escaped native PHP templates
+├── routes/
+│   └── web.php
+├── storage/private/             # uploads, generated artifacts, logs; never public
 ├── tests/
-├── package.json
-├── tsconfig.json
-└── .kiro/
-    ├── steering/                  # this folder — always-on project context
-    └── specs/                     # per-module specs (requirements/design/tasks)
+├── composer.json
+├── composer.lock
+├── phinx.php
+└── phpunit.xml
 ```
 
-## Module → code mapping
+## Module to code mapping
 
-Each numbered module in `product.md` should map 1:1 to a route + controller
-group, a service (where computation is involved), and a spec folder under
-`.kiro/specs/`:
+Each numbered module in `product.md` maps to controller actions, application
+services, domain services where calculations are involved, repository
+interfaces/implementations, and tests:
 
-| Module | Route/Controller/Service | Primary tables |
+| Module | PHP components | Primary tables |
 |---|---|---|
-| Login & Authentication | `routes/auth.ts` → `AuthController` | `users`, `role` |
-| Dashboard | `routes/dashboard.ts` → `DashboardController` | reads across modules (no own table) |
-| User Management | `routes/users.ts` → `UserController` | `users`, `role` |
-| Employee Management | `routes/employees.ts` → `EmployeeController` | `employee`, `address`, `branch` |
-| Work Schedule | `routes/schedules.ts` → `ScheduleController` | `work_schedule`, `holiday_calendar` |
-| Attendance | `routes/attendance.ts` → `AttendanceController`, `AttendanceService` | `attendance`, `attendance_adjustment` |
-| Request Management | `routes/requests.ts` → `RequestController` | `request`, `request_type` |
-| Payroll | `routes/payroll.ts` → `PayrollController`, `PayrollService` | `payroll`, `payroll_earnings`, `payslip` |
-| Manage Salary | `routes/salary.ts` → `SalaryController` | `salary`, salary history table |
-| Contributions & Deductions | `routes/contributions.ts` → `ContributionController`, `ContributionEngine` | `deduction`, `contribution_record`, SSS/PhilHealth/Pag-IBIG policy tables |
-| Reports | `routes/reports.ts` → `ReportController` | reads across modules |
-| Employee self-service | `routes/portal.ts` → `EmployeePortalController` | reuses attendance/request/payslip tables, scoped to `employee_id` |
+| Login & Authentication | `AuthController`, `AuthService`, `DatabaseSessionHandler` | `users`, `role`, `sessions` |
+| Dashboard | `DashboardController`, query repositories | reads across modules |
+| User Management | `UserController`, `UserService`, `UserRepository` | `users`, `role` |
+| Employee Management | `EmployeeController`, `EmployeeService`, `EmployeeRepository` | `employee`, `address`, `branch` |
+| Work Schedule | `ScheduleController`, `ScheduleService` | `work_schedule`, `holiday_calendar` |
+| Attendance | `AttendanceController`, `LdeXlsDailyLogParser`, `AttendanceImportService`, `AttendanceService` | import, punch, attendance tables |
+| Request Management | `RequestController`, `RequestService` | `request`, `request_type` |
+| Payroll | `PayrollController`, `PayrollService` | `payroll`, `payroll_earnings`, `payslip` |
+| Manage Salary | `SalaryController`, `SalaryService` | `salary`, salary history |
+| Contributions & Deductions | `ContributionController`, `ContributionEngine` | `deduction`, contribution policies/records |
+| Reports | `ReportController`, report repositories/renderers | reads across modules |
+| Employee self-service | `EmployeePortalController` | scoped attendance/request/payslip queries |
+
+## Mandatory boundaries
+
+- No Laravel, full-stack framework, ORM, active-record model, or SQL in a
+  controller/template.
+- PDO repositories own SQL and prepared statements; application services own
+  multi-repository transaction boundaries.
+- Domain calculations and the XLS parser have no HTTP/session/PDO dependency.
+- `LdeXlsDailyLogParser` only parses/validates and returns DTOs. Matching,
+  persistence, idempotency, and timesheet generation belong to
+  `AttendanceImportService`.
+- `public/` is the only web root. Uploaded files must use randomized paths in
+  `storage/private/` and are removed after parse/import.
+- Migrations and seeders are Phinx-owned; schema is never hand-edited in a
+  developer database.
 
 ## Naming conventions
 
-- Database tables: `snake_case`, singular (e.g., `employee`, `payroll`,
-  `attendance_adjustment`), matching the normalized schema in `design.md`.
-  Sequelize models are `PascalCase` singular (e.g., `Employee`) mapped to
-  those table names via `tableName`.
-- TypeScript: classes/interfaces `PascalCase`; functions/variables
-  `camelCase`; one service class per module (e.g., `PayrollService`).
-- Requirement IDs: keep the original `REQ0xx` (functional) and `REQNxxx`
-  (non-functional) identifiers from the source documentation as traceability
-  tags in code comments and commit messages, e.g. `// implements REQ047`.
+- Database tables: `snake_case`, singular, matching the canonical schema.
+- PHP namespaces/classes/interfaces/enums: `PascalCase`; methods/properties and
+  local variables: `camelCase`; constants: `UPPER_SNAKE_CASE`.
+- Use `declare(strict_types=1);` in PHP source and PSR-4 namespaces under
+  `Wbpms\`.
+- Value objects/DTOs are immutable (`readonly` where practical).
+- Requirement identifiers remain in test names, issue references, and relevant
+  commit messages, e.g. `REQ018`, `REQN007`.
 
-## Spec-driven workflow (how Kiro should work on this project)
+## Spec-driven workflow
 
-ADR-0001 (`docs/adr/0001-development-baseline.md`) is the accepted MVP
-decision baseline. `docs/` is canonical; `.kiro` specification files mirror
-it for tooling and must not independently redefine business rules.
+ADR-0001 defines accepted business rules, ADR-0002 defines schema integrity,
+and ADR-0003 defines frameworkless PHP and parser architecture. `docs/` is
+canonical; `.kiro` mirrors it for tooling and must not redefine it.
 
-1. Before implementing a module, open its spec in `.kiro/specs/<module>/`
-   and confirm `requirements.md` is approved.
-2. Do not start writing code from a task until its `design.md` section is
-   approved.
-3. Execute one task at a time from `tasks.md`; check requirements coverage
-   before moving to the next task.
-4. Any new requirement discovered mid-implementation goes back into
-   `requirements.md` first — do not silently expand scope in code.
+1. Before implementing a module, read its `.kiro/specs/.../requirements.md`.
+2. Do not write code until the related design is approved.
+3. Complete one task at a time and retain requirement traceability.
+4. Record any newly discovered requirement in the canonical requirements before
+   implementing it.

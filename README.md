@@ -12,12 +12,12 @@ This repository has an **accepted MVP development baseline** in ADR-0001 as
 amended by ADR-0002. Requirements, architecture, the typed canonical schema,
 the biometric `.xls` contract, and technical choices are ready for
 implementation. It does not yet contain
-an executable application, `package.json`, database migrations, or deployment
+an executable application, `composer.json`, database migrations, or deployment
 configuration.
 
-The planned implementation uses Node.js, TypeScript, Express, Sequelize,
-and MySQL. Installation and runtime commands will become applicable after
-the project foundation is scaffolded.
+The planned implementation uses frameworkless PHP 8.5, Composer, PDO, Phinx,
+PhpSpreadsheet, and MySQL. Installation and runtime commands will become
+applicable after the project foundation is scaffolded.
 
 ## Goals
 
@@ -69,10 +69,10 @@ Browser UI
     |
     | HTTP / JSON
     v
-Node.js + Express application
-Routes -> Controllers -> Services -> Validation/RBAC
+PHP front controller application
+Router -> Controllers -> Services -> Validation/RBAC
     |
-    | Sequelize
+    | PDO repositories
     v
 MySQL database
 ```
@@ -85,14 +85,14 @@ the user interface.
 
 | Area | Planned choice |
 |---|---|
-| Runtime | Node.js 24.x LTS with TypeScript |
-| Web framework | Express |
+| Runtime | PHP 8.5 |
+| Web framework | None — project-owned front controller and route dispatcher |
 | Database | MySQL |
-| ORM and migrations | Sequelize |
-| Validation | Zod |
-| Authentication | BCrypt plus server-managed sessions |
-| User interface | Server-rendered EJS/HTML/CSS with progressive JavaScript |
-| PDF/report generation | PDFKit or Puppeteer |
+| Persistence and migrations | PDO repositories and Phinx |
+| Validation | Project-owned request/domain validators |
+| Authentication | `password_hash()` plus MySQL-backed native PHP sessions |
+| User interface | Server-rendered PHP/HTML/CSS with progressive JavaScript |
+| PDF/report generation | Print-ready HTML and optional Dompdf adapter |
 | Testing | Unit, integration, performance, RBAC, and end-to-end tests |
 
 ## Attendance import workflow
@@ -135,7 +135,9 @@ device identifiers are retained for HR review.
 | [Database revision record](docs/database-documentation-revision-log.md) | Corrections, accepted MVP resolutions, and remaining capstone-publication work. |
 | [Development baseline ADR](docs/adr/0001-development-baseline.md) | Accepted MVP decisions, workbook contract, technology choices, and production caveats. |
 | [Schema integrity ADR](docs/adr/0002-schema-integrity-corrections.md) | Corrected lifecycle authority, lineage, temporal constraints, and migration rules. |
+| [PHP/parser ADR](docs/adr/0003-frameworkless-php-and-xls-parser.md) | Frameworkless PHP baseline, dependency choices, XLS parser contract, and upload controls. |
 | [Canonical schema v1.1](docs/capstone_files/Canonical-Database-Schema-v1.1.md) | Typed implementation dictionary and capstone correction addendum. |
+| [PHP/parser capstone addendum](docs/capstone_files/Capstone-Implementation-Stack-and-Parser-Addendum-v1.0.md) | Capstone-facing frameworkless PHP and verified XLS import implementation record. |
 
 Original reference material is retained under
 [`docs/capstone_files`](docs/capstone_files/), including the
@@ -174,10 +176,10 @@ accepted [development baseline ADR](docs/adr/0001-development-baseline.md),
 
 ## Development baseline
 
-ADR-0001 and ADR-0002 close the MVP development/schema gates: organization topology is
+ADR-0001 through ADR-0003 close the MVP development/schema gates: organization topology is
 configurable, employee and payroll cardinalities are frozen, the orphan
 benefit table is excluded, the real `.xls` workbook contract is documented,
-and the technical choices are selected. Production still requires official
+and the PHP technical choices are selected. Production still requires official
 branch display names, full effective-dated statutory contribution policies,
 holiday-overtime treatment, and HR acceptance testing.
 
@@ -192,8 +194,9 @@ holiday-overtime treatment, and HR acceptance testing.
 
 ## Recommended implementation sequence
 
-1. Scaffold the Node.js/TypeScript application, migrations, seeders, and tests
-   from ADR-0001, ADR-0002, and canonical schema v1.1.
+1. Scaffold the frameworkless PHP/Composer application, Phinx migrations,
+   seeders, and PHPUnit/PHPStan checks from ADR-0001, ADR-0002, ADR-0003, and
+   canonical schema v1.1.
 2. Implement authentication and RBAC before the business modules.
 3. Build employee, schedule, attendance, request, salary, and contribution
    modules.

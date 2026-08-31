@@ -7,10 +7,11 @@
         and technical choices. Production branch display names and complete
         statutory policies remain deployment gates, not migration blockers.
   - [x] 1.0a **Schema integrity gate:** [ADR-0002](adr/0002-schema-integrity-corrections.md) and the [canonical v1.1 capstone addendum](capstone_files/Canonical-Database-Schema-v1.1.md) resolve the critical/high schema findings.
-  - [ ] 1.1 Scaffold Node.js/TypeScript project structure per `.kiro/steering/structure.md` (`src/{models,controllers,services,middleware,routes}`, `migrations/`, `seeders/`)
-  - [ ] 1.2 Write Sequelize migrations from the v1.1 addendum, including explicit types/nullability/defaults, FKs and delete actions, checks, unique keys, lookup indexes, sessions/reset/audit tables, attendance lineage, policy versions, and payroll snapshots
+  - [x] 1.0b **PHP/parser architecture gate:** [ADR-0003](adr/0003-frameworkless-php-and-xls-parser.md) supersedes the Node.js baseline with frameworkless PHP 8.5, Composer, PDO, Phinx, PHPUnit/PHPStan, and the strict PhpSpreadsheet-backed parser boundary.
+  - [ ] 1.1 Scaffold the frameworkless PHP/Composer project structure per `.kiro/steering/structure.md` (`app/{Application,Domain,Http,Infrastructure}`, `public/`, `resources/views/`, `database/{migrations,seeds}`, `tests/`)
+  - [ ] 1.2 Write Phinx migrations from the v1.1 addendum, including explicit types/nullability/defaults, FKs and delete actions, checks, unique keys, lookup indexes, sessions/reset/audit tables, attendance lineage, policy versions, and payroll snapshots
   - [ ] 1.3 Seed roles/request types, ADR-0001's labeled demo contribution fixture, and configurable demo branches/sites/devices without hardcoding counts into application rules
-  - [ ] 1.4 Configure DB connection (`config/database.ts`) and base Sequelize model setup
+  - [ ] 1.4 Configure a PDO MySQL connection factory, repository transaction boundary, and environment validation; prohibit direct SQL outside repositories/migrations
   - [ ] 1.5 Add migration/integration tests for every ADR-0002 uniqueness, calendar, lifecycle, temporal-overlap, and reconciliation invariant
   - _Requirements: foundation for all_
 
@@ -42,8 +43,8 @@
 
 - [ ] 6. Attendance Management module (`.xls` daily-log upload → timesheet)
   - [ ] 6.1 Implement configurable `attendance_site`, `biometric_device`, effective `biometric_device_branch` coverage, and `employee_biometric_enrollment` master-data services/UI
-  - [ ] 6.2 Implement device/year/month-aware `.xls` upload endpoint with OLE/BIFF signature, header, weekday/date-column, and `HH:mm` token validation
-  - [ ] 6.3 Implement pure `parseXlsDailyLog` to expand `Enroll ID` + date + every time token while retaining Dept/Name/raw cell/row/column evidence
+  - [ ] 6.2 Implement device/year/month-aware `.xls` upload boundary with extension plus OLE signature checks, SHA-256, randomized non-public temporary storage, cleanup, one-sheet/formula validation, and configurable 10 MiB/5,000-row/date-column/token resource limits
+  - [ ] 6.3 Install/pin `phpoffice/phpspreadsheet`; implement pure `AttendanceFileParser` and `LdeXlsDailyLogParser` (`LDE_XLS_DAILY_LOG_V1`) using explicit `Reader\Xls` data-only decoding to expand string-preserved `Enroll ID` + date + every `HH:mm` token while retaining Dept/User ID/Name/raw cell/row/column evidence
   - [ ] 6.4 Implement device+enrollment-code+punch-time matching against effective enrollments and branch assignments; retain unmatched and out-of-coverage punches in `biometric_punch`
   - [ ] 6.5 Detect duplicate files by SHA-256 and duplicate punches by device+code+local timestamp (REQ024)
   - [ ] 6.6 Wrap parse → match → stage → generate in a transaction recorded as a device-aware `attendance_import_batch`; return branch-grouped matched/unmatched/duplicate/incomplete/multi-punch totals
@@ -51,7 +52,7 @@
   - [ ] 6.8 Implement `computeHours` and `flagIncomplete` against the effective schedule
   - [ ] 6.9 Implement manual adjustment and unmatched/coverage-exception reconciliation with audit evidence (REQ023)
   - [ ] 6.10 `AttendanceController` + views: choose device (branch is derived), upload once, view grouped branch summary and employee timesheets
-  - [ ] 6.11 Tests: shared device serving multiple branches, late historical upload after transfer, old-device punch after transfer, duplicate transaction/file, unmatched enrollment, out-of-coverage branch, and calculation edge cases
+  - [ ] 6.11 Tests: synthetic/sanitized valid workbook, leading-zero enrollment, wrong extension/signature, renamed `.xlsx`, corrupt/truncated file, unexpected/formula-bearing sheet, invalid/duplicate dates and times, resource limits, deterministic parser errors, shared device serving multiple branches, historical upload after transfer, duplicate transaction/file, unmatched enrollment, out-of-coverage branch, rollback, and calculation edge cases
   - _Requirements: 6_
 
 - [ ] 7. Request Management module (Leave, Overtime, Cash Advance)

@@ -1,6 +1,7 @@
 # ADR-0001: Documentation-Grounded Development Baseline
 
 - **Status:** Accepted for MVP development; schema details amended by ADR-0002
+  and technical implementation decisions superseded by ADR-0003
 - **Date:** 2026-08-31
 - **Branch:** `WBPMS-dev`
 - **Decision basis:** repository documentation, supplemental HR answers,
@@ -15,6 +16,11 @@
 > these business decisions and replaces incomplete/ambiguous relational details
 > with the typed
 > [v1.1 capstone schema addendum](../capstone_files/Canonical-Database-Schema-v1.1.md).
+>
+> **Technology amendment:**
+> [ADR-0003](0003-frameworkless-php-and-xls-parser.md) replaces the original
+> Node.js/Express/Sequelize/SheetJS selection with frameworkless PHP,
+> Composer, PDO, Phinx, and a strict PhpSpreadsheet-backed `.xls` adapter.
 
 The original capstone contains conflicting database representations and a
 mix of generic and later operational requirements. The repository also
@@ -159,34 +165,41 @@ sanitized sample. It is not part of the MVP contract.
 
 ## Technical decisions
 
-- Runtime: Node.js 24.x LTS with TypeScript and npm.
-- Database: MySQL 8.4 LTS, InnoDB, `utf8mb4`, strict SQL mode, Sequelize
-  migrations, and `mysql2`.
-- HTTP/UI: Express with thin server-rendered EJS pages and small progressive
+- Runtime: PHP 8.5 with Composer 2 and no full-stack application framework.
+- Database: MySQL 8.4 LTS, InnoDB, `utf8mb4`, strict SQL mode, PDO repositories,
+  prepared statements, explicit transactions, and standalone Phinx migrations.
+- HTTP/UI: one `public/index.php` front controller, explicit route dispatch,
+  thin controllers, escaped native PHP templates, and small progressive
   JavaScript enhancements; no separate SPA for the MVP.
-- Validation: Zod at environment, route, and service boundaries.
-- Authentication: `bcrypt` plus server-managed `express-session` sessions
-  persisted in MySQL. Cookies are `HttpOnly`, `SameSite=Lax`, and `Secure` in
-  production. Logout destroys the server session; idle expiry is 30 minutes
-  and absolute expiry is 12 hours.
-- Testing: Vitest for unit/integration tests and Supertest for HTTP tests.
-- Workbook parsing: SheetJS `xlsx` behind an `AttendanceFileParser` adapter.
+- Validation: project-owned request validators, domain value objects, and
+  service-boundary validation.
+- Authentication: `password_hash()`/`password_verify()` plus native PHP
+  sessions persisted in MySQL through `SessionHandlerInterface`. Cookies are
+  `HttpOnly`, `SameSite=Lax`, and `Secure` in production. Logout destroys the
+  server session; idle expiry is 30 minutes and absolute expiry is 12 hours.
+  Mutating browser requests require CSRF tokens.
+- Testing and analysis: PHPUnit 12 and PHPStan.
+- Workbook parsing: `phpoffice/phpspreadsheet`'s explicit `Reader\Xls` behind
+  the pure `AttendanceFileParser` contract specified in ADR-0003. The
+  persisted MVP parser identifier is `LDE_XLS_DAILY_LOG_V1`.
 - API success envelope: `{ "data": ..., "meta": ... }`.
 - API error envelope:
   `{ "error": { "code": "...", "message": "...", "fields": {}, "requestId": "..." } }`.
 - Timezone: `Asia/Manila`. Business dates use MySQL `DATE`; instants use UTC
   timestamps and are converted at the boundary. UI dates remain `MM/DD/YY`
   and times remain 24-hour.
-- Money: PHP, `DECIMAL(12,2)` storage, decimal arithmetic, and half-up rounding
+- Money: Philippine pesos, `DECIMAL(12,2)` storage, integer-centavo or validated
+  decimal-string arithmetic, and half-up rounding
   to centavos per final earning/deduction component. Time calculations use
   integer minutes.
-- Environment variables: `NODE_ENV`, `PORT`, `APP_BASE_URL`, `SESSION_SECRET`,
+- Environment variables: `APP_ENV`, `APP_BASE_URL`, `APP_KEY`,
   `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD`.
 - Local workflow: MySQL 8.4 in Docker Compose, with separate development and
   test databases.
 
-Node.js 24 is an Active LTS line and MySQL documents 8.4 as an LTS series;
-the selected versions favor stability for the MVP.
+PHP 8.5 is an actively supported branch and MySQL documents 8.4 as an LTS
+series; the selected versions favor supported, reproducible dependencies for
+the MVP. ADR-0003 contains the complete frameworkless PHP and parser decision.
 
 ## Consequences
 
@@ -207,8 +220,10 @@ the selected versions favor stability for the MVP.
 - [Schema audit](../database-schema.md)
 - [Revision checklist](../database-documentation-revision-log.md)
 - [ADR-0002 schema integrity corrections](0002-schema-integrity-corrections.md)
+- [ADR-0003 frameworkless PHP and XLS parser](0003-frameworkless-php-and-xls-parser.md)
 - [Canonical database schema v1.1](../capstone_files/Canonical-Database-Schema-v1.1.md)
 - [HR follow-up answers](../capstone_files/Follow-up-Questions-with-Answers-from-HR-1.pdf)
 - [Final Defense Reviewer](../capstone_files/Final-Defense-Reviewer-1.pdf)
-- [Node.js release schedule](https://nodejs.org/en/about/previous-releases)
+- [PHP supported versions](https://www.php.net/supported-versions.php)
+- [PhpSpreadsheet reading files](https://phpspreadsheet.readthedocs.io/en/stable/topics/reading-files/)
 - [MySQL 8.4 LTS release model](https://dev.mysql.com/doc/refman/8.4/en/mysql-releases.html)

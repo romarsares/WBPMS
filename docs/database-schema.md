@@ -697,6 +697,10 @@ Required by REQ018 AC2, REQ024.
 | uploaded_by | HR user who uploaded the file (FK → users) | INT UNSIGNED | — | ✅ | N | — | — |
 | file_name | Original file name | VARCHAR(255) | — | — | N | — | — |
 | file_checksum | SHA-256 hash of the uploaded file | CHAR(64) | — | — | N | ✅ | Duplicate-upload guard |
+| source_year | Year supplied by HR for `MM/DD ddd` headers | SMALLINT UNSIGNED | — | — | N | — | Required before timestamp construction |
+| source_month | Month supplied by HR for `MM/DD ddd` headers | TINYINT UNSIGNED | — | — | N | — | CHECK `BETWEEN 1 AND 12` |
+| parser_version | Versioned adapter identifier | VARCHAR(50) | — | — | N | — | MVP: `LDE_XLS_DAILY_LOG_V1` |
+| status | Import lifecycle | ENUM('Processing','Completed','Rejected') | — | — | N | — | No partial completed import |
 | uploaded_at | Upload timestamp | TIMESTAMP | — | — | N | — | DEFAULT CURRENT_TIMESTAMP |
 | records_parsed | Total punch records parsed from file | INT UNSIGNED | — | — | N | — | — |
 | records_matched | Punch records matched to an enrollment | INT UNSIGNED | — | — | N | — | — |
@@ -704,6 +708,7 @@ Required by REQ018 AC2, REQ024.
 | duplicates_skipped | Records skipped as duplicate punches | INT UNSIGNED | — | — | N | — | — |
 | incomplete_days | Employee/date groups containing one punch | INT UNSIGNED | — | — | N | — | Default `0` |
 | multi_punch_days | Employee/date groups containing more than two punches | INT UNSIGNED | — | — | N | — | Default `0` |
+| completed_at | Completion/rejection timestamp | TIMESTAMP | — | — | Y | — | NULL while processing |
 
 ---
 
@@ -721,7 +726,8 @@ Required by REQ018 AC5, REQ018 AC10, REQ024.
 | employee_id | Matched employee (FK → employee, NULL if unmatched) | INT UNSIGNED | — | ✅ | Y | — | NULL until matched |
 | branch_assignment_id | Resolved branch assignment (FK → employee_branch_assignment) | INT UNSIGNED | — | ✅ | Y | — | NULL until resolved |
 | device_employee_code | Employee code as read from the device | VARCHAR(50) | — | — | N | — | — |
-| punched_at | Punch instant normalized from device-local `Asia/Manila` time | DATETIME | — | — | N | — | Preserve local source value below |
+| source_local_at | Device-local punch timestamp | DATETIME | — | — | N | — | `Asia/Manila`; used for matching/deduplication |
+| punched_at_utc | Normalized UTC punch instant | DATETIME | — | — | N | — | Derived at the import boundary |
 | punch_type | Adapter-supplied in/out indicator | ENUM('In','Out','Unknown') | — | — | Y | — | NULL for ADR-0001 `.xls` source |
 | device_transaction_id | Device-native transaction ID if present | VARCHAR(50) | — | — | Y | — | NULL for ADR-0001 `.xls` source |
 | match_status | Resolution status | ENUM('matched','unmatched','coverage_exception','duplicate') | — | — | N | — | — |
@@ -735,7 +741,7 @@ Required by REQ018 AC5, REQ018 AC10, REQ024.
 | resolved_at | Timestamp of manual resolution | TIMESTAMP | — | — | Y | — | NULL until resolved |
 
 Unique constraint for the MVP adapter:
-`(device_id, device_employee_code, punched_at)`. The workbook has no native
+`(device_id, device_employee_code, source_local_at)`. The workbook has no native
 transaction ID, so this key plus the batch SHA-256 provides idempotency.
 
 ---

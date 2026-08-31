@@ -6,7 +6,7 @@
 Diamond Enterprises*, Capstone Project Proposal, April 2026
 
 **Affected documentation:** `database-schema.md`, `design.md`, and any
-future SQL/ORM schema derived from them
+future SQL/PDO repository schema derived from them
 
 ## Purpose
 
@@ -17,9 +17,10 @@ controlled update of the capstone documentation without losing the wording
 or mistakes found in the original source.
 
 ADR-0001 authorizes the domain baseline. ADR-0002 and the v1.1 capstone
-schema addendum now authorize the corrected migration contract. This record
-still does not certify production statutory master data or rewrite the
-historical PDF evidence.
+schema addendum now authorize the corrected migration contract. ADR-0003 and
+the capstone implementation addendum record the frameworkless PHP and strict
+XLS-parser implementation decisions. This record still does not certify
+production statutory master data or rewrite the historical PDF evidence.
 
 ## Revision summary
 
@@ -32,7 +33,7 @@ historical PDF evidence.
 | DBR-005 | The schema implied `province → city → barangay → address`. | Table 85/Tables 86–90 place `province_id`, `city_id`, and `barangay_id` directly on `address`; the hierarchy is not source-defined. | Any hierarchical geography FKs must be documented as an implementation decision. |
 | DBR-006 | Relationships from Table 85, the Data Dictionary, and Figures 163–164 were combined into one diagram. | Relationships are now grouped by source, with conflicts called out. | Prevents incorrect FK direction and cardinality assumptions. |
 | DBR-007 | The only explicitly noted gaps were branch linkage, holiday dates, and government brackets. | The audit now also records employee, payroll, request, attendance-adjustment, cash-transaction, earnings, audit-log, and branch-count conflicts. | Expands the correction scope before schema implementation. |
-| DBR-008 | `users_tbl.password` was documented as a plain `varchar` column with no hashing specification. | Renamed to `password_hash` in `design.md`'s canonical `users` table. The source never specifies hashing; the rename is an implementation extension required by REQN011 (secure login). The original source spelling is preserved in §3.3 of `database-schema.md` for traceability. | Prevents a migration from creating a column named `password` that tempts plain-text storage; aligns the data model with the `bcrypt` requirement in `tech.md`. |
+| DBR-008 | `users_tbl.password` was documented as a plain `varchar` column with no hashing specification. | Renamed to `password_hash` in `design.md`'s canonical `users` table. The source never specifies hashing; the rename is an implementation extension required by REQN011 (secure login). The original source spelling is preserved in §3.3 of `database-schema.md` for traceability. | Prevents a migration from creating a column named `password` that tempts plain-text storage; aligns the data model with the approved password-hashing policy. |
 | DBR-009 | `MM/DD ddd` workbook headers were treated as complete dates. | Import batches now require a source year/month and validate header weekday/month before creating UTC punch instants. | Prevents ambiguous or incorrectly dated attendance. |
 | DBR-010 | Attendance had no declared employee/day uniqueness or exact punch lineage. | Added unique daily grain plus `attendance_punch`. | Prevents duplicate payroll inputs and preserves every punch used as evidence. |
 | DBR-011 | Payroll approval state appeared on both run and employee detail with three spellings. | `payroll_run.status` is the only authority and uses `PendingOwnerApproval`. | Prevents contradictory approval/finality state. |
@@ -43,6 +44,7 @@ historical PDF evidence.
 | DBR-016 | Request archival/type details, leave balance, and multi-week cash-advance repayment were under-modeled. | Added type details, leave entitlement/ledger, request-linked cash-advance obligation, and repayment child rows. | Satisfies the documented request lifecycles without overwriting balances. |
 | DBR-017 | The aggregate cheque was associated operationally with a branch run. | `disbursement_batch` is unique per payroll period and includes all approved branch runs. | Matches the one-cheque-per-week HR evidence. |
 | DBR-018 | Payslip and current bank-account cardinalities were implied only. | Payslip is unique per payroll; bank details are effective-dated with one current active BDO account enforced by service. | Prevents duplicate payslips and ambiguous deposit preparation. |
+| DBR-019 | The v1.1 schema addendum described sessions using an obsolete Express session-store reference, while the import documentation omitted parser version/lifecycle/date-context fields from its attendance-import dictionary. | ADR-0003 and the capstone implementation addendum select frameworkless PHP with a project-owned database `SessionHandlerInterface`; the canonical import-batch and schema-audit dictionaries now align on source year/month, parser version, lifecycle, and completion timestamp. | Keeps the capstone addendum stack-neutral and makes XLS import lineage reproducible. |
 
 ## Literal source corrections retained
 

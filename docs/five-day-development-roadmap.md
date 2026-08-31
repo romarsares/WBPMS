@@ -48,8 +48,8 @@ architecture decisions, but does not become the only reviewer or tester.
 
 ### P0 — committed MVP
 
-- Node.js/TypeScript/Express/Sequelize/MySQL project that can be installed,
-  migrated, seeded, tested, built, and started from a clean checkout.
+- Frameworkless PHP 8.5/Composer/PDO/Phinx/MySQL project that can be installed,
+  migrated, seeded, statically analyzed, tested, and started from a clean checkout.
 - Login with hashed passwords and RBAC for Business Owner, HR Head, and
   Employee.
 - Employee list/create/update and branch assignment using synthetic demo
@@ -124,13 +124,15 @@ Development that depends on an undecided item must not proceed by assumption.
 
 ### Technical decisions
 
-- [x] Use Zod for validation.
+- [x] Use project-owned request/domain validation.
 - [x] Use MySQL-persisted server sessions with 30-minute idle and 12-hour
       absolute expiry; logout destroys the server session.
-- [x] Use thin server-rendered EJS with progressive JavaScript.
-- [x] Use Vitest and Supertest.
-- [x] Use Node.js 24.x LTS, MySQL 8.4 LTS, npm, the ADR-0001 environment
-      variable names, and local database workflow.
+- [x] Use thin native PHP templates with progressive JavaScript.
+- [x] Use PHPUnit 12 and PHPStan.
+- [x] Use PHP 8.5, Composer 2, PDO repositories, Phinx, MySQL 8.4 LTS, the
+      ADR-0003 environment variable names, and local database workflow.
+- [x] Use PhpSpreadsheet's explicit `Reader\Xls` behind the pure
+      `LdeXlsDailyLogParser`, with ADR-0003 upload and resource controls.
 - [x] Use ADR-0001's standard success/error envelopes before
       lanes implement controllers independently.
 - [x] Use ADR-0002 and the v1.1 capstone schema addendum for migration types,
@@ -157,11 +159,11 @@ rules and exclude statutory-correctness claims from the phase outcome.
 
 **Lane A**
 
-- Scaffold the TypeScript/Express application using the structure in
+- Scaffold the frameworkless PHP/Composer application using the structure in
   `.kiro/steering/structure.md`.
 - Add configuration validation, database connection, error handling, health
-  endpoint, lint/type-check/build/test scripts, and CI.
-- Create the first approved migrations and reference-data seeders.
+  endpoint, PHPStan/PHPUnit/PHP syntax scripts, and CI.
+- Create the first approved Phinx migrations and reference-data seeders.
 - Implement password hashing, login, authenticated identity, and role guards.
 
 **Lane B**
@@ -196,7 +198,7 @@ From a clean checkout, the team must be able to:
 1. Install dependencies.
 2. Configure a local test database from the documented environment template.
 3. Run migrations and seeders.
-4. Run lint, type checking, tests, and production build.
+4. Run static analysis, tests, and PHP syntax/dependency checks.
 5. Start the server, pass the health check, log in as all three roles, and
    verify at least one allowed and one denied protected route.
 
@@ -206,7 +208,7 @@ Do not begin incompatible lane-specific schemas if this gate fails.
 
 **Lane A**
 
-- Complete shared Sequelize models/associations and migration ordering.
+- Complete shared PDO repository contracts and Phinx migration ordering.
 - Add request validation, authorization error handling, upload limits, and
   transaction helpers.
 - Review Lane B/C schema usage and prevent duplicated models or migrations.
@@ -414,13 +416,13 @@ An issue is done only when:
 
 - Its stated acceptance criteria pass.
 - Applicable requirement IDs are traceable in the issue, test, or code comment.
-- Code follows the agreed TypeScript and repository conventions.
+- Code follows the agreed PHP and repository conventions.
 - Input validation, authentication, authorization, and employee ownership are
   enforced where applicable.
 - Database work includes a reviewed migration and does not rely on manual local
   schema changes.
 - Unit/integration tests cover the happy path and important failure path.
-- Lint, type checking, tests, and production build pass in CI.
+- Static analysis, tests, and PHP syntax/dependency checks pass in CI.
 - No secrets or real personal/payroll data are committed.
 - Relevant API/setup/demo documentation is updated.
 - Another developer has reviewed and can run the change.

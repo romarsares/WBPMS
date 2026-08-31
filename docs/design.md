@@ -3,11 +3,12 @@
 ## Overview
 
 This design implements the requirements in `requirements.md` as a
-three-tier **Node.js (Express + TypeScript) / MySQL (Sequelize)** web
-application. Business logic (attendance computation, payroll calculation,
-contribution computation) lives in a Service layer between thin
-Express controllers/routers and the database (via Sequelize models), so
-calculation rules stay testable and independent of the UI.
+three-tier **frameworkless PHP 8.5 / MySQL 8.4** web application. Business
+logic (attendance computation, payroll calculation, and contribution
+computation) lives in application/domain services between thin PHP
+controllers and PDO repositories, so calculation rules stay testable and
+independent of HTTP, templates, and the database. ADR-0003 supersedes the
+earlier Node.js/Express/Sequelize technical direction.
 
 The operational rules introduced below are traced to the supplemental
 [`HR follow-up answers`](capstone_files/Follow-up-Questions-with-Answers-from-HR-1.pdf)
@@ -24,14 +25,14 @@ is labeled as a canonical inference or extension.
 └────────────┬─────────────┘
              │ HTTP requests (REST/JSON)
 ┌────────────▼─────────────┐
-│   Application Tier        │  Express Routers → Controllers → Services
+│   Application Tier        │  PHP Router → Controllers → Services
 │   - AuthController         │
 │   - PayrollService          │  Business rules, validation,
 │   - AttendanceService       │  RBAC enforcement (middleware)
 │   - ContributionEngine      │
 │   - ReportService           │
 └────────────┬─────────────┘
-             │ Sequelize (ORM)
+             │ PDO repositories / prepared SQL
 ┌────────────▼─────────────┐
 │   Database Tier            │  MySQL: normalized relational schema
 └─────────────────────────┘
@@ -103,11 +104,19 @@ gates controller actions:
 - Implements REQ025–REQ031.
 
 ### AttendanceService
-- `parseXlsDailyLog(fileBuffer, sourceYear, sourceMonth): ParsedWorkbook` — validates the OLE/BIFF
-  `.xls` workbook, required identity headers, `MM/DD ddd` date columns, and
-  space-separated `HH:mm` tokens. It also verifies that every header month and
-  weekday agrees with the selected source year/month. It expands every token into an immutable
-  raw punch while retaining workbook row/column and raw-cell evidence.
+- `AttendanceFileParser::supports(file): bool` is the format-neutral parser
+  boundary. The MVP implementation is `LdeXlsDailyLogParser`, versioned as
+  `LDE_XLS_DAILY_LOG_V1`.
+- `LdeXlsDailyLogParser::parse(temporaryPath, ParserContext): ParsedAttendanceFile`
+  uses PhpSpreadsheet's explicit `Reader\Xls` only to decode OLE/BIFF. The
+  parser itself validates the one-sheet workbook, fixed identity headers,
+  unique `MM/DD ddd` date columns, HR-selected year/month, formula absence,
+  resource limits, and every space-separated `HH:mm` token. It returns
+  immutable DTOs retaining workbook row/column and raw-cell evidence.
+- The parser is pure with respect to application state: it has no PDO,
+  session, HTTP, employee-matching, attendance, or payroll dependency. It
+  preserves `Enroll ID` as a string, emits every timestamp, and never infers
+  in/out type, employee, branch, or payroll treatment.
 - `matchEmployees(deviceId, rawPunches): {matched: RawPunch[], unmatched:
   RawPunch[], coverageExceptions: RawPunch[]}` — resolves source device +
   employee code + punch timestamp against effective biometric enrollments,
@@ -116,14 +125,17 @@ gates controller actions:
   per employee/day: one is incomplete, two use earliest/latest, and more
   than two preserve every punch and create an HR-review flag. It never
   silently discards intermediate punches.
-- `importFromXlsWorkbook(deviceId, sourceYear, sourceMonth, fileBuffer,
-  uploadedBy): ImportSummary` — loads
-  device/site/format context and orchestrates
-  the three steps above in a transaction and returns a summary (parsed /
+- `AttendanceImportService::importFromXlsWorkbook(deviceId, sourceYear,
+  sourceMonth, uploadedFile, uploadedBy): ImportSummary` validates the upload
+  extension, OLE signature, SHA-256, temporary-storage policy, and resource
+  budget before invoking the parser. It then loads device/site context and
+  orchestrates parsing, matching, staging, and timesheet generation in one
+  transaction. It returns a summary (parsed /
   matched / unmatched / duplicates-skipped / incomplete / multi-punch
   counts) for the HR Head to review. Unmatched punches remain in
   `biometric_punch` with `match_status = 'unmatched'` for manual
-  reconciliation rather than being discarded.
+  reconciliation rather than being discarded. The temporary file is outside
+  `public/` and is deleted in a `finally` block.
 - `getAttendanceFor(employeeId, dateRange): AttendanceRecord[]`
 - `computeHours(attendanceRecord, schedule): {hoursWorked, late, undertime, overtime}`
 - `flagIncomplete(): AttendanceRecord[]` — timesheet entries missing
@@ -599,8 +611,13 @@ audit_logs(log_id PK, user_id FK -> users NULL, event_type, action_performed,
 - **Authorization errors**: any action outside the RBAC table above
   returns `403` and is written to `audit_logs`.
 - **Invalid `.xls` workbook**: rejected outright at upload time with no
-  partial import when the signature, headers, date columns, or time tokens
-  violate ADR-0001's workbook contract.
+  partial import when the extension/OLE signature, worksheet count, headers,
+  date context, formulas, time tokens, or configurable resource limits violate
+  ADR-0003's workbook contract. Stable safe error codes include
+  `INVALID_OLE_SIGNATURE`, `UNEXPECTED_SHEET_COUNT`, `MISSING_HEADER`,
+  `INVALID_DATE_HEADER`, `DATE_CONTEXT_MISMATCH`, `DUPLICATE_DATE_COLUMN`,
+  `INVALID_TIME_TOKEN`, `FORMULA_NOT_ALLOWED`, and
+  `RESOURCE_LIMIT_EXCEEDED`.
 - **Duplicate punches on re-import** (REQ024): the import routine skips
   duplicate file checksums or device+code+local-timestamp records and reports the count
   rather than silently overwriting data.
@@ -630,6 +647,12 @@ audit_logs(log_id PK, user_id FK -> users NULL, event_type, action_performed,
   pure calculation functions and should be tested against known
   input/output pairs (including edge cases: exact schedule match, missing
   punch, zero salary, bracket boundaries).
+- **Parser unit/fixture tests** use synthetic or irreversibly sanitized `.xls`
+  workbooks. They cover valid input, leading-zero enrollment IDs, empty and
+  multi-punch cells, invalid/duplicate headers, wrong year/month/weekday,
+  invalid time tokens, formulas, a renamed `.xlsx`, corrupt/truncated input,
+  resource-limit rejection, and deterministic error locations. Real employee
+  names or biometric identifiers are never copied into public fixtures.
 - **Integration tests** for each Controller against a seeded test
   database: login/RBAC enforcement, request submit→approve→archive
   lifecycle, shared-device multi-branch import, permanent transfer with late

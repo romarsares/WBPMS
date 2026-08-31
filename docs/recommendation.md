@@ -7,7 +7,9 @@
 > **Decision update (2026-08-31):** [ADR-0001](adr/0001-development-baseline.md)
 > resolves the domain gate; [ADR-0002](adr/0002-schema-integrity-corrections.md)
 > and the [v1.1 capstone addendum](capstone_files/Canonical-Database-Schema-v1.1.md)
-> provide the migration-level integrity contract. This document remains a
+> provide the migration-level integrity contract; and
+> [ADR-0003](adr/0003-frameworkless-php-and-xls-parser.md) selects the PHP
+> implementation and strict XLS-parser boundary. This document remains a
 > consolidated rationale/reference; where it conflicts, the ADRs/addendum control.
 
 This document consolidates every recommendation found across the project
@@ -17,7 +19,7 @@ is gated behind an approval decision before implementation work may begin.
 
 ---
 
-## 1. Pre-Kickoff Decisions (Resolved for MVP by ADR-0001)
+## 1. Pre-Kickoff Decisions (Resolved for MVP by ADR-0001 through ADR-0003)
 
 These items originated as open checkboxes in the roadmap. ADR-0001 records
 their accepted MVP resolutions; production confirmations are listed
@@ -43,11 +45,11 @@ separately in that ADR.
 
 | # | Accepted decision | Source | Resolution |
 |---|---|---|---|
-| T-1 | Zod. | ADR-0001 | ✅ Accepted |
-| T-2 | MySQL-persisted server sessions with documented idle/absolute expiry. | ADR-0001 | ✅ Accepted |
-| T-3 | Thin server-rendered EJS with progressive JavaScript. | ADR-0001 | ✅ Accepted |
-| T-4 | Vitest and Supertest. | ADR-0001 | ✅ Accepted |
-| T-5 | Node.js 24.x LTS, MySQL 8.4 LTS, npm, Docker Compose, and the ADR environment contract. | ADR-0001 | ✅ Accepted |
+| T-1 | Frameworkless PHP 8.5 with Composer 2; no Laravel or full-stack framework. | ADR-0003 | ✅ Accepted |
+| T-2 | PDO repositories, MySQL 8.4, standalone Phinx migrations, and explicit transactions; no ORM. | ADR-0003 | ✅ Accepted |
+| T-3 | Native PHP templates with progressive JavaScript, MySQL-backed native sessions, and CSRF protection. | ADR-0003 | ✅ Accepted |
+| T-4 | PHPUnit 12 and PHPStan. | ADR-0003 | ✅ Accepted |
+| T-5 | PhpSpreadsheet `Reader\Xls` behind the pure versioned `LdeXlsDailyLogParser`; strict OLE/signature/structure/resource controls. | ADR-0003 | ✅ Accepted |
 | T-6 | ADR-0001 success/error envelopes. | ADR-0001 | ✅ Accepted |
 
 ---
@@ -112,21 +114,22 @@ must be present before the relevant modules can be built.
 
 ### 3.1 Project Scaffold
 
-- Scaffold the TypeScript/Express application following the layout in
+- Scaffold the frameworkless PHP/Composer application following the layout in
   `.kiro/steering/structure.md` before any feature branches begin.
-- Add configuration validation, database connection, error handling, a
-  health endpoint, and lint/type-check/build/test scripts on Day 1.
-- Create CI that runs lint, type check, unit tests, and a production build on
+- Add configuration validation, PDO connection, error handling, a health
+  endpoint, and Composer/PHPUnit/PHPStan scripts on Day 1.
+- Create CI that runs static analysis, unit/integration tests, and a PHP syntax check on
   every pull request. Do not merge to `main` without a green CI run.
 
 ### 3.2 Authentication and RBAC
 
-- Implement password hashing (`bcrypt`) and session/token auth before any
+- Implement `password_hash()`/`password_verify()` and database-backed native
+  PHP sessions before any
   business module. RBAC guards must be in place before business-module
   controllers are wired up.
 - Return a generic error on failed login without revealing which field
   was incorrect (REQ001 AC2).
-- Restrict every protected route via `AuthMiddleware` that checks `role_id`
+- Restrict every protected route via PHP middleware that checks `role_id`
   against the RBAC table in `design.md`.
 - Write an RBAC smoke test on Day 1 (at least one allowed and one denied
   route per role) before other lanes proceed.
@@ -134,8 +137,8 @@ must be present before the relevant modules can be built.
 ### 3.3 Business Logic Placement
 
 - All calculations (`AttendanceService.computeHours`, `ContributionEngine`,
-  `PayrollService`) must live in the Service layer with no Express or
-  Sequelize dependencies, so they can be unit-tested in isolation.
+  `PayrollService`) must live in the Service layer with no HTTP, PDO, or
+  template dependencies, so they can be unit-tested in isolation.
 - Payroll computation must persist an immutable calculation snapshot —
   approved payroll records must never be mutated.
 - The payroll approval state machine
@@ -157,6 +160,11 @@ must be present before the relevant modules can be built.
 - Import must be transactional: failure at any stage rolls back completely.
 - File checksum stored on `attendance_import_batch` is the idempotency key
   for duplicate-upload prevention.
+- Decode only through `PhpOffice\PhpSpreadsheet\Reader\Xls`; do not manually
+  parse BIFF or convert the source workbook to CSV before validation.
+- Require extension plus OLE signature, checksum, non-public randomized
+  temporary storage, one-sheet/formula/structure checks, and configured
+  resource limits. MIME is advisory only. Emit stable safe row/column errors.
 
 ### 3.5 Payroll Calculation Rules
 
@@ -259,10 +267,11 @@ Follow these rules exactly when implementing `PayrollService`:
 
 These corrections must be made to the original capstone document itself
 (tracked in `database-documentation-revision-log.md`). ADR-0001 as amended by
-ADR-0002 authorizes MVP migrations; unchecked items below are historical
+ADR-0002 authorizes MVP migrations and ADR-0003 authorizes the PHP/parser
+baseline; unchecked items below are historical
 capstone-publication work.
 
-- [x] Select ADR-0001, ADR-0002, `docs/design.md`, and the v1.1 capstone
+- [x] Select ADR-0001, ADR-0002, ADR-0003, `docs/design.md`, and the v1.1 capstone
       addendum as the canonical sources.
 - [x] Resolve branch count through configurable master data and demo topology.
 - [x] Approve the canonical employee attribute set.
@@ -299,8 +308,8 @@ Based on the roadmap, this is the recommended implementation order:
    submit/approve/return state transitions, return-reason enforcement,
    double-approval protection, payslip data, employee-scoped portal, RBAC
    regression, ownership checks.
-5. **Day 5 — Hardening and acceptance:** full test suite, lint, type check,
-   build, cross-browser check, demo rehearsal, acceptance against golden
+5. **Day 5 — Hardening and acceptance:** full test suite, static analysis,
+   PHP syntax/dependency verification, cross-browser check, demo rehearsal, acceptance against golden
    outputs, tag accepted revision, document deferred items.
 
 **P1 stretch** (only after P0 passes the Day 4 integration gate):
