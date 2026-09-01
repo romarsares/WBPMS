@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: hr/requests/show
  * Variables: $request (array), $errors (array)
@@ -9,7 +9,7 @@ $statusColor  = $statusColors[$request['status']] ?? '#6b7280';
 <div class="page-head">
     <div>
         <h1>Request #<?= (int)$request['request_id'] ?></h1>
-        <p><a href="/hr/requests">← Back to Requests</a></p>
+        <p><a href="<?= $base ?>/hr/requests">← Back to Requests</a></p>
     </div>
     <span style="background:<?= $statusColor ?>;color:#fff;padding:4px 14px;border-radius:9999px;font-size:.875rem;align-self:center"><?= htmlspecialchars($request['status']) ?></span>
 </div>
@@ -44,13 +44,13 @@ $statusColor  = $statusColors[$request['status']] ?? '#6b7280';
         <h3 style="margin:0 0 1rem">Actions</h3>
 
         <!-- Approve -->
-        <form method="post" action="/hr/requests/<?= (int)$request['request_id'] ?>/approve" style="margin-bottom:1rem">
+        <form method="post" action="<?= $base ?>/hr/requests/<?= (int)$request['request_id'] ?>/approve" style="margin-bottom:1rem">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
             <button type="submit" class="btn btn-primary" onclick="return confirm('Approve this request?')">✓ Approve Request</button>
         </form>
 
         <!-- Reject -->
-        <form method="post" action="/hr/requests/<?= (int)$request['request_id'] ?>/reject">
+        <form method="post" action="<?= $base ?>/hr/requests/<?= (int)$request['request_id'] ?>/reject">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
             <div class="form-group" style="margin-bottom:.75rem">
                 <label for="review_notes" style="display:block;font-weight:500;margin-bottom:.25rem">Rejection Note <span style="color:#ef4444">*</span></label>
@@ -69,7 +69,7 @@ $statusColor  = $statusColors[$request['status']] ?? '#6b7280';
 <!-- Archive -->
 <?php if (!isset($request['archived_at']) || $request['archived_at'] === null): ?>
 <div style="margin-top:1rem">
-    <form method="post" action="/hr/requests/<?= (int)$request['request_id'] ?>/archive" style="display:inline">
+    <form method="post" action="<?= $base ?>/hr/requests/<?= (int)$request['request_id'] ?>/archive" style="display:inline">
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
         <button type="submit" class="btn btn-secondary" onclick="return confirm('Archive this request? It will be hidden from the default list.')">Archive</button>
     </form>

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -32,12 +32,12 @@ $branches     ??= [];
 
 <div class="page-header">
     <h1>Employees</h1>
-    <a href="/hr/employees/new" class="btn btn-primary">Add Employee</a>
+    <a href="<?= $base ?>/hr/employees/new" class="btn btn-primary">Add Employee</a>
 </div>
 
 <!-- Filters -->
 <div class="card" style="padding:.9rem 1.25rem;margin-bottom:1.25rem">
-    <form method="GET" action="/hr/employees" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end">
+    <form method="GET" action="<?= $base ?>/hr/employees" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end">
         <div>
             <label style="font-size:.8rem;font-weight:500;color:#374151;display:block;margin-bottom:.25rem">Search</label>
             <input
@@ -71,7 +71,7 @@ $branches     ??= [];
         </div>
         <button type="submit" class="btn btn-secondary">Filter</button>
         <?php if ($search !== '' || $filterBranch !== '' || $filterStatus !== ''): ?>
-        <a href="/hr/employees" class="btn btn-secondary">Clear</a>
+        <a href="<?= $base ?>/hr/employees" class="btn btn-secondary">Clear</a>
         <?php endif; ?>
     </form>
 </div>
@@ -108,7 +108,7 @@ $branches     ??= [];
         <tr>
             <td><code style="font-size:.8rem"><?= Formatter::escape($emp['employee_number']) ?></code></td>
             <td>
-                <a href="/hr/employees/<?= (int) $emp['id'] ?>">
+                <a href="<?= $base ?>/hr/employees/<?= (int) $emp['id'] ?>">
                     <?= Formatter::escape($emp['last_name']) ?>, <?= Formatter::escape($emp['first_name']) ?>
                 </a>
             </td>
@@ -117,7 +117,7 @@ $branches     ??= [];
             <td><?= Formatter::date($emp['effective_from']) ?></td>
             <td><?= $statusBadge ?></td>
             <td style="white-space:nowrap">
-                <a href="/hr/employees/<?= (int) $emp['id'] ?>/edit" class="btn btn-secondary btn-sm">Edit</a>
+                <a href="<?= $base ?>/hr/employees/<?= (int) $emp['id'] ?>/edit" class="btn btn-secondary btn-sm">Edit</a>
             </td>
         </tr>
         <?php endforeach; ?>

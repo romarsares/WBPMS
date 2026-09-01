@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -53,22 +53,22 @@ $statusBadge = static function (string $status): string {
     <div class="stat-card">
         <div class="stat-label">Active Employees</div>
         <div class="stat-value"><?= $totalEmployees ?></div>
-        <div class="stat-sub"><a href="/hr/employees">View all →</a></div>
+        <div class="stat-sub"><a href="<?= $base ?>/hr/employees">View all →</a></div>
     </div>
     <div class="stat-card">
         <div class="stat-label">Pending Requests</div>
         <div class="stat-value" style="<?= $pendingRequests > 0 ? 'color:#b45309' : '' ?>"><?= $pendingRequests ?></div>
-        <div class="stat-sub"><a href="/hr/requests">Review →</a></div>
+        <div class="stat-sub"><a href="<?= $base ?>/hr/requests">Review →</a></div>
     </div>
     <div class="stat-card">
         <div class="stat-label">Incomplete Attendance</div>
         <div class="stat-value" style="<?= $incompleteAttendance > 0 ? 'color:#dc2626' : '' ?>"><?= $incompleteAttendance ?></div>
-        <div class="stat-sub"><a href="/hr/attendance">Review →</a></div>
+        <div class="stat-sub"><a href="<?= $base ?>/hr/attendance">Review →</a></div>
     </div>
     <div class="stat-card">
         <div class="stat-label">Payroll Drafts</div>
         <div class="stat-value"><?= $payrollDrafts ?></div>
-        <div class="stat-sub"><a href="/hr/payroll">View →</a></div>
+        <div class="stat-sub"><a href="<?= $base ?>/hr/payroll">View →</a></div>
     </div>
 </div>
 
@@ -78,7 +78,7 @@ $statusBadge = static function (string $status): string {
     <div class="card" style="padding:0;overflow:hidden;">
         <div style="padding:.85rem 1.25rem;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
             <strong style="font-size:.95rem">Recent Requests</strong>
-            <a href="/hr/requests" class="btn btn-secondary btn-sm">All requests</a>
+            <a href="<?= $base ?>/hr/requests" class="btn btn-secondary btn-sm">All requests</a>
         </div>
         <?php if (empty($recentRequests)): ?>
         <p style="padding:1.25rem;color:#6b7280;font-size:.875rem;margin:0">No pending requests.</p>
@@ -110,7 +110,7 @@ $statusBadge = static function (string $status): string {
     <div class="card" style="padding:0;overflow:hidden;">
         <div style="padding:.85rem 1.25rem;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
             <strong style="font-size:.95rem">Payroll Runs</strong>
-            <a href="/hr/payroll/create" class="btn btn-primary btn-sm">New run</a>
+            <a href="<?= $base ?>/hr/payroll/create" class="btn btn-primary btn-sm">New run</a>
         </div>
         <?php if (empty($payrollRuns)): ?>
         <p style="padding:1.25rem;color:#6b7280;font-size:.875rem;margin:0">No payroll runs yet.</p>
@@ -132,7 +132,7 @@ $statusBadge = static function (string $status): string {
                 <td><?= Formatter::escape($run['period']) ?></td>
                 <td style="text-align:center"><?= (int) $run['employee_count'] ?></td>
                 <td><?= $statusBadge($run['status']) ?></td>
-                <td><a href="/hr/payroll/<?= (int) $run['id'] ?>" class="btn btn-secondary btn-sm">View</a></td>
+                <td><a href="<?= $base ?>/hr/payroll/<?= (int) $run['id'] ?>" class="btn btn-secondary btn-sm">View</a></td>
             </tr>
             <?php endforeach; ?>
             </tbody>
@@ -146,9 +146,9 @@ $statusBadge = static function (string $status): string {
 <div class="card" style="margin-top:1.5rem">
     <strong style="font-size:.9rem;display:block;margin-bottom:.75rem;color:#374151">Quick Actions</strong>
     <div style="display:flex;flex-wrap:wrap;gap:.65rem">
-        <a href="/hr/employees/new"    class="btn btn-secondary">Add Employee</a>
-        <a href="/hr/attendance/import" class="btn btn-secondary">Import Attendance</a>
-        <a href="/hr/schedules"         class="btn btn-secondary">Manage Schedules</a>
-        <a href="/hr/payroll/create"       class="btn btn-primary">Generate Payroll</a>
+        <a href="<?= $base ?>/hr/employees/new"    class="btn btn-secondary">Add Employee</a>
+        <a href="<?= $base ?>/hr/attendance/import" class="btn btn-secondary">Import Attendance</a>
+        <a href="<?= $base ?>/hr/schedules"         class="btn btn-secondary">Manage Schedules</a>
+        <a href="<?= $base ?>/hr/payroll/create"       class="btn btn-primary">Generate Payroll</a>
     </div>
 </div>

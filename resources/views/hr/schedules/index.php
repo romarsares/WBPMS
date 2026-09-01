@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -43,7 +43,7 @@ $err = static fn(string $key): string => isset($errors[$key])
 <!-- Create form -->
 <div class="card" style="max-width:700px;margin-bottom:1.75rem">
     <h2 style="margin-top:0;font-size:1rem">Add Work Schedule</h2>
-    <form method="POST" action="/hr/schedules">
+    <form method="POST" action="<?= $base ?>/hr/schedules">
         <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
 
         <div class="form-group">

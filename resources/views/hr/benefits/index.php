@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: hr/benefits/index
  * Variables: $policies, $records, $totalPolicies, $active, $totalRecords, $programs
@@ -9,7 +9,7 @@
         <h1>Benefits &amp; Deductions</h1>
         <p>Government contributions: SSS, PhilHealth, and Pag-IBIG.</p>
     </div>
-    <a href="/hr/benefits/policies" class="btn btn-secondary">Manage Policies</a>
+    <a href="<?= $base ?>/hr/benefits/policies" class="btn btn-secondary">Manage Policies</a>
 </div>
 
 <!-- Summary -->
@@ -25,7 +25,7 @@
     <h3 style="margin:0 0 1rem">Active Contribution Policies</h3>
     <?php $approvedPolicies = array_filter($policies, fn($p) => $p['status'] === 'Approved'); ?>
     <?php if ($approvedPolicies === []): ?>
-    <p style="color:#6b7280">No approved policies. <a href="/hr/benefits/policies">Set up contribution policies →</a></p>
+    <p style="color:#6b7280">No approved policies. <a href="<?= $base ?>/hr/benefits/policies">Set up contribution policies →</a></p>
     <?php else: ?>
     <table class="data-table">
         <thead>
@@ -81,12 +81,12 @@
             </td>
             <td>
                 <?php if ($r['status'] !== 'Locked'): ?>
-                <form method="post" action="/hr/benefits/contributions/<?= (int)$r['contribution_id'] ?>/lock" style="display:inline">
+                <form method="post" action="<?= $base ?>/hr/benefits/contributions/<?= (int)$r['contribution_id'] ?>/lock" style="display:inline">
                     <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
                     <button type="submit" class="btn btn-sm btn-secondary" onclick="return confirm('Lock this contribution record?')">Lock</button>
                 </form>
                 <?php else: ?>
-                <form method="post" action="/hr/benefits/contributions/<?= (int)$r['contribution_id'] ?>/unlock" style="display:inline">
+                <form method="post" action="<?= $base ?>/hr/benefits/contributions/<?= (int)$r['contribution_id'] ?>/unlock" style="display:inline">
                     <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
                     <button type="submit" class="btn btn-sm btn-secondary" onclick="return confirm('Unlock this contribution record?')">Unlock</button>
                 </form>

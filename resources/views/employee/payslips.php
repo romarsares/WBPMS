@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -55,9 +55,9 @@ $payslips ??= [];
             <td style="text-align:right;font-weight:700">₱<?= Formatter::escape($ps['net_pay']) ?></td>
             <td><?= Formatter::date($ps['approved_at']) ?></td>
             <td style="white-space:nowrap">
-                <a href="/employee/payslips/<?= (int) $ps['id'] ?>"
+                <a href="<?= $base ?>/employee/payslips/<?= (int) $ps['id'] ?>"
                    class="btn btn-secondary btn-sm">View</a>
-                <a href="/employee/payslips/<?= (int) $ps['id'] ?>/download"
+                <a href="<?= $base ?>/employee/payslips/<?= (int) $ps['id'] ?>/download"
                    class="btn btn-secondary btn-sm" style="margin-left:.35rem">Download</a>
             </td>
         </tr>

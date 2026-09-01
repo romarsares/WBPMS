@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: hr/salary/index
  * Variables: $rows, $filters, $branches, $total, $active, $avgRate, $maxRate
@@ -9,7 +9,7 @@
         <h1>Salary Management</h1>
         <p>Manage employee daily rates and salary history.</p>
     </div>
-    <a href="/hr/salary/create" class="btn btn-primary">+ Add Salary Record</a>
+    <a href="<?= $base ?>/hr/salary/create" class="btn btn-primary">+ Add Salary Record</a>
 </div>
 
 <!-- Summary -->
@@ -37,7 +37,7 @@
         <option value=""<?= ($filters['status'] ?? 'Active') === '' ? ' selected' : '' ?>>All</option>
     </select>
     <button type="submit" class="btn btn-primary">Filter</button>
-    <a href="/hr/salary" class="btn btn-secondary">Clear</a>
+    <a href="<?= $base ?>/hr/salary" class="btn btn-secondary">Clear</a>
 </form>
 
 <div class="card">
@@ -75,8 +75,8 @@
                 </td>
                 <td style="white-space:nowrap">
                     <?php if ($r['status'] === 'Active'): ?>
-                    <a href="/hr/salary/<?= (int)$r['salary_id'] ?>/edit" class="btn btn-sm btn-secondary">Update Rate</a>
-                    <form method="post" action="/hr/salary/<?= (int)$r['salary_id'] ?>/archive" style="display:inline">
+                    <a href="<?= $base ?>/hr/salary/<?= (int)$r['salary_id'] ?>/edit" class="btn btn-sm btn-secondary">Update Rate</a>
+                    <form method="post" action="<?= $base ?>/hr/salary/<?= (int)$r['salary_id'] ?>/archive" style="display:inline">
                         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
                         <button type="submit" class="btn btn-sm btn-secondary" onclick="return confirm('Archive this salary record?')">Archive</button>
                     </form>

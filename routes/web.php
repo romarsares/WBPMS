@@ -146,8 +146,10 @@ $router->add('POST', '/hr/benefits/contributions/{id}/unlock',    [BenefitsContr
 // NOTE: /hr/payroll/create before /hr/payroll/{id}
 // ---------------------------------------------------------------------------
 
-$router->add('GET',  '/hr/payroll',                  [PayrollController::class, 'index'],    ['HRHead']);
-$router->add('GET',  '/hr/payroll/create',            [PayrollController::class, 'create'],   ['HRHead']);
+$router->add('GET',  '/hr/payroll',                  [PayrollController::class, 'index'],        ['HRHead']);
+$router->add('GET',  '/hr/payroll/periods',           [PayrollController::class, 'listPeriods'],   ['HRHead']);
+$router->add('POST', '/hr/payroll/periods',           [PayrollController::class, 'storePeriod'],   ['HRHead']);
+$router->add('GET',  '/hr/payroll/create',            [PayrollController::class, 'create'],        ['HRHead']);
 $router->add('POST', '/hr/payroll',                  [PayrollController::class, 'store'],    ['HRHead']);
 $router->add('GET',  '/hr/payroll/{id}',             [PayrollController::class, 'show'],     ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/compute',     [PayrollController::class, 'compute'],  ['HRHead']);

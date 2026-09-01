@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: hr/reports/export  (GET /hr/reports/export)
  * Variables: $type, $errors
@@ -16,12 +16,12 @@ $label = $reportLabels[$type] ?? ($type !== '' ? htmlspecialchars($type) : 'Repo
 <div class="page-head">
     <div>
         <h1><?= htmlspecialchars($label) ?></h1>
-        <p><a href="/hr/reports">← Back to Reports</a></p>
+        <p><a href="<?= $base ?>/hr/reports">← Back to Reports</a></p>
     </div>
 </div>
 
 <div class="card" style="max-width:520px">
-    <form method="get" action="/hr/reports/export">
+    <form method="get" action="<?= $base ?>/hr/reports/export">
         <input type="hidden" name="type" value="<?= htmlspecialchars($type) ?>">
 
         <div class="form-group" style="margin-bottom:1rem">
@@ -47,6 +47,6 @@ $label = $reportLabels[$type] ?? ($type !== '' ? htmlspecialchars($type) : 'Repo
         <button type="submit" class="btn btn-primary" disabled style="opacity:.6;cursor:not-allowed">
             Generate Report (coming soon)
         </button>
-        <a href="/hr/reports" class="btn btn-secondary" style="margin-left:.5rem">Cancel</a>
+        <a href="<?= $base ?>/hr/reports" class="btn btn-secondary" style="margin-left:.5rem">Cancel</a>
     </form>
 </div>

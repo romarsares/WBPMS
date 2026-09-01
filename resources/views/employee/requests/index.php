@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -36,12 +36,12 @@ $statusBadge = static function (string $status): string {
 
 <div class="page-header">
     <h1>My Requests</h1>
-    <a href="/employee/requests/new" class="btn btn-primary">New Request</a>
+    <a href="<?= $base ?>/employee/requests/new" class="btn btn-primary">New Request</a>
 </div>
 
 <!-- Status filter -->
 <div class="card" style="padding:.9rem 1.25rem;margin-bottom:1.25rem">
-    <form method="GET" action="/employee/requests"
+    <form method="GET" action="<?= $base ?>/employee/requests"
           style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end">
         <div>
             <label style="font-size:.8rem;font-weight:500;color:#374151;display:block;margin-bottom:.25rem">Status</label>
@@ -55,7 +55,7 @@ $statusBadge = static function (string $status): string {
         </div>
         <button type="submit" class="btn btn-secondary">Filter</button>
         <?php if ($filterStatus !== ''): ?>
-        <a href="/employee/requests" class="btn btn-secondary">Clear</a>
+        <a href="<?= $base ?>/employee/requests" class="btn btn-secondary">Clear</a>
         <?php endif; ?>
     </form>
 </div>
@@ -65,7 +65,7 @@ $statusBadge = static function (string $status): string {
     <?php if (empty($requests)): ?>
     <p style="padding:1.5rem;color:#6b7280;font-size:.875rem;margin:0">
         No requests found.
-        <a href="/employee/requests/new">Submit your first request →</a>
+        <a href="<?= $base ?>/employee/requests/new">Submit your first request →</a>
     </p>
     <?php else: ?>
     <table>
@@ -94,7 +94,7 @@ $statusBadge = static function (string $status): string {
             <td>
                 <?php if ($req['status'] === 'Pending'): ?>
                 <form method="POST"
-                      action="/employee/requests/<?= (int) $req['id'] ?>/cancel"
+                      action="<?= $base ?>/employee/requests/<?= (int) $req['id'] ?>/cancel"
                       style="display:inline"
                       onsubmit="return confirm('Cancel this request?')">
                     <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">

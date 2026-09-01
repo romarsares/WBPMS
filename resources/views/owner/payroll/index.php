@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -73,7 +73,7 @@ $recentRuns  ??= [];
             <td style="text-align:right;font-weight:600">₱<?= Formatter::escape($run['net_total']) ?></td>
             <td><?= Formatter::date($run['submitted_at']) ?></td>
             <td>
-                <a href="/owner/payroll/<?= (int) $run['id'] ?>/review"
+                <a href="<?= $base ?>/owner/payroll/<?= (int) $run['id'] ?>/review"
                    class="btn btn-primary btn-sm">Review &amp; Act</a>
             </td>
         </tr>
@@ -114,7 +114,7 @@ $recentRuns  ??= [];
             <td><?= $badge ?></td>
             <td><?= Formatter::date($run['actioned_at']) ?></td>
             <td>
-                <a href="/owner/payroll/<?= (int) $run['id'] ?>/review"
+                <a href="<?= $base ?>/owner/payroll/<?= (int) $run['id'] ?>/review"
                    class="btn btn-secondary btn-sm">View</a>
             </td>
         </tr>

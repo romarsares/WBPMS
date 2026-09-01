@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: hr/requests/index
  * Variables: $rows, $types, $filters, $total, $pending, $approved, $rejected
@@ -35,7 +35,7 @@
     </select>
     <input type="text" name="search" class="form-control" placeholder="Employee name or number…" value="<?= htmlspecialchars($filters['search'] ?? '') ?>" style="min-width:220px">
     <button type="submit" class="btn btn-primary">Filter</button>
-    <a href="/hr/requests" class="btn btn-secondary">Clear</a>
+    <a href="<?= $base ?>/hr/requests" class="btn btn-secondary">Clear</a>
 </form>
 
 <!-- Table -->
@@ -74,9 +74,9 @@
                     <span style="background:<?= $c ?>;color:#fff;padding:2px 8px;border-radius:9999px;font-size:.75rem"><?= htmlspecialchars($r['status']) ?></span>
                 </td>
                 <td style="white-space:nowrap">
-                    <a href="/hr/requests/<?= (int)$r['request_id'] ?>" class="btn btn-sm btn-secondary">View</a>
+                    <a href="<?= $base ?>/hr/requests/<?= (int)$r['request_id'] ?>" class="btn btn-sm btn-secondary">View</a>
                     <?php if ($r['status'] === 'Pending'): ?>
-                    <form method="post" action="/hr/requests/<?= (int)$r['request_id'] ?>/approve" style="display:inline">
+                    <form method="post" action="<?= $base ?>/hr/requests/<?= (int)$r['request_id'] ?>/approve" style="display:inline">
                         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
                         <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Approve this request?')">Approve</button>
                     </form>

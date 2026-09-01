@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -33,7 +33,7 @@ $recentApproved     ??= [];
     <div class="stat-card">
         <div class="stat-label">Pending Approval</div>
         <div class="stat-value" style="<?= $pendingApprovals > 0 ? 'color:#b45309' : '' ?>"><?= $pendingApprovals ?></div>
-        <div class="stat-sub"><a href="/owner/payroll">Review payroll →</a></div>
+        <div class="stat-sub"><a href="<?= $base ?>/owner/payroll">Review payroll →</a></div>
     </div>
     <div class="stat-card">
         <div class="stat-label">Approved This Period</div>
@@ -50,7 +50,7 @@ $recentApproved     ??= [];
 <div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem">
     <div style="padding:.85rem 1.25rem;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
         <strong style="font-size:.95rem">Payroll Runs Awaiting Your Approval</strong>
-        <a href="/owner/payroll" class="btn btn-secondary btn-sm">All pending</a>
+        <a href="<?= $base ?>/owner/payroll" class="btn btn-secondary btn-sm">All pending</a>
     </div>
     <?php if (empty($pendingRuns)): ?>
     <p style="padding:1.25rem;color:#6b7280;font-size:.875rem;margin:0">
@@ -77,7 +77,7 @@ $recentApproved     ??= [];
             <td><?= Formatter::date($run['submitted_at']) ?></td>
             <td><span class="badge badge-yellow">Pending Approval</span></td>
             <td>
-                <a href="/owner/payroll/<?= (int) $run['id'] ?>/review" class="btn btn-primary btn-sm">Review</a>
+                <a href="<?= $base ?>/owner/payroll/<?= (int) $run['id'] ?>/review" class="btn btn-primary btn-sm">Review</a>
             </td>
         </tr>
         <?php endforeach; ?>

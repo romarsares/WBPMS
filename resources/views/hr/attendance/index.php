@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: hr/attendance/index  (GET /hr/attendance)
  * Variables: $rows, $total, $complete, $incomplete, $unmatched
@@ -10,7 +10,7 @@ $rows ??= [];
         <h1>Attendance Management</h1>
         <p>Review employee timesheets and attendance records.</p>
     </div>
-    <a href="/hr/attendance/import" class="btn btn-primary">Import Workbook</a>
+    <a href="<?= $base ?>/hr/attendance/import" class="btn btn-primary">Import Workbook</a>
 </div>
 
 <!-- Summary -->
@@ -30,7 +30,7 @@ $rows ??= [];
 <div class="card" style="padding:0;overflow:hidden">
     <?php if ($rows === []): ?>
     <p style="padding:2rem;text-align:center;color:#6b7280">
-        No attendance records found. <a href="/hr/attendance/import">Import a workbook →</a>
+        No attendance records found. <a href="<?= $base ?>/hr/attendance/import">Import a workbook →</a>
     </p>
     <?php else: ?>
     <table class="data-table">

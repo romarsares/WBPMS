@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: hr/payroll/run  (GET /hr/payroll/create)
  * Variables: $periods (list from PayrollService::periods()),
@@ -9,7 +9,7 @@ $errors ??= [];
 <div class="page-head">
     <div>
         <h1>New Payroll Run</h1>
-        <p><a href="/hr/payroll">← Back to Payroll</a></p>
+        <p><a href="<?= $base ?>/hr/payroll">← Back to Payroll</a></p>
     </div>
 </div>
 
@@ -20,7 +20,7 @@ $errors ??= [];
 <?php endif; ?>
 
 <div class="card" style="max-width:520px">
-    <form method="post" action="/hr/payroll">
+    <form method="post" action="<?= $base ?>/hr/payroll">
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
 
         <div class="form-group" style="margin-bottom:1rem">
@@ -55,7 +55,7 @@ $errors ??= [];
 
         <div style="display:flex;gap:.75rem">
             <button type="submit" class="btn btn-primary">Create Draft Run</button>
-            <a href="/hr/payroll" class="btn btn-secondary">Cancel</a>
+            <a href="<?= $base ?>/hr/payroll" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 </div>

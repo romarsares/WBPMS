@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -54,7 +54,7 @@ $reqStatusBadge = static function (string $status): string {
     <div class="stat-card">
         <div class="stat-label">Pending Requests</div>
         <div class="stat-value" style="<?= $pendingRequests > 0 ? 'color:#b45309' : '' ?>"><?= $pendingRequests ?></div>
-        <div class="stat-sub"><a href="/employee/requests">View →</a></div>
+        <div class="stat-sub"><a href="<?= $base ?>/employee/requests">View →</a></div>
     </div>
 </div>
 
@@ -64,7 +64,7 @@ $reqStatusBadge = static function (string $status): string {
     <div class="card" style="padding:0;overflow:hidden">
         <div style="padding:.85rem 1.25rem;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
             <strong style="font-size:.95rem">Recent Payslips</strong>
-            <a href="/employee/payslips" class="btn btn-secondary btn-sm">All payslips</a>
+            <a href="<?= $base ?>/employee/payslips" class="btn btn-secondary btn-sm">All payslips</a>
         </div>
         <?php if (empty($recentPayslips)): ?>
         <p style="padding:1.25rem;color:#6b7280;font-size:.875rem;margin:0">No payslips yet.</p>
@@ -85,7 +85,7 @@ $reqStatusBadge = static function (string $status): string {
                 <td>₱<?= Formatter::escape($ps['net_pay']) ?></td>
                 <td><span class="badge badge-green">Approved</span></td>
                 <td>
-                    <a href="/employee/payslips/<?= (int) $ps['id'] ?>" class="btn btn-secondary btn-sm">View</a>
+                    <a href="<?= $base ?>/employee/payslips/<?= (int) $ps['id'] ?>" class="btn btn-secondary btn-sm">View</a>
                 </td>
             </tr>
             <?php endforeach; ?>
@@ -98,7 +98,7 @@ $reqStatusBadge = static function (string $status): string {
     <div class="card" style="padding:0;overflow:hidden">
         <div style="padding:.85rem 1.25rem;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
             <strong style="font-size:.95rem">My Requests</strong>
-            <a href="/employee/requests/new" class="btn btn-primary btn-sm">New request</a>
+            <a href="<?= $base ?>/employee/requests/new" class="btn btn-primary btn-sm">New request</a>
         </div>
         <?php if (empty($recentRequests)): ?>
         <p style="padding:1.25rem;color:#6b7280;font-size:.875rem;margin:0">No requests submitted yet.</p>
@@ -130,8 +130,8 @@ $reqStatusBadge = static function (string $status): string {
 <div class="card" style="margin-top:1.5rem">
     <strong style="font-size:.9rem;display:block;margin-bottom:.75rem;color:#374151">Quick Actions</strong>
     <div style="display:flex;flex-wrap:wrap;gap:.65rem">
-        <a href="/employee/attendance"  class="btn btn-secondary">View Attendance</a>
-        <a href="/employee/requests/new" class="btn btn-primary">Submit Request</a>
-        <a href="/employee/payslips"    class="btn btn-secondary">My Payslips</a>
+        <a href="<?= $base ?>/employee/attendance"  class="btn btn-secondary">View Attendance</a>
+        <a href="<?= $base ?>/employee/requests/new" class="btn btn-primary">Submit Request</a>
+        <a href="<?= $base ?>/employee/payslips"    class="btn btn-secondary">My Payslips</a>
     </div>
 </div>

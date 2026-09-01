@@ -418,6 +418,85 @@ final class PayrollService
     }
 
     // -----------------------------------------------------------------------
+    // Payroll period management
+    // -----------------------------------------------------------------------
+
+    /**
+     * Create a new payroll period.
+     *
+     * Business rules (ADR-0002 §16):
+     *   - period_start must be a Friday.
+     *   - period_end is always period_start + 6 days (Thursday).
+     *   - pay_date is always period_end + 1 day (Friday).
+     *   - No duplicate period_start (uq_period_start enforced by DB too).
+     *
+     * @throws RuntimeException on validation failure or duplicate
+     */
+    public function createPeriod(string $periodStart): int
+    {
+        // Validate date format
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', $periodStart);
+        if ($date === false || $date->format('Y-m-d') !== $periodStart) {
+            throw new RuntimeException('Invalid date format. Use YYYY-MM-DD.');
+        }
+
+        // Must be a Friday (ISO 5 = Friday)
+        if ((int) $date->format('N') !== 5) {
+            throw new RuntimeException(
+                'Period start must be a Friday. '
+                . $date->format('D M j, Y') . ' is a ' . $date->format('l') . '.'
+            );
+        }
+
+        $periodEnd = $date->modify('+6 days')->format('Y-m-d');  // Thursday
+        $payDate   = $date->modify('+7 days')->format('Y-m-d');  // Next Friday
+
+        // Duplicate check
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT COUNT(*) FROM payroll_period WHERE period_start = :start"
+        );
+        $stmt->execute([':start' => $periodStart]);
+        if ((int) $stmt->fetchColumn() > 0) {
+            throw new RuntimeException(
+                "A payroll period starting {$periodStart} already exists."
+            );
+        }
+
+        $stmt = $this->connection->pdo()->prepare(
+            "INSERT INTO payroll_period (period_start, period_end, pay_date, status, created_at, updated_at)
+             VALUES (:start, :end, :pay, 'Open', NOW(), NOW())"
+        );
+        $stmt->execute([
+            ':start' => $periodStart,
+            ':end'   => $periodEnd,
+            ':pay'   => $payDate,
+        ]);
+
+        return (int) $this->connection->pdo()->lastInsertId();
+    }
+
+    /**
+     * Return all payroll periods ordered by most recent first.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listPeriods(): array
+    {
+        return $this->connection->pdo()->query(
+            "SELECT payroll_period_id,
+                    period_start,
+                    period_end,
+                    pay_date,
+                    status,
+                    (SELECT COUNT(*) FROM payroll_run pr
+                      WHERE pr.payroll_period_id = pp.payroll_period_id) AS run_count
+               FROM payroll_period pp
+              ORDER BY period_start DESC
+              LIMIT 100"
+        )->fetchAll();
+    }
+
+    // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
 

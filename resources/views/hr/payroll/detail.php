@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: hr/payroll/detail  (GET /hr/payroll/{id})
  * Variables: $run (from PayrollService::findRunOrFail()), $details (from runDetails()), $errors
@@ -22,7 +22,7 @@ $netTotal   = array_sum(array_column($details, 'net_pay'));
 <div class="page-head">
     <div>
         <h1>Payroll Run — <?= htmlspecialchars($run['branch_name']) ?></h1>
-        <p><?= htmlspecialchars($run['period_label']) ?> &nbsp;|&nbsp; <a href="/hr/payroll">← Back to Payroll</a></p>
+        <p><?= htmlspecialchars($run['period_label']) ?> &nbsp;|&nbsp; <a href="<?= $base ?>/hr/payroll">← Back to Payroll</a></p>
     </div>
     <span style="background:<?= $sc ?>;color:#fff;padding:4px 14px;border-radius:9999px;font-size:.875rem;align-self:center"><?= htmlspecialchars($run['status']) ?></span>
 </div>
@@ -102,7 +102,7 @@ $netTotal   = array_sum(array_column($details, 'net_pay'));
 <?php if (!in_array($run['status'], ['PendingOwnerApproval','Approved'], true)): ?>
 <div style="display:flex;gap:.75rem;flex-wrap:wrap">
     <!-- Compute -->
-    <form method="post" action="/hr/payroll/<?= $runId ?>/compute">
+    <form method="post" action="<?= $base ?>/hr/payroll/<?= $runId ?>/compute">
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
         <button type="submit" class="btn btn-secondary"
                 onclick="return confirm('Run payroll computation for this period/branch?')">
@@ -112,7 +112,7 @@ $netTotal   = array_sum(array_column($details, 'net_pay'));
 
     <!-- Submit for approval (only when Computed or Returned) -->
     <?php if (in_array($run['status'], ['Computed','Returned'], true)): ?>
-    <form method="post" action="/hr/payroll/<?= $runId ?>/submit">
+    <form method="post" action="<?= $base ?>/hr/payroll/<?= $runId ?>/submit">
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
         <button type="submit" class="btn btn-primary"
                 onclick="return confirm('Submit this payroll run to the Business Owner for approval?')">

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -10,7 +10,7 @@ use Wbpms\Http\View\Formatter;
 /** @var array<string,string> $errors */
 ?>
 <h1>Add employee for attendance</h1>
-<form method="post" action="/hr/employees">
+<form method="post" action="<?= $base ?>/hr/employees">
     <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf ?? '') ?>">
     <label>Employee number <input required name="employee_number"></label>
     <label>First name <input required name="first_name"></label>

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: owner/payroll/review  (GET /owner/payroll/{id}/review)
  * Variables: $run (from PayrollService::findRunOrFail()), $details, $errors
@@ -20,7 +20,7 @@ $sc = $statusColors[$run['status']] ?? '#6b7280';
 <div class="page-head">
     <div>
         <h1>Payroll Review — <?= htmlspecialchars($run['branch_name']) ?></h1>
-        <p><?= htmlspecialchars($run['period_label']) ?> &nbsp;|&nbsp; <a href="/owner/payroll">← Back to Approvals</a></p>
+        <p><?= htmlspecialchars($run['period_label']) ?> &nbsp;|&nbsp; <a href="<?= $base ?>/owner/payroll">← Back to Approvals</a></p>
     </div>
     <span style="background:<?= $sc ?>;color:#fff;padding:4px 14px;border-radius:9999px;font-size:.875rem;align-self:center"><?= htmlspecialchars($run['status'] === 'PendingOwnerApproval' ? 'Pending Your Approval' : $run['status']) ?></span>
 </div>
@@ -81,7 +81,7 @@ $sc = $statusColors[$run['status']] ?? '#6b7280';
     <div class="card">
         <h3 style="margin:0 0 .75rem;color:#166534">Approve Payroll</h3>
         <p style="font-size:.875rem;color:#374151;margin:0 0 1rem">Approving will finalize this run. This cannot be reversed.</p>
-        <form method="post" action="/owner/payroll/<?= $runId ?>/approve"
+        <form method="post" action="<?= $base ?>/owner/payroll/<?= $runId ?>/approve"
               onsubmit="return confirm('Approve this payroll run? This action cannot be undone.')">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
             <button type="submit" class="btn btn-primary" style="width:100%;background:#16a34a">
@@ -93,7 +93,7 @@ $sc = $statusColors[$run['status']] ?? '#6b7280';
     <!-- Return -->
     <div class="card">
         <h3 style="margin:0 0 .75rem;color:#991b1b">Return for Revision</h3>
-        <form method="post" action="/owner/payroll/<?= $runId ?>/return">
+        <form method="post" action="<?= $base ?>/owner/payroll/<?= $runId ?>/return">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
             <div class="form-group" style="margin-bottom:.75rem">
                 <label for="return_reason" style="display:block;font-weight:500;margin-bottom:.25rem">

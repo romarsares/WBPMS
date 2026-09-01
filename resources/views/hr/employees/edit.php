@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -52,7 +52,7 @@ $err = static fn(string $key): string => isset($errors[$key])
 
 <div class="page-header">
     <h1><?= $title ?></h1>
-    <a href="/hr/employees" class="btn btn-secondary">← Back to employees</a>
+    <a href="<?= $base ?>/hr/employees" class="btn btn-secondary">← Back to employees</a>
 </div>
 
 <div class="card" style="max-width:720px">
@@ -191,7 +191,7 @@ $err = static fn(string $key): string => isset($errors[$key])
             <button type="submit" class="btn btn-primary">
                 <?= $isEdit ? 'Save Changes' : 'Create Employee' ?>
             </button>
-            <a href="/hr/employees" class="btn btn-secondary">Cancel</a>
+            <a href="<?= $base ?>/hr/employees" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 </div>

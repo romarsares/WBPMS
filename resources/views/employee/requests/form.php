@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -28,7 +28,7 @@ $selectedType = (string) ($_POST['request_type_id'] ?? '');
 
 <div class="page-header">
     <h1>New Request</h1>
-    <a href="/employee/requests" class="btn btn-secondary">← My Requests</a>
+    <a href="<?= $base ?>/employee/requests" class="btn btn-secondary">← My Requests</a>
 </div>
 
 <div class="card" style="max-width:580px">
@@ -41,7 +41,7 @@ $selectedType = (string) ($_POST['request_type_id'] ?? '');
     </div>
     <?php endif; ?>
 
-    <form method="POST" action="/employee/requests">
+    <form method="POST" action="<?= $base ?>/employee/requests">
         <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
 
         <div class="form-group">
@@ -120,7 +120,7 @@ $selectedType = (string) ($_POST['request_type_id'] ?? '');
 
         <div style="display:flex;gap:.75rem;margin-top:1rem">
             <button type="submit" class="btn btn-primary">Submit Request</button>
-            <a href="/employee/requests" class="btn btn-secondary">Cancel</a>
+            <a href="<?= $base ?>/employee/requests" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 </div>

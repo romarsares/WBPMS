@@ -75,6 +75,43 @@ final class PayrollController
     }
 
     // -----------------------------------------------------------------------
+    // GET /hr/payroll/periods
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function listPeriods(array $params = []): void
+    {
+        ViewRenderer::render('hr/payroll/periods', [
+            'periods' => $this->makeService()->listPeriods(),
+            'errors'  => [],
+            'success' => null,
+        ], 'Manage Payroll Periods');
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /hr/payroll/periods
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function storePeriod(array $params = []): void
+    {
+        $periodStart = trim((string) ($_POST['period_start'] ?? ''));
+        $service     = $this->makeService();
+
+        try {
+            $service->createPeriod($periodStart);
+            ViewRenderer::flash('Payroll period created successfully.');
+            $this->redirect('/hr/payroll/periods');
+        } catch (RuntimeException $e) {
+            ViewRenderer::render('hr/payroll/periods', [
+                'periods'      => $service->listPeriods(),
+                'errors'       => [$e->getMessage()],
+                'period_start' => $periodStart,
+            ], 'Manage Payroll Periods');
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // GET /hr/payroll/create
     // -----------------------------------------------------------------------
 

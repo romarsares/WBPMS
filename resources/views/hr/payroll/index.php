@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: hr/payroll/index  (GET /hr/payroll)
  * Variables: $runs, $total, $draft, $pending, $approved
@@ -22,7 +22,10 @@ $statusBadge = static function (string $s): string {
         <h1>Payroll</h1>
         <p>Manage payroll runs by branch and period.</p>
     </div>
-    <a href="/hr/payroll/create" class="btn btn-primary">+ New Payroll Run</a>
+    <div style="display:flex;gap:.75rem">
+        <a href="<?= $base ?>/hr/payroll/periods" class="btn btn-secondary">Manage Periods</a>
+        <a href="<?= $base ?>/hr/payroll/create" class="btn btn-primary">+ New Payroll Run</a>
+    </div>
 </div>
 
 <!-- Summary -->
@@ -35,7 +38,7 @@ $statusBadge = static function (string $s): string {
 
 <div class="card" style="padding:0;overflow:hidden">
     <?php if ($runs === []): ?>
-    <p style="padding:2rem;text-align:center;color:#6b7280">No payroll runs yet. <a href="/hr/payroll/create">Create one →</a></p>
+    <p style="padding:2rem;text-align:center;color:#6b7280">No payroll runs yet. <a href="<?= $base ?>/hr/payroll/create">Create one →</a></p>
     <?php else: ?>
     <table class="data-table">
         <thead>
@@ -61,7 +64,7 @@ $statusBadge = static function (string $s): string {
             <td><?= $statusBadge($r['status']) ?></td>
             <td style="font-size:.8rem"><?= htmlspecialchars($r['created_at']) ?></td>
             <td style="white-space:nowrap">
-                <a href="/hr/payroll/<?= (int)$r['payroll_run_id'] ?>" class="btn btn-sm btn-secondary">View</a>
+                <a href="<?= $base ?>/hr/payroll/<?= (int)$r['payroll_run_id'] ?>" class="btn btn-sm btn-secondary">View</a>
             </td>
         </tr>
         <?php if ($r['status'] === 'Returned' && $r['return_reason']): ?>

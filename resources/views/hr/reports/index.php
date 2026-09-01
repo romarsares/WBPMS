@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: hr/reports/index  (GET /hr/reports)
  * Variables: $totalEmployees, $approvedPayroll, $approvedNetPay, $totalRequests, $payrollSummary
@@ -9,7 +9,7 @@
         <h1>Reports Management</h1>
         <p>Payroll, attendance, request, and contribution reports.</p>
     </div>
-    <a href="/hr/reports/export" class="btn btn-secondary">Export / Print</a>
+    <a href="<?= $base ?>/hr/reports/export" class="btn btn-secondary">Export / Print</a>
 </div>
 
 <!-- Summary -->
@@ -32,7 +32,7 @@
         ['label'=>'Employee List', 'type'=>'employees', 'icon'=>'👥'],
     ];
     foreach ($reportTypes as $rt): ?>
-    <a href="/hr/reports/export?type=<?= htmlspecialchars($rt['type']) ?>"
+    <a href="<?= $base ?>/hr/reports/export?type=<?= htmlspecialchars($rt['type']) ?>"
        class="card" style="text-decoration:none;display:flex;align-items:center;gap:.75rem;padding:1rem">
         <span style="font-size:1.5rem"><?= $rt['icon'] ?></span>
         <span style="font-weight:500"><?= htmlspecialchars($rt['label']) ?></span>

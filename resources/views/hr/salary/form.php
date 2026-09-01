@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * View: hr/salary/form
  * Variables: $salary (array|null), $employees, $history (array|null),
@@ -11,7 +11,7 @@ $isEdit   = $salary !== null;
 <div class="page-head">
     <div>
         <h1><?= htmlspecialchars($formTitle) ?></h1>
-        <p><a href="/hr/salary">← Back to Salary Management</a></p>
+        <p><a href="<?= $base ?>/hr/salary">← Back to Salary Management</a></p>
     </div>
 </div>
 
@@ -71,7 +71,7 @@ $isEdit   = $salary !== null;
 
             <div style="display:flex;gap:.75rem">
                 <button type="submit" class="btn btn-primary"><?= $isEdit ? 'Save New Rate' : 'Create Record' ?></button>
-                <a href="/hr/salary" class="btn btn-secondary">Cancel</a>
+                <a href="<?= $base ?>/hr/salary" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>

@@ -101,6 +101,12 @@ final class ViewRenderer
             $data['csrf'] = CsrfMiddleware::token();
         }
 
+        // Inject $base (APP_BASE_URL without trailing slash) so every view can
+        // build correct href/action paths regardless of subdirectory deployment.
+        if (!isset($data['base'])) {
+            $data['base'] = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        }
+
         // Extract data into local scope for the view file
         extract($data, EXTR_SKIP);
 
