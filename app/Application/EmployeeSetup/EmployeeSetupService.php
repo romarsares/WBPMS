@@ -7,7 +7,7 @@ namespace Wbpms\Application\EmployeeSetup;
 use InvalidArgumentException;
 
 /** Minimal P0 employee/schedule/enrollment setup path for attendance import. */
-final readonly class EmployeeSetupService
+final class EmployeeSetupService
 {
     public function __construct(private EmployeeSetupGateway $gateway)
     {

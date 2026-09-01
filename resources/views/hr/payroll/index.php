@@ -1,93 +1,43 @@
 <?php
-
-declare(strict_types=1);
-
-use Wbpms\Http\View\Formatter;
-
 /**
- * HR — Payroll runs list.
- *
- * @var list<array{
- *     id: int,
- *     branch_name: string,
- *     period_label: string,
- *     status: string,
- *     employee_count: int,
- *     gross_total: string,
- *     net_total: string,
- *     created_at: string,
- *     submitted_at: string|null,
- *     return_reason: string|null
- * }> $runs
- * @var string $filterStatus
- * @var list<array{id:int,name:string}> $branches
- * @var string $filterBranch
+ * View: hr/payroll/index  (GET /hr/payroll)
+ * Variables: $runs, $total, $draft, $pending, $approved
  */
-
-$runs         ??= [];
-$filterStatus ??= '';
-$filterBranch ??= '';
-$branches     ??= [];
-
-$statusBadge = static function (string $status): string {
-    return match ($status) {
-        'Draft'                => '<span class="badge badge-gray">Draft</span>',
-        'Computed'             => '<span class="badge badge-blue">Computed</span>',
-        'PendingOwnerApproval' => '<span class="badge badge-yellow">Pending Approval</span>',
-        'Approved'             => '<span class="badge badge-green">Approved</span>',
-        'Returned'             => '<span class="badge badge-red">Returned</span>',
-        default                => '<span class="badge badge-gray">' . htmlspecialchars($status, ENT_QUOTES, 'UTF-8') . '</span>',
-    };
+$runs ??= [];
+$statusBadge = static function (string $s): string {
+    $map = [
+        'Draft'                => '#6b7280',
+        'Computed'             => '#3b82f6',
+        'PendingOwnerApproval' => '#f59e0b',
+        'Approved'             => '#10b981',
+        'Returned'             => '#ef4444',
+    ];
+    $c = $map[$s] ?? '#6b7280';
+    $label = $s === 'PendingOwnerApproval' ? 'Pending Approval' : $s;
+    return "<span style='background:{$c};color:#fff;padding:2px 8px;border-radius:9999px;font-size:.75rem'>" . htmlspecialchars($label) . "</span>";
 };
 ?>
-
-<div class="page-header">
-    <h1>Payroll Runs</h1>
-    <a href="/hr/payroll/run" class="btn btn-primary">New Payroll Run</a>
+<div class="page-head">
+    <div>
+        <h1>Payroll</h1>
+        <p>Manage payroll runs by branch and period.</p>
+    </div>
+    <a href="/hr/payroll/create" class="btn btn-primary">+ New Payroll Run</a>
 </div>
 
-<!-- Filters -->
-<div class="card" style="padding:.9rem 1.25rem;margin-bottom:1.25rem">
-    <form method="GET" action="/hr/payroll"
-          style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end">
-        <div>
-            <label style="font-size:.8rem;font-weight:500;color:#374151;display:block;margin-bottom:.25rem">Branch</label>
-            <select name="branch" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
-                <option value="">All branches</option>
-                <?php foreach ($branches as $b): ?>
-                <option value="<?= (int) $b['id'] ?>"
-                    <?= ((string) $b['id'] === $filterBranch) ? 'selected' : '' ?>>
-                    <?= Formatter::escape($b['name']) ?>
-                </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div>
-            <label style="font-size:.8rem;font-weight:500;color:#374151;display:block;margin-bottom:.25rem">Status</label>
-            <select name="status" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
-                <option value="">All statuses</option>
-                <option value="Draft"                <?= $filterStatus === 'Draft'                ? 'selected' : '' ?>>Draft</option>
-                <option value="Computed"             <?= $filterStatus === 'Computed'             ? 'selected' : '' ?>>Computed</option>
-                <option value="PendingOwnerApproval" <?= $filterStatus === 'PendingOwnerApproval' ? 'selected' : '' ?>>Pending Approval</option>
-                <option value="Approved"             <?= $filterStatus === 'Approved'             ? 'selected' : '' ?>>Approved</option>
-                <option value="Returned"             <?= $filterStatus === 'Returned'             ? 'selected' : '' ?>>Returned</option>
-            </select>
-        </div>
-        <button type="submit" class="btn btn-secondary">Filter</button>
-        <?php if ($filterStatus !== '' || $filterBranch !== ''): ?>
-        <a href="/hr/payroll" class="btn btn-secondary">Clear</a>
-        <?php endif; ?>
-    </form>
+<!-- Summary -->
+<div class="stats-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem">
+    <div class="stat-card"><span class="stat-value"><?= (int)$total ?></span><span class="stat-label">Total Runs</span></div>
+    <div class="stat-card"><span class="stat-value"><?= (int)$draft ?></span><span class="stat-label">Draft/Computed</span></div>
+    <div class="stat-card" style="border-left:4px solid #f59e0b"><span class="stat-value"><?= (int)$pending ?></span><span class="stat-label">Pending Approval</span></div>
+    <div class="stat-card" style="border-left:4px solid #10b981"><span class="stat-value"><?= (int)$approved ?></span><span class="stat-label">Approved</span></div>
 </div>
 
-<!-- Table -->
 <div class="card" style="padding:0;overflow:hidden">
-    <?php if (empty($runs)): ?>
-    <p style="padding:1.5rem;color:#6b7280;font-size:.875rem;margin:0">
-        No payroll runs yet. <a href="/hr/payroll/run">Generate one →</a>
-    </p>
+    <?php if ($runs === []): ?>
+    <p style="padding:2rem;text-align:center;color:#6b7280">No payroll runs yet. <a href="/hr/payroll/create">Create one →</a></p>
     <?php else: ?>
-    <table>
+    <table class="data-table">
         <thead>
             <tr>
                 <th>Branch</th>
@@ -97,36 +47,27 @@ $statusBadge = static function (string $status): string {
                 <th style="text-align:right">Net Total</th>
                 <th>Status</th>
                 <th>Created</th>
-                <th></th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
-        <?php foreach ($runs as $run): ?>
+        <?php foreach ($runs as $r): ?>
         <tr>
-            <td><?= Formatter::escape($run['branch_name']) ?></td>
-            <td><?= Formatter::escape($run['period_label']) ?></td>
-            <td style="text-align:center"><?= (int) $run['employee_count'] ?></td>
-            <td style="text-align:right">
-                <?= $run['gross_total'] !== '' ? '₱' . Formatter::escape($run['gross_total']) : '—' ?>
-            </td>
-            <td style="text-align:right">
-                <?= $run['net_total'] !== '' ? '₱' . Formatter::escape($run['net_total']) : '—' ?>
-            </td>
-            <td><?= $statusBadge($run['status']) ?></td>
-            <td><?= Formatter::date($run['created_at']) ?></td>
+            <td><?= htmlspecialchars($r['branch_name']) ?></td>
+            <td><?= htmlspecialchars($r['period_start'].' – '.$r['period_end']) ?></td>
+            <td style="text-align:center"><?= (int)$r['employee_count'] ?></td>
+            <td style="text-align:right">₱<?= number_format((float)$r['gross_total'], 2) ?></td>
+            <td style="text-align:right">₱<?= number_format((float)$r['net_total'], 2) ?></td>
+            <td><?= $statusBadge($r['status']) ?></td>
+            <td style="font-size:.8rem"><?= htmlspecialchars($r['created_at']) ?></td>
             <td style="white-space:nowrap">
-                <a href="/hr/payroll/<?= (int) $run['id'] ?>"
-                   class="btn btn-secondary btn-sm">View</a>
-                <?php if ($run['status'] === 'Computed'): ?>
-                <a href="/hr/payroll/<?= (int) $run['id'] ?>/submit"
-                   class="btn btn-primary btn-sm" style="margin-left:.35rem">Submit</a>
-                <?php endif; ?>
+                <a href="/hr/payroll/<?= (int)$r['payroll_run_id'] ?>" class="btn btn-sm btn-secondary">View</a>
             </td>
         </tr>
-        <?php if (!empty($run['return_reason']) && $run['status'] === 'Returned'): ?>
+        <?php if ($r['status'] === 'Returned' && $r['return_reason']): ?>
         <tr style="background:#fef2f2">
-            <td colspan="8" style="padding:.4rem .85rem;font-size:.8rem;color:#991b1b">
-                <strong>Return reason:</strong> <?= Formatter::escape($run['return_reason']) ?>
+            <td colspan="8" style="padding:.3rem .85rem;font-size:.8rem;color:#991b1b">
+                <strong>Return reason:</strong> <?= htmlspecialchars((string)$r['return_reason']) ?>
             </td>
         </tr>
         <?php endif; ?>

@@ -4,36 +4,36 @@ declare(strict_types=1);
 
 namespace Wbpms\Http\Controllers;
 
+use PDO;
+use RuntimeException;
+use Wbpms\Application\PayrollService;
 use Wbpms\Http\Middleware\AuthMiddleware;
-use Wbpms\Http\Middleware\CsrfMiddleware;
+use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
 
+/**
+ * PayrollController — HR payroll run management.
+ *
+ * Routes (all require HRHead role):
+ *   GET  /hr/payroll                 → index()   — list runs
+ *   GET  /hr/payroll/create           → create()  — select period + branch
+ *   POST /hr/payroll                 → store()   — create Draft run
+ *   GET  /hr/payroll/{id}            → show()    — detail view
+ *   POST /hr/payroll/{id}/compute    → compute() — run computation
+ *   POST /hr/payroll/{id}/submit     → submit()  — submit to owner
+ *
+ * REQ047–REQ050.
+ */
 final class PayrollController
 {
+    // -----------------------------------------------------------------------
+    // GET /hr/payroll
+    // -----------------------------------------------------------------------
+
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
-        $identity    = AuthMiddleware::identity();
-        $displayName = $identity['display_name'] ?? ($identity['username'] ?? '');
-        $roleName    = $identity['role_name'] ?? '';
-        $base        = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
-        $csrfField   = CsrfMiddleware::field();
-        $flash       = $_SESSION['_flash'] ?? [];
-        unset($_SESSION['_flash']);
-
-        $config = require APP_ROOT . '/config/database.php';
-        $pdo    = (new Connection($config))->pdo();
-
-        // Canonical schema v1.1 payroll tables:
-        //   payroll_period: payroll_period_id, period_start, period_end, pay_date, status
-        //   payroll_run:    payroll_run_id, payroll_period_id, branch_id, payroll_policy_id,
-        //                   status, gross_pay, total_deductions, net_pay,
-        //                   computed_by, computed_at, submitted_by, submitted_at,
-        //                   reviewed_by, reviewed_at, return_reason, lock_version
-        //   payroll:        payroll_id, payroll_run_id, payroll_period_id, employee_id,
-        //                   branch_assignment_id, salary_id, daily_rate_snapshot,
-        //                   gross_pay, total_deductions, net_pay
-        // — period_label, period_id, payroll_detail, payroll_detail_id do NOT exist.
+        $pdo = $this->makeConnection()->pdo();
 
         $runs = $pdo->query(
             "SELECT pr.payroll_run_id,
@@ -46,9 +46,9 @@ final class PayrollController
                     pr.submitted_at,
                     pr.reviewed_at,
                     pr.return_reason,
-                    COUNT(p.payroll_id)              AS employee_count,
-                    COALESCE(SUM(p.gross_pay), 0)    AS gross_total,
-                    COALESCE(SUM(p.net_pay), 0)      AS net_total
+                    COUNT(p.payroll_id)           AS employee_count,
+                    COALESCE(SUM(p.gross_pay), 0) AS gross_total,
+                    COALESCE(SUM(p.net_pay), 0)   AS net_total
                FROM payroll_run pr
                JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
                JOIN branch b          ON b.branch_id          = pr.branch_id
@@ -65,16 +65,152 @@ final class PayrollController
         $pending  = count(array_filter($runs, fn($r) => $r['status'] === 'PendingOwnerApproval'));
         $approved = count(array_filter($runs, fn($r) => $r['status'] === 'Approved'));
 
-        $title      = 'Payroll';
-        $activePage = 'payroll';
-        $notifCount = $pending;
+        ViewRenderer::render('hr/payroll/index', [
+            'runs'     => $runs,
+            'total'    => $total,
+            'draft'    => $draft,
+            'pending'  => $pending,
+            'approved' => $approved,
+        ], 'Payroll');
+    }
 
-        ob_start();
-        require APP_ROOT . '/resources/views/payroll/index.php';
-        $content = ob_get_clean();
+    // -----------------------------------------------------------------------
+    // GET /hr/payroll/create
+    // -----------------------------------------------------------------------
 
-        http_response_code(200);
-        header('Content-Type: text/html; charset=utf-8');
-        require APP_ROOT . '/resources/views/layout.php';
+    /** @param array<string, string> $params */
+    public function create(array $params = []): void
+    {
+        $pdo     = $this->makeConnection()->pdo();
+        $periods = $this->makeService()->periods();
+        $branches = $pdo->query(
+            "SELECT branch_id, branch_name FROM branch WHERE status='Active' ORDER BY branch_name"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        ViewRenderer::render('hr/payroll/run', [
+            'periods'  => $periods,
+            'branches' => $branches,
+            'errors'   => [],
+        ], 'Create Payroll Run');
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /hr/payroll
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function store(array $params = []): void
+    {
+        $identity = AuthMiddleware::identity();
+        $service  = $this->makeService();
+        $data     = [
+            'payroll_period_id' => (int) ($_POST['payroll_period_id'] ?? 0),
+            'branch_id'         => (int) ($_POST['branch_id']         ?? 0),
+        ];
+
+        try {
+            $runId = $service->createRun($data, (int) ($identity['user_id'] ?? 0));
+            ViewRenderer::flash('Payroll run created. Click Compute to calculate amounts.');
+            $this->redirect('/hr/payroll/' . $runId);
+        } catch (RuntimeException $e) {
+            $pdo      = $this->makeConnection()->pdo();
+            $periods  = $service->periods();
+            $branches = $pdo->query(
+                "SELECT branch_id, branch_name FROM branch WHERE status='Active' ORDER BY branch_name"
+            )->fetchAll(PDO::FETCH_ASSOC);
+
+            ViewRenderer::render('hr/payroll/run', [
+                'periods'  => $periods,
+                'branches' => $branches,
+                'errors'   => [$e->getMessage()],
+            ], 'Create Payroll Run');
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /hr/payroll/{id}
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function show(array $params = []): void
+    {
+        $id      = (int) ($params['id'] ?? 0);
+        $service = $this->makeService();
+
+        try {
+            $run     = $service->findRunOrFail($id);
+            $details = $service->runDetails($id);
+        } catch (RuntimeException) {
+            http_response_code(404);
+            ViewRenderer::render('errors/404', [], '404 Not Found');
+            return;
+        }
+
+        ViewRenderer::render('hr/payroll/detail', [
+            'run'     => $run,
+            'details' => $details,
+            'errors'  => [],
+        ], 'Payroll Run Detail');
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /hr/payroll/{id}/compute
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function compute(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $identity = AuthMiddleware::identity();
+
+        try {
+            $this->makeService()->computeRun($id, (int) ($identity['user_id'] ?? 0));
+            ViewRenderer::flash('Payroll computed successfully. Review figures before submitting.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/hr/payroll/' . $id);
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /hr/payroll/{id}/submit
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function submit(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $identity = AuthMiddleware::identity();
+
+        try {
+            $this->makeService()->submitForApproval($id, (int) ($identity['user_id'] ?? 0));
+            ViewRenderer::flash('Payroll run submitted to the Business Owner for approval.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/hr/payroll');
+    }
+
+    // -----------------------------------------------------------------------
+    // Private helpers
+    // -----------------------------------------------------------------------
+
+    private function makeService(): PayrollService
+    {
+        return new PayrollService($this->makeConnection());
+    }
+
+    private function makeConnection(): Connection
+    {
+        return new Connection(require APP_ROOT . '/config/database.php');
+    }
+
+    private function redirect(string $path): void
+    {
+        $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        header('Location: ' . $base . $path, true, 302);
+        exit;
     }
 }

@@ -1,168 +1,128 @@
 <?php
-
-declare(strict_types=1);
-
-use Wbpms\Http\View\Formatter;
-
 /**
- * HR — Payroll run detail.
- *
- * @var array{
- *     id: int,
- *     branch_name: string,
- *     period_label: string,
- *     status: string,
- *     created_at: string,
- *     submitted_at: string|null,
- *     return_reason: string|null
- * } $run
- * @var list<array{
- *     employee_id: int,
- *     employee_number: string,
- *     employee_name: string,
- *     daily_rate: string,
- *     days_present: int,
- *     gross_pay: string,
- *     sss: string,
- *     philhealth: string,
- *     pagibig: string,
- *     cash_advance: string,
- *     other_deductions: string,
- *     total_deductions: string,
- *     net_pay: string
- * }> $details
- * @var string $grossTotal
- * @var string $totalDeductions
- * @var string $netTotal
- * @var string $csrf
+ * View: hr/payroll/detail  (GET /hr/payroll/{id})
+ * Variables: $run (from PayrollService::findRunOrFail()), $details (from runDetails()), $errors
  */
+$errors  ??= [];
+$details ??= [];
 
-$run            ??= [];
-$details        ??= [];
-$grossTotal     ??= '0.00';
-$totalDeductions ??= '0.00';
-$netTotal       ??= '0.00';
-$csrf           ??= '';
+$statusColors = [
+    'Draft'                => '#6b7280',
+    'Computed'             => '#3b82f6',
+    'PendingOwnerApproval' => '#f59e0b',
+    'Approved'             => '#10b981',
+    'Returned'             => '#ef4444',
+];
+$sc = $statusColors[$run['status']] ?? '#6b7280';
 
-$canSubmit = ($run['status'] ?? '') === 'Computed';
-$isLocked  = in_array($run['status'] ?? '', ['PendingOwnerApproval', 'Approved'], true);
-
-$statusBadge = match ($run['status'] ?? '') {
-    'Draft'                => '<span class="badge badge-gray">Draft</span>',
-    'Computed'             => '<span class="badge badge-blue">Computed</span>',
-    'PendingOwnerApproval' => '<span class="badge badge-yellow">Pending Owner Approval</span>',
-    'Approved'             => '<span class="badge badge-green">Approved</span>',
-    'Returned'             => '<span class="badge badge-red">Returned</span>',
-    default                => '<span class="badge badge-gray">' . Formatter::escape($run['status'] ?? '') . '</span>',
-};
+$grossTotal = array_sum(array_column($details, 'gross_pay'));
+$dedTotal   = array_sum(array_column($details, 'total_deductions'));
+$netTotal   = array_sum(array_column($details, 'net_pay'));
 ?>
-
-<div class="page-header">
-    <h1>Payroll Run — <?= Formatter::escape($run['branch_name'] ?? '') ?></h1>
-    <a href="/hr/payroll" class="btn btn-secondary">← Back to payroll</a>
-</div>
-
-<!-- Run meta -->
-<div class="card" style="display:flex;flex-wrap:wrap;gap:2rem;padding:1rem 1.5rem;margin-bottom:1.25rem">
+<div class="page-head">
     <div>
-        <div style="font-size:.75rem;color:#6b7280;text-transform:uppercase;margin-bottom:.25rem">Branch</div>
-        <div style="font-weight:600"><?= Formatter::escape($run['branch_name'] ?? '') ?></div>
+        <h1>Payroll Run — <?= htmlspecialchars($run['branch_name']) ?></h1>
+        <p><?= htmlspecialchars($run['period_label']) ?> &nbsp;|&nbsp; <a href="/hr/payroll">← Back to Payroll</a></p>
     </div>
-    <div>
-        <div style="font-size:.75rem;color:#6b7280;text-transform:uppercase;margin-bottom:.25rem">Period</div>
-        <div style="font-weight:600"><?= Formatter::escape($run['period_label'] ?? '') ?></div>
-    </div>
-    <div>
-        <div style="font-size:.75rem;color:#6b7280;text-transform:uppercase;margin-bottom:.25rem">Status</div>
-        <div><?= $statusBadge ?></div>
-    </div>
-    <div>
-        <div style="font-size:.75rem;color:#6b7280;text-transform:uppercase;margin-bottom:.25rem">Created</div>
-        <div><?= Formatter::date($run['created_at'] ?? '') ?></div>
-    </div>
-    <?php if (!empty($run['submitted_at'])): ?>
-    <div>
-        <div style="font-size:.75rem;color:#6b7280;text-transform:uppercase;margin-bottom:.25rem">Submitted</div>
-        <div><?= Formatter::date($run['submitted_at']) ?></div>
-    </div>
-    <?php endif; ?>
+    <span style="background:<?= $sc ?>;color:#fff;padding:4px 14px;border-radius:9999px;font-size:.875rem;align-self:center"><?= htmlspecialchars($run['status']) ?></span>
 </div>
 
 <?php if (!empty($run['return_reason'])): ?>
-<div class="flash flash-error" role="alert">
-    <strong>Returned by Owner:</strong> <?= Formatter::escape($run['return_reason']) ?>
+<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:.75rem 1rem;margin-bottom:1rem;color:#991b1b">
+    <strong>Returned by Owner:</strong> <?= htmlspecialchars((string)$run['return_reason']) ?>
 </div>
 <?php endif; ?>
 
-<!-- Detail table -->
+<!-- Meta strip -->
+<div style="display:flex;flex-wrap:wrap;gap:2rem;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:1rem 1.5rem;margin-bottom:1.25rem">
+    <?php
+    $meta = [
+        'Branch'    => $run['branch_name'],
+        'Period'    => $run['period_label'],
+        'Created'   => $run['created_at'] ?? '',
+        'Submitted' => $run['submitted_at'] ?? '—',
+        'Reviewed'  => $run['reviewed_at']  ?? '—',
+    ];
+    foreach ($meta as $label => $val):
+    ?>
+    <div>
+        <div style="font-size:.7rem;color:#6b7280;text-transform:uppercase"><?= htmlspecialchars($label) ?></div>
+        <div style="font-weight:600;margin-top:.15rem"><?= htmlspecialchars((string)$val) ?></div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<!-- Employee rows -->
 <div class="card" style="padding:0;overflow:hidden;margin-bottom:1.25rem">
-    <div style="overflow-x:auto">
-    <table>
+    <table class="data-table">
         <thead>
             <tr>
                 <th>Employee</th>
                 <th style="text-align:right">Daily Rate</th>
-                <th style="text-align:center">Days</th>
-                <th style="text-align:right">Gross</th>
-                <th style="text-align:right">SSS</th>
-                <th style="text-align:right">PhilHealth</th>
-                <th style="text-align:right">Pag-IBIG</th>
-                <th style="text-align:right">Cash Adv.</th>
-                <th style="text-align:right">Other</th>
-                <th style="text-align:right">Total Ded.</th>
+                <th style="text-align:right">Gross Pay</th>
+                <th style="text-align:right">Deductions</th>
                 <th style="text-align:right;font-weight:700">Net Pay</th>
             </tr>
         </thead>
         <tbody>
-        <?php foreach ($details as $row): ?>
-        <tr>
-            <td>
-                <div style="font-weight:500"><?= Formatter::escape($row['employee_name']) ?></div>
-                <div style="font-size:.78rem;color:#6b7280"><?= Formatter::escape($row['employee_number']) ?></div>
-            </td>
-            <td style="text-align:right">₱<?= Formatter::escape($row['daily_rate']) ?></td>
-            <td style="text-align:center"><?= (int) $row['days_present'] ?></td>
-            <td style="text-align:right">₱<?= Formatter::escape($row['gross_pay']) ?></td>
-            <td style="text-align:right">₱<?= Formatter::escape($row['sss']) ?></td>
-            <td style="text-align:right">₱<?= Formatter::escape($row['philhealth']) ?></td>
-            <td style="text-align:right">₱<?= Formatter::escape($row['pagibig']) ?></td>
-            <td style="text-align:right">₱<?= Formatter::escape($row['cash_advance']) ?></td>
-            <td style="text-align:right">₱<?= Formatter::escape($row['other_deductions']) ?></td>
-            <td style="text-align:right;color:#dc2626">₱<?= Formatter::escape($row['total_deductions']) ?></td>
-            <td style="text-align:right;font-weight:700">₱<?= Formatter::escape($row['net_pay']) ?></td>
-        </tr>
-        <?php endforeach; ?>
+        <?php if ($details === []): ?>
+            <tr><td colspan="5" style="text-align:center;color:#6b7280;padding:2rem">
+                No employees computed yet. Use Compute below.
+            </td></tr>
+        <?php else: ?>
+            <?php foreach ($details as $d): ?>
+            <tr>
+                <td>
+                    <strong><?= htmlspecialchars($d['employee_name']) ?></strong><br>
+                    <small style="color:#6b7280"><?= htmlspecialchars($d['employee_number']) ?></small>
+                </td>
+                <td style="text-align:right">₱<?= number_format((float)$d['daily_rate_snapshot'], 2) ?></td>
+                <td style="text-align:right">₱<?= number_format((float)$d['gross_pay'], 2) ?></td>
+                <td style="text-align:right;color:#ef4444">₱<?= number_format((float)$d['total_deductions'], 2) ?></td>
+                <td style="text-align:right;font-weight:700">₱<?= number_format((float)$d['net_pay'], 2) ?></td>
+            </tr>
+            <?php endforeach; ?>
+        <?php endif; ?>
         </tbody>
+        <?php if ($details !== []): ?>
         <tfoot>
             <tr style="background:#f9fafb;font-weight:700">
-                <td colspan="3" style="padding:.65rem .85rem">Totals</td>
-                <td style="text-align:right;padding:.65rem .85rem">₱<?= Formatter::escape($grossTotal) ?></td>
-                <td colspan="5"></td>
-                <td style="text-align:right;padding:.65rem .85rem;color:#dc2626">₱<?= Formatter::escape($totalDeductions) ?></td>
-                <td style="text-align:right;padding:.65rem .85rem">₱<?= Formatter::escape($netTotal) ?></td>
+                <td style="padding:.6rem .85rem" colspan="2">Totals</td>
+                <td style="text-align:right;padding:.6rem .85rem">₱<?= number_format($grossTotal, 2) ?></td>
+                <td style="text-align:right;padding:.6rem .85rem;color:#ef4444">₱<?= number_format($dedTotal, 2) ?></td>
+                <td style="text-align:right;padding:.6rem .85rem">₱<?= number_format($netTotal, 2) ?></td>
             </tr>
         </tfoot>
+        <?php endif; ?>
     </table>
-    </div>
 </div>
 
-<!-- Actions -->
-<?php if (!$isLocked): ?>
-<div style="display:flex;gap:.75rem;align-items:center">
-    <?php if ($canSubmit): ?>
-    <form method="POST" action="/hr/payroll/<?= (int) $run['id'] ?>/submit"
-          onsubmit="return confirm('Submit this payroll run for Owner approval? This cannot be undone.')">
-        <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
-        <button type="submit" class="btn btn-primary">Submit for Owner Approval</button>
+<!-- Action buttons -->
+<?php $runId = (int)$run['payroll_run_id']; ?>
+<?php if (!in_array($run['status'], ['PendingOwnerApproval','Approved'], true)): ?>
+<div style="display:flex;gap:.75rem;flex-wrap:wrap">
+    <!-- Compute -->
+    <form method="post" action="/hr/payroll/<?= $runId ?>/compute">
+        <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
+        <button type="submit" class="btn btn-secondary"
+                onclick="return confirm('Run payroll computation for this period/branch?')">
+            ⟳ Compute Payroll
+        </button>
     </form>
-    <?php else: ?>
-    <span style="font-size:.875rem;color:#6b7280">
-        Status is <strong><?= Formatter::escape($run['status'] ?? '') ?></strong> — no actions available.
-    </span>
+
+    <!-- Submit for approval (only when Computed or Returned) -->
+    <?php if (in_array($run['status'], ['Computed','Returned'], true)): ?>
+    <form method="post" action="/hr/payroll/<?= $runId ?>/submit">
+        <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
+        <button type="submit" class="btn btn-primary"
+                onclick="return confirm('Submit this payroll run to the Business Owner for approval?')">
+            ↑ Submit for Approval
+        </button>
+    </form>
     <?php endif; ?>
 </div>
+<?php elseif ($run['status'] === 'Approved'): ?>
+<p style="color:#10b981;font-weight:600">✓ This payroll run has been approved and is read-only.</p>
 <?php else: ?>
-<p style="font-size:.875rem;color:#6b7280">
-    This payroll run has been submitted and is now read-only.
-</p>
+<p style="color:#f59e0b;font-weight:600">⏳ Awaiting Business Owner approval.</p>
 <?php endif; ?>

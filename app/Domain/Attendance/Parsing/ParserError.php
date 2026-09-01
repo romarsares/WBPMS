@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Wbpms\Domain\Attendance\Parsing;
 
 /** A safe, deterministic validation error suitable for an HR upload screen. */
-final readonly class ParserError
+final class ParserError
 {
     public function __construct(
         public string $code,

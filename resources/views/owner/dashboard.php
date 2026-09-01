@@ -29,7 +29,7 @@ $recentApproved     ??= [];
 </div>
 
 <!-- Stat cards -->
-<div class="stat-grid">
+<div class="stat-grid" style="grid-template-columns: repeat(3, 1fr)">
     <div class="stat-card">
         <div class="stat-label">Pending Approval</div>
         <div class="stat-value" style="<?= $pendingApprovals > 0 ? 'color:#b45309' : '' ?>"><?= $pendingApprovals ?></div>

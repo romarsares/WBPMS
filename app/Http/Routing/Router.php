@@ -108,12 +108,7 @@ final class Router
             }
 
 
-            // CSRF: verify token only for mutating requests (POST, PUT, PATCH, DELETE).
-            // GET requests to protected routes do NOT require a CSRF token;
-            // authentication is enforced separately by requireRoles() below.
-=======
             // CSRF: verify token only for state-mutating requests.
-
             if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
                 CsrfMiddleware::verify();
             }

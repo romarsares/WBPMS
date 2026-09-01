@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Wbpms\Http\Middleware\AuthMiddleware;
+use Wbpms\Http\Middleware\CsrfMiddleware;
 use Wbpms\Http\View\Formatter;
 
 /**
@@ -30,31 +31,30 @@ $notifCount  = $notifCount ?? 0;
 $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
 
 // ---- Role-aware nav items ------------------------------------------------
-// Format: [route_key, label, icon_character]
+// Format: [route_path, label, icon_character, active_key]
 $nav = match ($roleName) {
     'BusinessOwner' => [
-        ['dashboard',    'Dashboard',         '⌂'],
-        ['users',        'User Management',   '♙'],
-        ['requests',     'Requests Approval', '✓'],
-        ['payroll',      'Payroll Approval',  '₱'],
-        ['reports',      'Reports',           '▤'],
+        ['owner/dashboard',  'Dashboard',          '⌂', 'dashboard'],
+        ['users',            'User Management',    '♙', 'users'],
+        ['owner/payroll',    'Payroll Approval',   '₱', 'payroll'],
+        ['hr/reports',       'Reports',            '▤', 'reports'],
     ],
     'HRHead' => [
-        ['dashboard',    'Dashboard',             '⌂'],
-        ['employees',    'Employee Management',   '♟'],
-        ['attendance',   'Attendance',            '◷'],
-        ['schedule',     'Work Schedule',         '▣'],
-        ['requests',     'Requests',              '▱'],
-        ['payroll',      'Payroll Processing',    '₱'],
-        ['salary',       'Salary Management',     '₱'],
-        ['benefits',     'Benefits & Deductions', '＋'],
-        ['reports',      'Reports',               '▤'],
+        ['hr/dashboard',     'Dashboard',              '⌂', 'dashboard'],
+        ['hr/employees',     'Employee Management',    '♟', 'employees'],
+        ['hr/attendance',    'Attendance',             '◷', 'attendance'],
+        ['hr/schedules',     'Work Schedule',          '▣', 'schedule'],
+        ['hr/requests',      'Requests',               '▱', 'requests'],
+        ['hr/payroll',       'Payroll Processing',     '₱', 'payroll'],
+        ['hr/salary',        'Salary Management',      '💲', 'salary'],
+        ['hr/benefits',      'Benefits & Deductions',  '＋', 'benefits'],
+        ['hr/reports',       'Reports',                '▤', 'reports'],
     ],
     default => [ // Employee
-        ['dashboard',    'Dashboard',                 '⌂'],
-        ['my-attendance','My Attendance',             '◷'],
-        ['my-requests',  'Leave / OT / Cash Advance', '▱'],
-        ['my-payslips',  'My Payslips',               '▤'],
+        ['employee/dashboard',  'Dashboard',                   '⌂', 'dashboard'],
+        ['employee/attendance', 'My Attendance',               '◷', 'my-attendance'],
+        ['employee/requests',   'Leave / OT / Cash Advance',   '▱', 'my-requests'],
+        ['employee/payslips',   'My Payslips',                 '▤', 'my-payslips'],
     ],
 };
 ?>
@@ -64,7 +64,7 @@ $nav = match ($roleName) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= Formatter::escape($title ?? 'WBPMS') ?> | Light Diamond Enterprises</title>
-    <link rel="stylesheet" href="<?= $base ?>/assets/app.css">
+    <link rel="stylesheet" href="<?= $base ?>/assets/app.css?v=<?= filemtime(APP_ROOT . '/public/assets/app.css') ?>">
 </head>
 <body>
 
@@ -87,9 +87,9 @@ $nav = match ($roleName) {
         </div>
 
         <nav>
-            <?php foreach ($nav as [$key, $label, $icon]): ?>
+            <?php foreach ($nav as [$path, $label, $icon, $key]): ?>
                 <a class="<?= $activePage === $key ? 'active' : '' ?>"
-                   href="<?= $base ?>/<?= Formatter::escape($key) ?>">
+                   href="<?= $base ?>/<?= Formatter::escape($path) ?>">
                     <i class="nav-icon" aria-hidden="true"><?= $icon ?></i>
                     <span><?= Formatter::escape($label) ?></span>
                 </a>
@@ -100,7 +100,7 @@ $nav = match ($roleName) {
             <b><?= Formatter::escape($displayName) ?></b>
             <span><?= Formatter::escape($roleName) ?></span>
             <form method="POST" action="<?= $base ?>/logout" style="display:inline">
-                <?= $csrfField ?? '' ?>
+                <input type="hidden" name="_csrf" value="<?= htmlspecialchars(CsrfMiddleware::token(), ENT_QUOTES, 'UTF-8') ?>">
                 <button type="submit" class="side-user-logout" style="
                     display:inline-block;padding:10px 18px;background:#666;
                     color:#fff;border:1px solid #aaa;border-radius:2px;
@@ -163,7 +163,26 @@ $nav = match ($roleName) {
         <!-- Page content -->
         <section class="content">
 
-            <?php foreach ($flash as [$flashType, $flashMessage]): ?>
+            <?php
+            // Normalize flash: ViewRenderer injects $flash/$flashError as strings;
+            // older controllers inject $flash as array of [$type, $msg] pairs.
+            $flashMessages = [];
+            if (!empty($flash)) {
+                if (is_string($flash)) {
+                    $flashMessages[] = ['success', $flash];
+                } elseif (is_array($flash)) {
+                    foreach ($flash as $item) {
+                        if (is_array($item) && count($item) === 2) {
+                            $flashMessages[] = $item;
+                        }
+                    }
+                }
+            }
+            if (!empty($flashError) && is_string($flashError)) {
+                $flashMessages[] = ['error', $flashError];
+            }
+            foreach ($flashMessages as [$flashType, $flashMessage]):
+            ?>
                 <div class="alert <?= Formatter::escape($flashType) ?>" role="alert">
                     <?= Formatter::escape($flashMessage) ?>
                 </div>

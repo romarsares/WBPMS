@@ -14,13 +14,20 @@ use Wbpms\Domain\Attendance\TimesheetGenerator;
  * B3 orchestration: parse, match, retain evidence, and generate daily records
  * in the single transaction provided by the shared persistence foundation.
  */
-final readonly class AttendanceImportService
+final class AttendanceImportService
 {
+    private AttendanceFileParser $parser;
+    private AttendanceImportGateway $gateway;
+    private TimesheetGenerator $timesheetGenerator;
+
     public function __construct(
-        private AttendanceFileParser $parser,
-        private AttendanceImportGateway $gateway,
-        private TimesheetGenerator $timesheetGenerator,
+        AttendanceFileParser $parser,
+        AttendanceImportGateway $gateway,
+        TimesheetGenerator $timesheetGenerator,
     ) {
+        $this->parser              = $parser;
+        $this->gateway             = $gateway;
+        $this->timesheetGenerator  = $timesheetGenerator;
     }
 
     public function import(UploadedAttendanceFile $file, ParserContext $context, int $uploadedByUserId): AttendanceImportSummary

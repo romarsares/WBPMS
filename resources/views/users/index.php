@@ -13,7 +13,7 @@ use Wbpms\Http\View\Formatter;
 ?>
 <div class="page-head">
     <div><h1>User Management</h1><p>System accounts and role assignments.</p></div>
-    <a class="btn-primary" href="<?= $base ?>/users/create">＋ New User</a>
+    <a class="btn btn-primary" href="<?= $base ?>/users/create">＋ New User</a>
 </div>
 
 <?php foreach ($flash as [$type, $msg]): ?>

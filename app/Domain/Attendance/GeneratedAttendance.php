@@ -7,7 +7,7 @@ namespace Wbpms\Domain\Attendance;
 use Wbpms\Domain\Attendance\Parsing\ParsedPunch;
 use DateTimeImmutable;
 
-final readonly class GeneratedAttendance
+final class GeneratedAttendance
 {
     /** @param list<ParsedPunch> $punches @param list<string> $flags */
     public function __construct(

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Wbpms\Application\Attendance;
 
-final readonly class AttendancePunchMatch
+final class AttendancePunchMatch
 {
     /** These values map directly to biometric_punch.match_status. */
     public const MATCHED = 'matched';

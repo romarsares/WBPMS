@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Wbpms\Domain\Attendance\Parsing;
 
-final readonly class ParsedAttendanceFile
+final class ParsedAttendanceFile
 {
     /** @param list<ParsedPunch> $punches */
     public function __construct(

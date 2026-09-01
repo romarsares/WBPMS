@@ -4,31 +4,28 @@ declare(strict_types=1);
 
 namespace Wbpms\Http\Controllers;
 
-use Wbpms\Http\Middleware\AuthMiddleware;
-use Wbpms\Http\Middleware\CsrfMiddleware;
+use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
 
+/**
+ * ReportsController — Reports management for HR and Business Owner.
+ *
+ * Routes:
+ *   GET /hr/reports         → index()  [HRHead, BusinessOwner]
+ *   GET /hr/reports/export  → export() [HRHead, BusinessOwner]
+ *
+ * REQ065–REQ073.
+ */
 final class ReportsController
 {
+    // -----------------------------------------------------------------------
+    // GET /hr/reports
+    // -----------------------------------------------------------------------
+
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
-        $identity    = AuthMiddleware::identity();
-        $displayName = $identity['display_name'] ?? ($identity['username'] ?? '');
-        $roleName    = $identity['role_name'] ?? '';
-        $base        = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
-        $csrfField   = CsrfMiddleware::field();
-        $flash       = $_SESSION['_flash'] ?? [];
-        unset($_SESSION['_flash']);
-
-        $config = require APP_ROOT . '/config/database.php';
-        $pdo    = (new Connection($config))->pdo();
-
-        // Canonical schema v1.1:
-        //   payroll_run has NO approved_at column — reviewed_at is used when status=Approved.
-        //   employee-level totals live in the 'payroll' table (not payroll_detail).
-        //   payroll_period uses payroll_period_id and has period_start, period_end, pay_date.
-        //   — period_label, period_id, payroll_detail do NOT exist.
+        $pdo = $this->makeConnection()->pdo();
 
         $totalEmployees = (int) $pdo->query(
             "SELECT COUNT(*) FROM employee WHERE status = 'Active'"
@@ -38,7 +35,6 @@ final class ReportsController
             "SELECT COUNT(*) FROM payroll_run WHERE status = 'Approved'"
         )->fetchColumn();
 
-        // Sum net pay from employee-level payroll rows for approved runs.
         $approvedNetPay = (float) $pdo->query(
             "SELECT COALESCE(SUM(p.net_pay), 0)
                FROM payroll p
@@ -50,8 +46,6 @@ final class ReportsController
             "SELECT COUNT(*) FROM request"
         )->fetchColumn();
 
-        // Recent approved payroll runs summary.
-        // reviewed_at is the approval timestamp (set when status = Approved).
         $payrollSummary = $pdo->query(
             "SELECT pp.period_start,
                     pp.period_end,
@@ -71,16 +65,36 @@ final class ReportsController
               LIMIT 20"
         )->fetchAll();
 
-        $title      = 'Reports';
-        $activePage = 'reports';
-        $notifCount = 0;
+        ViewRenderer::render('hr/reports/index', [
+            'totalEmployees'  => $totalEmployees,
+            'approvedPayroll' => $approvedPayroll,
+            'approvedNetPay'  => $approvedNetPay,
+            'totalRequests'   => $totalRequests,
+            'payrollSummary'  => $payrollSummary,
+        ], 'Reports');
+    }
 
-        ob_start();
-        require APP_ROOT . '/resources/views/reports/index.php';
-        $content = ob_get_clean();
+    // -----------------------------------------------------------------------
+    // GET /hr/reports/export
+    // -----------------------------------------------------------------------
 
-        http_response_code(200);
-        header('Content-Type: text/html; charset=utf-8');
-        require APP_ROOT . '/resources/views/layout.php';
+    /** @param array<string, string> $params */
+    public function export(array $params = []): void
+    {
+        $type = trim((string) ($_GET['type'] ?? ''));
+
+        ViewRenderer::render('hr/reports/export', [
+            'type'   => $type,
+            'errors' => [],
+        ], 'Export Report');
+    }
+
+    // -----------------------------------------------------------------------
+    // Private helpers
+    // -----------------------------------------------------------------------
+
+    private function makeConnection(): Connection
+    {
+        return new Connection(require APP_ROOT . '/config/database.php');
     }
 }

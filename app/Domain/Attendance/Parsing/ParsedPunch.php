@@ -7,7 +7,7 @@ namespace Wbpms\Domain\Attendance\Parsing;
 use DateTimeImmutable;
 
 /** Immutable source evidence; matching and time-in/out classification happen later. */
-final readonly class ParsedPunch
+final class ParsedPunch
 {
     public function __construct(
         public int $deviceId,

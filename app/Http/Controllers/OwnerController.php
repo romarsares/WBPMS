@@ -134,6 +134,53 @@ final class OwnerController
         ], 'Review Payroll');
     }
 
+    /**
+     * POST /owner/payroll/{id}/approve
+     *
+     * REQ051: Business Owner approves a run.
+     *
+     * @param array<string, string> $params
+     */
+    public function approve(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $identity = \Wbpms\Http\Middleware\AuthMiddleware::identity();
+
+        try {
+            (new \Wbpms\Application\PayrollService($this->makeConnection()))
+                ->approve($id, (int) ($identity['user_id'] ?? 0));
+            \Wbpms\Http\View\ViewRenderer::flash('Payroll run approved.');
+        } catch (\RuntimeException $e) {
+            \Wbpms\Http\View\ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/owner/payroll');
+    }
+
+    /**
+     * POST /owner/payroll/{id}/return
+     *
+     * REQ051: Business Owner returns a run to HR with a note.
+     *
+     * @param array<string, string> $params
+     */
+    public function returnRun(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $identity = \Wbpms\Http\Middleware\AuthMiddleware::identity();
+        $reason   = trim((string) ($_POST['return_reason'] ?? ''));
+
+        try {
+            (new \Wbpms\Application\PayrollService($this->makeConnection()))
+                ->returnForRevision($id, (int) ($identity['user_id'] ?? 0), $reason);
+            \Wbpms\Http\View\ViewRenderer::flash('Payroll run returned to HR for revision.');
+        } catch (\RuntimeException $e) {
+            \Wbpms\Http\View\ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/owner/payroll');
+    }
+
     // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
@@ -141,5 +188,12 @@ final class OwnerController
     private function makeConnection(): Connection
     {
         return new Connection(require APP_ROOT . '/config/database.php');
+    }
+
+    private function redirect(string $path): void
+    {
+        $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        header('Location: ' . $base . $path, true, 302);
+        exit;
     }
 }

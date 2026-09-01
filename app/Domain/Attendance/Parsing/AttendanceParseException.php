@@ -8,9 +8,13 @@ use RuntimeException;
 
 final class AttendanceParseException extends RuntimeException
 {
+    /** @var list<ParserError> */
+    public array $errors;
+
     /** @param list<ParserError> $errors */
-    public function __construct(public readonly array $errors)
+    public function __construct(array $errors)
     {
+        $this->errors = $errors;
         parent::__construct('The attendance workbook could not be processed safely.');
     }
 }

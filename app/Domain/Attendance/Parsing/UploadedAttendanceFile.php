@@ -8,7 +8,7 @@ namespace Wbpms\Domain\Attendance\Parsing;
  * Value supplied by the shared upload boundary. The parser never moves or
  * deletes this path and has no HTTP dependency.
  */
-final readonly class UploadedAttendanceFile
+final class UploadedAttendanceFile
 {
     public function __construct(
         public string $temporaryPath,

@@ -4,63 +4,159 @@ declare(strict_types=1);
 
 namespace Wbpms\Http\Controllers;
 
+use RuntimeException;
+use Wbpms\Application\RequestService;
 use Wbpms\Http\Middleware\AuthMiddleware;
-use Wbpms\Http\Middleware\CsrfMiddleware;
+use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
 
+/**
+ * RequestsController — HR-facing request queue management.
+ *
+ * Routes (all require HRHead role):
+ *   GET  /hr/requests                    → index()   — list with filters
+ *   GET  /hr/requests/{id}               → show()    — view detail
+ *   POST /hr/requests/{id}/approve       → approve() — approve request
+ *   POST /hr/requests/{id}/reject        → reject()  — reject with note
+ *   POST /hr/requests/{id}/archive       → archive() — soft-archive
+ *
+ * REQ032–REQ036 (HR side); REQ076–REQ080 handled by EmployeePortalController.
+ */
 final class RequestsController
 {
+    // -----------------------------------------------------------------------
+    // GET /hr/requests
+    // -----------------------------------------------------------------------
+
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
-        $identity    = AuthMiddleware::identity();
-        $displayName = $identity['display_name'] ?? ($identity['username'] ?? '');
-        $roleName    = $identity['role_name'] ?? '';
-        $base        = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
-        $csrfField   = CsrfMiddleware::field();
-        $flash       = $_SESSION['_flash'] ?? [];
-        unset($_SESSION['_flash']);
+        $service = $this->makeService();
 
-        $config = require APP_ROOT . '/config/database.php';
-        $pdo    = (new Connection($config))->pdo();
+        $filters = [
+            'status'  => trim((string) ($_GET['status']  ?? '')),
+            'type_id' => (int) ($_GET['type_id'] ?? 0),
+            'search'  => trim((string) ($_GET['search']  ?? '')),
+        ];
+        if ($filters['type_id'] === 0) {
+            unset($filters['type_id']);
+        }
 
-        // Columns per canonical schema v1.1:
-        //   request: request_id, employee_id, request_type_id, reason, status,
-        //            submitted_at, reviewed_by, reviewed_at, review_notes,
-        //            archived_by, archived_at, created_at, updated_at
-        // 'remarks' does not exist — use 'reason' for the request note.
-        $rows = $pdo->query(
-            "SELECT r.request_id,
-                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
-                    e.employee_number,
-                    rt.type_name,
-                    r.status,
-                    r.submitted_at,
-                    r.reason AS remarks,
-                    r.review_notes
-               FROM request r
-               JOIN employee e       ON e.employee_id       = r.employee_id
-               JOIN request_type rt  ON rt.request_type_id  = r.request_type_id
-              WHERE r.archived_at IS NULL
-              ORDER BY r.submitted_at DESC
-              LIMIT 200"
-        )->fetchAll();
-
+        $rows     = $service->list($filters);
+        $types    = $service->requestTypes();
         $total    = count($rows);
         $pending  = count(array_filter($rows, fn($r) => $r['status'] === 'Pending'));
         $approved = count(array_filter($rows, fn($r) => $r['status'] === 'Approved'));
         $rejected = count(array_filter($rows, fn($r) => $r['status'] === 'Rejected'));
 
-        $title      = 'Request Management';
-        $activePage = 'requests';
-        $notifCount = $pending;
+        ViewRenderer::render('hr/requests/index', [
+            'rows'     => $rows,
+            'types'    => $types,
+            'filters'  => $filters,
+            'total'    => $total,
+            'pending'  => $pending,
+            'approved' => $approved,
+            'rejected' => $rejected,
+        ], 'Request Management');
+    }
 
-        ob_start();
-        require APP_ROOT . '/resources/views/requests/index.php';
-        $content = ob_get_clean();
+    // -----------------------------------------------------------------------
+    // GET /hr/requests/{id}
+    // -----------------------------------------------------------------------
 
-        http_response_code(200);
-        header('Content-Type: text/html; charset=utf-8');
-        require APP_ROOT . '/resources/views/layout.php';
+    /** @param array<string, string> $params */
+    public function show(array $params = []): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+
+        try {
+            $request = $this->makeService()->findOrFail($id);
+        } catch (RuntimeException) {
+            http_response_code(404);
+            ViewRenderer::render('errors/404', [], '404 Not Found');
+            return;
+        }
+
+        ViewRenderer::render('hr/requests/show', [
+            'request' => $request,
+            'errors'  => [],
+        ], 'Request Detail');
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /hr/requests/{id}/approve
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function approve(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $identity = AuthMiddleware::identity();
+
+        try {
+            $this->makeService()->approve($id, (int) ($identity['user_id'] ?? 0));
+            ViewRenderer::flash('Request approved.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/hr/requests');
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /hr/requests/{id}/reject
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function reject(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $identity = AuthMiddleware::identity();
+        $note     = trim((string) ($_POST['review_notes'] ?? ''));
+
+        try {
+            $this->makeService()->reject($id, (int) ($identity['user_id'] ?? 0), $note);
+            ViewRenderer::flash('Request rejected.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/hr/requests');
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /hr/requests/{id}/archive
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function archive(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $identity = AuthMiddleware::identity();
+
+        try {
+            $this->makeService()->archive($id, (int) ($identity['user_id'] ?? 0));
+            ViewRenderer::flash('Request archived.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/hr/requests');
+    }
+
+    // -----------------------------------------------------------------------
+    // Private helpers
+    // -----------------------------------------------------------------------
+
+    private function makeService(): RequestService
+    {
+        return new RequestService(new Connection(require APP_ROOT . '/config/database.php'));
+    }
+
+    private function redirect(string $path): void
+    {
+        $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        header('Location: ' . $base . $path, true, 302);
+        exit;
     }
 }

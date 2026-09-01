@@ -31,7 +31,7 @@ use Wbpms\Infrastructure\Database\Connection;
  */
 final class UserService
 {
-    public function __construct(private readonly Connection $connection) {}
+    public function __construct(private Connection $connection) {}
 
     // -----------------------------------------------------------------------
     // REQ004 — List

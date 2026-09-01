@@ -18,7 +18,7 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Login | Light Diamond Enterprises</title>
-    <link rel="stylesheet" href="<?= $base ?>/assets/app.css">
+    <link rel="stylesheet" href="<?= $base ?>/assets/app.css?v=<?= @filemtime(APP_ROOT . '/public/assets/app.css') ?: time() ?>">
 </head>
 <body class="login-page">
 
@@ -51,26 +51,21 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
                placeholder="Enter your username">
 
         <label for="password">Password</label>
-        <div style="position:relative">
+        <div class="login-pwd-wrap">
             <input type="password"
                    id="password"
                    name="password"
                    autocomplete="current-password"
                    required
-                   placeholder="Enter your password"
-                   style="padding-right:48px">
+                   placeholder="Enter your password">
             <button type="button"
                     id="togglePassword"
+                    class="login-pwd-toggle"
                     onclick="togglePwd()"
-                    aria-label="Show password"
-                    style="position:absolute;right:0;top:0;bottom:0;width:44px;
-                           background:none;border:none;cursor:pointer;
-                           font-size:18px;color:#888;padding:0">
-                👁
-            </button>
+                    aria-label="Show password">👁</button>
         </div>
 
-        <button type="submit" class="btn-primary btn-full" style="margin-top:18px">
+        <button type="submit" class="btn btn-primary btn-full">
             Login
         </button>
     </form>

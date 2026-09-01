@@ -9,7 +9,7 @@ use DateTimeZone;
 use InvalidArgumentException;
 
 /** A single effective work schedule; overlap validation is a persistence concern. */
-final readonly class WorkSchedule
+final class WorkSchedule
 {
     public function __construct(
         public int $scheduleId,
