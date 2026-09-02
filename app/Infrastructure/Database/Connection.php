@@ -24,10 +24,17 @@ class Connection
     /** @var array<string,mixed> */
     private array $config;
 
-    /** @param array<string,mixed> $config */
-    public function __construct(array $config)
+    /**
+     * @param array<string,mixed> $config
+     * @param PDO|null            $existing  Pass an already-open PDO to reuse it
+     *                                       (used by PdoAttendanceImportGateway to
+     *                                        wrap a bare PDO in a Connection for
+     *                                        transaction() delegation).
+     */
+    public function __construct(array $config, ?PDO $existing = null)
     {
         $this->config = $config;
+        $this->pdo    = $existing;
     }
 
     /**

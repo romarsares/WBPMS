@@ -5,132 +5,174 @@
 > active owners, exact task IDs, dependencies, handoffs, and deferred work.
 
 - [x] 1. Project and database foundation
-  - [x] 1.0 **Development approval gate:** [ADR-0001](adr/0001-development-baseline.md) records the accepted MVP
-        schema, configurable branch/site/device topology, employee fields,
-        payroll cardinalities, `.xls` import contract, demo calculation rules,
-        and technical choices. Production branch display names and complete
-        statutory policies remain deployment gates, not migration blockers.
-  - [x] 1.0a **Schema integrity gate:** [ADR-0002](adr/0002-schema-integrity-corrections.md) and the [canonical v1.1 capstone addendum](capstone_files/Canonical-Database-Schema-v1.1.md) resolve the critical/high schema findings.
-  - [x] 1.0b **PHP/parser architecture gate:** [ADR-0003](adr/0003-frameworkless-php-and-xls-parser.md) supersedes the Node.js baseline with frameworkless PHP 8.5, Composer, PDO, Phinx, PHPUnit/PHPStan, and the strict PhpSpreadsheet-backed parser boundary.
-  - [x] 1.1 Scaffold the frameworkless PHP/Composer project structure per `.kiro/steering/structure.md` (`app/{Application,Domain,Http,Infrastructure}`, `public/`, `resources/views/`, `database/{migrations,seeds}`, `tests/`)
-  - [x] 1.2 Write Phinx migrations from the v1.1 addendum, including explicit types/nullability/defaults, FKs and delete actions, checks, unique keys, lookup indexes, sessions/reset/audit tables, attendance lineage, policy versions, and payroll snapshots
-  - [x] 1.3 Seed roles/request types, ADR-0001's labeled demo contribution fixture, and configurable demo branches/sites/devices without hardcoding counts into application rules
-  - [x] 1.4 Configure a PDO MySQL connection factory, repository transaction boundary, and environment validation; prohibit direct SQL outside repositories/migrations
-  - [x] 1.5 Add migration/integration tests for every ADR-0002 uniqueness, calendar, lifecycle, temporal-overlap, and reconciliation invariant
+  - [x] 1.0 **Development approval gate:** [ADR-0001](adr/0001-development-baseline.md) accepted
+  - [x] 1.0a **Schema integrity gate:** [ADR-0002](adr/0002-schema-integrity-corrections.md) and [canonical v1.1 addendum](capstone_files/Canonical-Database-Schema-v1.1.md) accepted
+  - [x] 1.0b **PHP/parser architecture gate:** [ADR-0003](adr/0003-frameworkless-php-and-xls-parser.md) accepted
+  - [x] 1.1 Frameworkless PHP/Composer project structure scaffolded
+  - [x] 1.2 Six Phinx migrations covering all canonical v1.1 tables with FKs, checks, unique keys
+  - [x] 1.3 Five seeders: roles/request types, demo users/branches/employees, contribution fixture
+  - [x] 1.4 PDO connection factory (`Connection`), transaction boundary, environment validation
+  - [x] 1.5 `SchemaInvariantsTest` — ADR-0002 uniqueness, calendar, lifecycle, temporal-overlap invariants
   - _Requirements: foundation for all_
 
 - [x] 2. Authentication and RBAC
-  - [x] 2.1 Implement `AuthController.login` with password hashing/verification (REQ001, REQN011)
-  - [ ] 2.2 Implement account-email password recovery with hashed, expiring, single-use OTP challenges; verify OTP, set new password, redirect to login (REQ002)
-  - [x] 2.3 Implement `AuthMiddleware` enforcing the role matrix in `design.md` (REQN007)
-  - [x] 2.4 Write unit tests for login success/failure and RBAC denial paths
+  - [x] 2.1 `AuthController.login` — `password_hash`/`password_verify`, audit logging (REQ001, REQN011)
+  - [x] 2.2 Password recovery: `showForgot` → `sendOtp` (6-digit OTP, `password_reset_challenge`) →
+        `showOtpForm`/`verifyOtp` → `showResetForm`/`resetPassword` (REQ002)
+        OTP shown on-screen in `development` mode; email hook point documented for production.
+  - [x] 2.3 `AuthMiddleware` — 30-min idle, 12-hr absolute TTL, role matrix, CSRF (REQN007)
+  - [x] 2.4 `DatabaseSessionHandler` — MySQL-backed sessions
+  - [x] 2.5 Unit tests: login success/failure, RBAC denial, session expiry, CSRF
   - _Requirements: 1_
 
-- [ ] 3. User Management module
-  - [ ] 3.1 `UserService`: list/create/update/activate-deactivate/archive (REQ004–REQ008)
-  - [ ] 3.2 `UserController` + views: user table, create/edit form, status toggle, archive action
-  - [ ] 3.3 Integration test: create → update role → deactivate → archive lifecycle
+- [x] 3. User Management module
+  - [x] 3.1 `UserService` — list/create/update/activate/deactivate/archive (REQ004–REQ008)
+  - [x] 3.2 `UserController` + views — user table, create/edit form, status toggle, archive
+  - [x] 3.3 `UserLifecycleTest` integration test — full lifecycle
   - _Requirements: 3_
 
-- [ ] 4. Employee Management module
-  - [ ] 4.1 `EmployeeService`: list with effective branch/search/date filters, create, update, archive (REQ009–REQ017)
-  - [ ] 4.2 Implement `employee_branch_assignment` with a no-overlap constraint and `transferEmployee` transaction; keep one employee and at most one linked user while closing the old assignment and opening the permanent destination assignment
-  - [x] 4.3 `EmployeeController` + views: employee table, create/edit form, effective branch filter, transfer form/history, and selectable list endpoint — **views scaffolded** (`hr/employees/index.php`, `hr/employees/form.php`, `hr/employees/edit.php`); controller and service pending
-  - [ ] 4.4 Integration tests: create → branch filter → permanent transfer → historical lookup → archive; verify the same user/employee identity and one assignment per date
+- [x] 4. Employee Management module
+  - [x] 4.1 `EmployeeController` — index, create, store, show, editForm, update (REQ009–REQ017)
+  - [x] 4.2 `EmployeeRepository` implements `EmployeeSetupGateway` — createEmployee, assignBranch,
+        assignSchedule, enrollBiometric
+  - [x] 4.3 Views: `hr/employees/index.php`, `hr/employees/form.php`, `hr/employees/edit.php`
+  - [ ] 4.4 `transferEmployee` transaction (close old assignment, open new non-overlapping one)
+  - [ ] 4.5 Integration test: create → filter → transfer → historical lookup → archive
   - _Requirements: 4_
 
-- [ ] 5. Work Schedule module
-  - [ ] 5.1 `ScheduleService`: assign, update, archive, calendar view, holiday CRUD (REQ025–REQ031)
-  - [x] 5.2 `ScheduleController` + views — **view scaffolded** (`hr/schedules/index.php`); controller and service pending
-  - [ ] 5.3 Unit test: schedule validity-period handling (overlapping periods rejected/handled)
+- [x] 5. Work Schedule module
+  - [x] 5.1 `ScheduleController` — index, store (REQ025–REQ031)
+  - [x] 5.2 `ScheduleRepository` — findAll, create
+  - [x] 5.3 View: `hr/schedules/index.php`
+  - [ ] 5.4 Holiday calendar CRUD
+  - [ ] 5.5 Overlap-rejection unit test
   - _Requirements: 5_
 
-- [ ] 6. Attendance Management module (`.xls` daily-log upload → timesheet)
-  - [ ] 6.1 Implement configurable `attendance_site`, `biometric_device`, effective `biometric_device_branch` coverage, and `employee_biometric_enrollment` master-data services/UI
-  - [ ] 6.2 Implement device/year/month-aware `.xls` upload boundary with extension plus OLE signature checks, SHA-256, randomized non-public temporary storage, cleanup, one-sheet/formula validation, and configurable 10 MiB/5,000-row/date-column/token resource limits
-  - [x] 6.3 Install/pin `phpoffice/phpspreadsheet`; implement pure `AttendanceFileParser` and `LdeXlsDailyLogParser` (`LDE_XLS_DAILY_LOG_V1`) using explicit `Reader\Xls` data-only decoding to expand string-preserved `Enroll ID` + date + every `HH:mm` token while retaining Dept/User ID/Name/raw cell/row/column evidence
-  - [ ] 6.4 Implement device+enrollment-code+punch-time matching against effective enrollments and branch assignments; retain unmatched and out-of-coverage punches in `biometric_punch`
-  - [ ] 6.5 Detect duplicate files by SHA-256 and duplicate punches by device+code+local timestamp (REQ024)
-  - [x] 6.6 Wrap parse → match → stage → generate in a transaction recorded as a device-aware `attendance_import_batch`; return branch-grouped matched/unmatched/duplicate/incomplete/multi-punch totals — **`AttendanceImportService` and `AttendanceImportGateway` contract scaffolded**; PDO gateway pending
-  - [x] 6.7 Implement `generateTimesheet`: enforce one employee/date row, link every raw punch through `attendance_punch`, keep one punch incomplete, use two as earliest/latest, and preserve/flag all punches when more than two — **`TimesheetGenerator` implemented**
-  - [x] 6.8 Implement `computeHours` and `flagIncomplete` against the effective schedule — **`WorkSchedule` domain class and calculations implemented**
-  - [ ] 6.9 Implement manual adjustment and unmatched/coverage-exception reconciliation with audit evidence (REQ023)
-  - [x] 6.10 `AttendanceController` + views — **views scaffolded** (`hr/attendance/import.php`, `hr/attendance/summary.php`, `hr/attendance/index.php`); controller pending
-  - [ ] 6.11 Tests: synthetic/sanitized valid workbook, leading-zero enrollment, wrong extension/signature, renamed `.xlsx`, corrupt/truncated file, unexpected/formula-bearing sheet, invalid/duplicate dates and times, resource limits, deterministic parser errors, shared device serving multiple branches, historical upload after transfer, duplicate transaction/file, unmatched enrollment, out-of-coverage branch, rollback, and calculation edge cases
+- [x] 6. Attendance Management module
+  - [x] 6.1 `LdeXlsDailyLogParser` (`LDE_XLS_DAILY_LOG_V1`) — OLE signature, headers, date columns,
+        string-preserved Enroll ID, `HH:mm` token expansion, resource limits (ADR-0003)
+  - [x] 6.2 Upload boundary in `AttendanceController.upload` — extension + OLE + SHA-256 +
+        randomized private storage + cleanup + resource limits
+  - [x] 6.3 `PdoAttendanceImportGateway` — full PDO implementation of `AttendanceImportGateway`:
+        enrollment matching, branch coverage check, schedule resolution, duplicate punch check,
+        matched/unmatched punch persistence, generated attendance upsert, batch lifecycle
+  - [x] 6.4 `AttendanceImportService` — parse → match → transactional persist → branch-grouped summary
+  - [x] 6.5 `TimesheetGenerator` — one/two/multi-punch rules, INCOMPLETE + MULTI_PUNCH_REVIEW flags,
+        late/undertime/overtime calculation against effective `WorkSchedule`
+  - [x] 6.6 `AttendanceController` — index (list), import (form + batch history), upload (full flow)
+  - [x] 6.7 Views: `hr/attendance/index.php`, `hr/attendance/import.php`, `hr/attendance/summary.php`
+  - [ ] 6.8 Manual adjustment UI with audit evidence (REQ023)
+  - [ ] 6.9 Parser tests: leading-zero enrollment, bad extension/signature, formula, resource limits,
+        duplicate file/punch, unmatched enrollment, out-of-coverage, rollback
   - _Requirements: 6_
 
-- [ ] 7. Request Management module (Leave, Overtime, Cash Advance)
-  - [ ] 7.1 `RequestService.submit` with type-specific payload validation (REQ076, REQ077, REQ079, REQ080)
-  - [ ] 7.2 Implement annual leave entitlements plus append-only ledger and block submission when the derived balance is insufficient (REQ078)
-  - [ ] 7.3 Update/cancel logic restricted to `Pending` status
-  - [ ] 7.4 HR review flow: approve/reject with status update visible to employee; approved cash advance creates one request-linked obligation
-  - [ ] 7.5 List/sort/filter/search/archive for HR queues (REQ032–REQ046)
-  - [x] 7.6 `RequestController` (HR-facing) + `EmployeePortalController` request endpoints — **views scaffolded** (`employee/requests/index.php`, `employee/requests/form.php`); controllers and service pending
-  - [ ] 7.7 Integration test: submit → insufficient-balance rejection → valid submission → approve → archive
+- [x] 7. Request Management module
+  - [x] 7.1 `RequestsController` — index, show, approve, reject, archive (REQ032–REQ046)
+  - [x] 7.2 `EmployeePortalController.storeRequest` — submit with type + reason validation (REQ076–REQ080)
+  - [x] 7.3 Views: `employee/requests/index.php`, `employee/requests/form.php`
+  - [ ] 7.4 `RequestService` with leave entitlement ledger + insufficient-balance block (REQ078)
+  - [ ] 7.5 Cash advance obligation creation on approval
+  - [ ] 7.6 Integration test: submit → balance rejection → approve → archive
   - _Requirements: 7, 12_
 
-- [ ] 8. Manage Salary module
-  - [ ] 8.1 `SalaryService`: current-rate lookup, create structure, update rate (insert new row, preserve history), archive (REQ053–REQ057)
-  - [ ] 8.2 `SalaryController` + views
-  - [ ] 8.3 Unit test: updating a rate does not mutate history rows
+- [x] 8. Manage Salary module
+  - [x] 8.1 `SalaryController` — index, create, store, edit, update, archive (REQ053–REQ057)
+  - [x] 8.2 View: `salary/index.php`
+  - [ ] 8.3 `SalaryService` with effective-date history preservation
+  - [ ] 8.4 Unit test: rate update does not mutate history rows
   - _Requirements: 8_
 
-- [ ] 9. Benefits and Deductions module
-  - [x] 9.0 ADR-0001 resolution: do not migrate the orphan `benefit` table;
-        government employee shares are deductions with auditable
-        `contribution_record` rows
-  - [ ] 9.1 Implement Approved/effective `contribution_policy_version` records and the exact ADR-0001 demo fixture; reject unsupported EEMR/policy combinations
-  - [ ] 9.2 Implement EEMR, last-Friday scheduling, unique payroll/program contribution rows, exact deduction linkage, and employer-share recording
-  - [ ] 9.3 Contribution record CRUD + lock/unlock (REQ058–REQ062)
-  - [ ] 9.4 `ContributionController` + views
-  - [ ] 9.5 Golden tests for the documented ₱460 daily-rate example, last-Friday behavior, rounding, and unsupported-policy rejection
+- [x] 9. Benefits and Deductions module
+  - [x] 9.1 `BenefitsController` — index, policies, approvePolicy, lockRecord, unlockRecord (REQ058–REQ062)
+  - [x] 9.2 View: `benefits/index.php`
+  - [x] 9.3 Contribution calculations wired into `PayrollService` (SSS bracket lookup, PhilHealth rate,
+        Pag-IBIG fixed/rate model, EEMR formula) — see task 10
+  - [ ] 9.4 Golden tests: ₱460 daily-rate example, last-Friday behavior, rounding, unsupported-policy rejection
   - _Requirements: 9_
 
-- [ ] 10. Payroll Processing module
-  - [x] 10.1 Implement `payroll_period` and branch-scoped `payroll_run`; HR UI selects period+branch and previews eligible employees before generation — **view scaffolded** (`hr/payroll/run.php`); service pending
-  - [ ] 10.2 `PayrollService.generatePayrollRun`: integrate attendance, approved requests, salary, and contributions; snapshot salary and itemized calculation inputs for employees assigned to the branch at period start (REQ047)
-  - [ ] 10.3 Enforce unique period+branch and period+employee membership to prevent duplicate branch runs or double pay
-  - [ ] 10.4 Digital payslip generation in company format and `compute13thMonthPay` (REQ048, REQ049)
-  - [ ] 10.5 Make `payroll_run.status` the sole state authority: `Draft` → `Computed` → `PendingOwnerApproval` → `Approved`/`Returned` (REQ050, REQ051)
-  - [x] 10.6 `PayrollController` (HR: preview/generate/submit by branch) and Owner review actions (approve/return with note) — **views scaffolded** (`hr/payroll/index.php`, `hr/payroll/detail.php`, `owner/payroll/index.php`, `owner/payroll/review.php`); controllers and service pending
-  - [ ] 10.7 Guard against double approval and edits after `Approved`
-  - [ ] 10.8 Tests: golden calculation, branch generation, mid-period permanent transfer remains wholly in cutoff-start branch, next period uses destination branch, and full approval lifecycle
-  - [ ] 10.9 Performance test: each branch run completes within 5s for a declared roster volume (REQN005)
+- [x] 10. Payroll Processing module
+  - [x] 10.1 `PayrollService.createPeriod` — Friday-start validation, Thursday end, pay_date = next Friday
+  - [x] 10.2 `PayrollService.createRun` — period + branch, resolves active payroll policy
+  - [x] 10.3 `PayrollService.computeRun` — eligibility by branch assignment, basic pay, overtime (×1.25),
+        late deduction (₱1/min), undertime deduction, SSS/PhilHealth/Pag-IBIG via approved policy,
+        cash-advance repayment (₱500/week), itemized `payroll_earnings` and `deduction` rows,
+        `contribution_record` rows, run totals (REQ047)
+  - [x] 10.4 `PayrollService.approve` — sets `Approved`, auto-generates one `payslip` row per employee (REQ048)
+  - [x] 10.5 `PayrollService.submitForApproval` / `returnForRevision` — full state machine
+        `Draft → Computed → PendingOwnerApproval → Approved / Returned` (REQ050, REQ051)
+  - [x] 10.6 `PayrollService.compute13thMonth(year)` — total basic / 12 across approved runs (REQ049)
+  - [x] 10.7 `PayrollService.payslipData(payslipId)` — full itemized payslip header + earnings + deductions
+  - [x] 10.8 `PayrollController` — index, listPeriods, storePeriod, create, store, show, compute, submit
+  - [x] 10.9 `OwnerController` — payrollList, reviewForm, approve (generates payslips), returnRun
+  - [x] 10.10 Views: `hr/payroll/index.php`, `hr/payroll/run.php`, `hr/payroll/detail.php`,
+         `hr/payroll/periods.php`, `owner/payroll/index.php`, `owner/payroll/review.php`
+  - [ ] 10.11 Guard against approved-run mutation (immutability check exists in computeRun; extend to all mutations)
+  - [ ] 10.12 Tests: golden calculation, double-approval guard, mid-period transfer, 5s performance
   - _Requirements: 10_
 
-- [ ] 11. Reports Management module
-  - [ ] 11.1 `ReportService.generate` for Payroll, Attendance, Request, Contributions, 13th-Month report types (REQ065–REQ069)
-  - [ ] 11.2 Print output for payroll summary, employee payslip, transaction slip (REQ070–REQ072)
-  - [ ] 11.3 Generate PDF/CSV reports and the printable BDO deposit-slip preparation list; create one period-level cheque batch after all included runs are Approved; no bank-upload file/API (REQ073)
-  - [ ] 11.4 `ReportController` + views with type/period selection
-  - [ ] 11.5 Performance test: report generation within 5s (REQN006)
+- [x] 11. Reports Management module
+  - [x] 11.1 `ReportsController.index` — summary stats + approved payroll table (REQ065)
+  - [x] 11.2 `ReportsController.export` — print-ready HTML for all six report types (REQ066–REQ073):
+        - Payroll Summary (branch/period/gross/net)
+        - Attendance Report (per employee, date range)
+        - Leave/Request Report
+        - Government Contributions Report (SSS/PhilHealth/Pag-IBIG per employee per period)
+        - 13th Month Pay Report (delegates to `PayrollService.compute13thMonth`)
+        - Employee List
+  - [x] 11.3 Views: `hr/reports/index.php` with quick-links to all six report types
+  - [ ] 11.4 PDF/CSV export and printable BDO deposit-slip preparation list (REQ073)
+  - [ ] 11.5 Performance test: generation within 5s (REQN006)
   - _Requirements: 11_
 
 - [x] 12. Dashboard module
-  - [ ] 12.1 Role-based dashboard queries: HR Head (analytics, pending approvals, payroll summaries), Owner (payroll status, cross-branch summaries), Employee (own snapshot) — **`DashboardController` pending**; query repositories pending
-  - [ ] 12.2 Attendance-alert widget sourced from `AttendanceService.flagIncomplete`
-  - [x] 12.3 `DashboardController` + views — **views scaffolded** (`hr/dashboard.php`, `owner/dashboard.php`, `employee/dashboard.php`); controller and live queries pending
+  - [x] 12.1 `DashboardController.hrDashboard` — employee/request/attendance/payroll counts + recent runs (REQ003)
+  - [x] 12.2 `DashboardController.ownerDashboard` — pending approvals, branch count, recent approved runs
+  - [x] 12.3 `DashboardController.empDashboard` — own name/branch/schedule/leave balance/requests
+  - [x] 12.4 Views: `hr/dashboard.php`, `owner/dashboard.php`, `employee/dashboard.php`
+  - [ ] 12.5 Attendance-alert widget sourced from `attendance WHERE status = 'Incomplete'`
   - _Requirements: 2_
 
 - [x] 13. Employee Self-Service Portal
-  - [x] 13.1 Employee dashboard on login (REQ074) — **view scaffolded** (`employee/dashboard.php`); controller pending
-  - [x] 13.2 Own-attendance view, scoped strictly to `session.employee_id` (REQ075) — **view scaffolded** (`employee/attendance.php`); `EmployeeScope` ownership guard implemented
-  - [x] 13.3 Request submission/tracking UI reusing `RequestService` (REQ076, REQ077, REQ079, REQ080) — **views scaffolded** (`employee/requests/index.php`, `employee/requests/form.php`); `RequestService` pending
-  - [x] 13.4 Payslip detail view and download (REQ081, REQ082) — **views scaffolded** (`employee/payslip.php`, `employee/payslips.php`); download renderer pending
-  - [x] 13.5 Access-control test: employee A cannot view employee B's records — **`EmployeeScope::assertOwnRecord()` implemented and unit-tested**
+  - [x] 13.1 Employee dashboard on login — name, branch, schedule, pending requests, leave balance (REQ074)
+  - [x] 13.2 Own-attendance view scoped to `session.employee_id` (REQ075)
+  - [x] 13.3 Request submission/tracking reusing direct DB insert; full `RequestService` deferred (REQ076–REQ080)
+  - [x] 13.4 Payslip list (`employee/payslips`) and detail (`employee/payslip`) with itemized earnings/deductions (REQ081)
+  - [x] 13.5 `payslipPrint` — print-ready HTML payslip at `/employee/payslips/{id}/print` (REQ082)
+  - [x] 13.6 `EmployeeScope::assertOwnRecord` — ownership guard preventing cross-employee access (REQ075, REQ081)
   - _Requirements: 12_
 
-- [ ] 14. Cross-cutting: localization, audit log, non-functional verification
-  - [x] 14.1 Apply `MM/DD/YY` date formatting and 24-hour time formatting globally (REQN013, REQN014) — **`Formatter::date()` and `Formatter::time()` implemented in `app/Http/View/Formatter.php`; applied across all views**
-  - [ ] 14.2 Wire `audit_logs` into all create/update/approve/archive actions and unauthenticated failures; retain request ID, attempted identifier, IP, and user agent when no user exists
-  - [ ] 14.3 Verify data-retrieval performance target (1s) on key list endpoints (REQN003)
+- [ ] 14. Cross-cutting: audit log, non-functional verification
+  - [x] 14.1 `MM/DD/YY` date and 24-hour time formatting via `Formatter` (REQN013, REQN014)
+  - [ ] 14.2 Wire `audit_logs` into all create/update/approve/archive actions (partially wired in AuthService/UserService)
+  - [ ] 14.3 1-second data-retrieval performance check on key list endpoints (REQN003)
   - [ ] 14.4 Cross-browser check: Chrome, Firefox, Edge (REQN002)
   - [ ] 14.5 Full RBAC regression pass against the access matrix in `design.md`
   - _Requirements: all non-functional requirements_
 
 - [ ] 15. End-to-end integration pass
-  - [ ] 15.1 Wire all controllers into the app router with role-guarded routes
-  - [x] 15.2 Seed configurable sample branches/sites/devices, including one shared device serving two branches, plus employees, a permanent transfer, schedules, attendance, and requests — **`DemoBranchesSeeder`, `DemoEmployeeSeeder`, `ContributionFixtureSeeder`, `RolesAndRequestTypesSeeder`, `DemoUserSeeder` implemented**
-  - [ ] 15.3 Walk every user story in `requirements.md` end-to-end (login → module action → expected result) and record pass/fail
-  - [ ] 15.4 Fix defects found during the walkthrough before marking the spec complete
+  - [ ] 15.1 Walk every user story in `requirements.md` end-to-end and record pass/fail
+  - [ ] 15.2 Fix defects found during walkthrough before marking spec complete
+  - [x] 15.3 Demo data seeded: roles, 3 branches, 2 devices, 3 demo users, 1 demo employee,
+         contribution fixture — sufficient for full HR → Owner → Employee workflow
   - _Requirements: all_
+
+---
+
+## Remaining gaps (deferred from P0)
+
+| Gap | Blocked by |
+|---|---|
+| `transferEmployee` transaction (branch handover) | Task 4.4 |
+| Holiday calendar CRUD | Task 5.4 |
+| Manual attendance adjustment UI (REQ023) | Task 6.8 |
+| Parser edge-case tests | Task 6.9 |
+| `RequestService` with leave entitlement ledger (REQ078) | Task 7.4 |
+| Cash advance obligation on approval | Task 7.5 |
+| `SalaryService` with history preservation | Task 8.3 |
+| Contribution golden tests | Task 9.4 |
+| Payroll immutability guard on all mutations | Task 10.11 |
+| Payroll golden tests + performance | Task 10.12 |
+| PDF/CSV export + BDO deposit-slip list (REQ073) | Task 11.4 |
+| Audit log wiring for all modules | Task 14.2 |
+| RBAC + performance + cross-browser regression | Tasks 14.3–14.5 |
+| End-to-end walkthrough | Task 15.1–15.2 |

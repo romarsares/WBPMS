@@ -267,60 +267,130 @@ final class EmployeePortalController
     {
         $employeeId = $this->requireEmployeeId();
         $payslipId  = (int) ($params['id'] ?? 0);
-        $pdo        = $this->makeConnection()->pdo();
 
-        $stmt = $pdo->prepare(
-            "SELECT ps.payslip_id,
-                    p.employee_id,
-                    CONCAT(pp.period_start, ' – ', pp.period_end) AS period,
-                    p.gross_pay,
-                    p.total_deductions,
-                    p.net_pay
-             FROM payslip ps
-             JOIN payroll p      ON p.payroll_id           = ps.payroll_id
-             JOIN payroll_run pr ON pr.payroll_run_id       = p.payroll_run_id
-             JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
-             WHERE ps.payslip_id = :id"
-        );
-        $stmt->execute([':id' => $payslipId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($row === false) {
+        try {
+            $service = new \Wbpms\Application\PayrollService($this->makeConnection());
+            $data    = $service->payslipData($payslipId);
+        } catch (\RuntimeException) {
             http_response_code(404);
             ViewRenderer::render('errors/404', [], '404 Not Found');
             return;
         }
 
-        // REQ075/REQ081: ownership guard — employee cannot view another's payslip
+        // Ownership guard — employee cannot view another's payslip
         try {
-            $this->scope->assertOwnRecord($employeeId, (int) $row['employee_id']);
+            $this->scope->assertOwnRecord($employeeId, $data['employee_id']);
         } catch (\DomainException) {
             http_response_code(403);
             ViewRenderer::render('errors/403', [], 'Forbidden');
             return;
         }
 
-        // Build the view shape
-        $grossFmt  = number_format((float) $row['gross_pay'], 2);
-        $dedFmt    = number_format((float) $row['total_deductions'], 2);
-        $netFmt    = number_format((float) $row['net_pay'], 2);
+        // Build items for display
+        $items = [];
+        foreach ($data['earnings'] as $e) {
+            $items[] = ['label' => $e['description'], 'amount' => '₱' . number_format((float)$e['amount'], 2), 'type' => 'earning'];
+        }
+        foreach ($data['deductions'] as $d) {
+            $items[] = ['label' => $d['description'], 'amount' => '−₱' . number_format((float)$d['amount'], 2), 'type' => 'deduction'];
+        }
+
+        $base = rtrim((string)($_ENV['APP_BASE_URL'] ?? ''), '/');
 
         $payslip = [
-            'period'     => (string) $row['period'],
-            'gross'      => $grossFmt,
-            'deductions' => $dedFmt,
-            'net'        => $netFmt,
-            'items'      => [
-                ['label' => 'Gross Pay',        'amount' => '₱' . $grossFmt],
-                ['label' => 'Total Deductions', 'amount' => '₱' . $dedFmt],
-                ['label' => 'Net Pay',          'amount' => '₱' . $netFmt],
-            ],
+            'period'     => $data['period'],
+            'gross'      => number_format($data['gross_pay'], 2),
+            'deductions' => number_format($data['total_deductions'], 2),
+            'net'        => number_format($data['net_pay'], 2),
+            'items'      => $items,
+            'data'       => $data,
         ];
 
         ViewRenderer::render('employee/payslip', [
             'payslip'     => $payslip,
-            'downloadUrl' => '#', // full download renderer deferred
-        ], 'Payslip');
+            'downloadUrl' => $base . '/employee/payslips/' . $payslipId . '/print',
+        ], 'Payslip — ' . $data['period']);
+    }
+
+    /**
+     * GET /employee/payslips/{id}/print
+     * Print-ready payslip — no layout wrapper, inline styles only. REQ082.
+     *
+     * @param array<string, string> $params
+     */
+    public function payslipPrint(array $params = []): void
+    {
+        $employeeId = $this->requireEmployeeId();
+        $payslipId  = (int) ($params['id'] ?? 0);
+
+        try {
+            $service = new \Wbpms\Application\PayrollService($this->makeConnection());
+            $data    = $service->payslipData($payslipId);
+        } catch (\RuntimeException) {
+            http_response_code(404);
+            echo 'Payslip not found.';
+            return;
+        }
+
+        try {
+            $this->scope->assertOwnRecord($employeeId, $data['employee_id']);
+        } catch (\DomainException) {
+            http_response_code(403);
+            echo 'Forbidden.';
+            return;
+        }
+
+        header('Content-Type: text/html; charset=utf-8');
+        // Inline print-ready HTML — no layout dependency
+        $e = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+        $n = fn(float $v): string  => number_format($v, 2);
+
+        echo '<!doctype html><html lang="en"><head><meta charset="utf-8">';
+        echo '<title>Payslip — ' . $e($data['period']) . '</title>';
+        echo '<style>
+            body{font-family:Arial,sans-serif;font-size:12px;margin:20px}
+            h2{margin:0 0 4px}
+            .header{display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:12px}
+            .meta{margin-bottom:12px;font-size:11px}
+            table{width:100%;border-collapse:collapse;margin-bottom:12px}
+            th,td{border:1px solid #ccc;padding:5px 8px;font-size:11px}
+            th{background:#f0f0f0;text-align:left}
+            .total-row td{font-weight:bold;background:#f9f9f9}
+            .net-row td{font-weight:bold;font-size:13px;background:#e8f5e9}
+            @media print{button{display:none}}
+        </style></head><body>';
+        echo '<div class="header">';
+        echo '<div><h2>Light Diamond Enterprises</h2><small>PAYSLIP</small></div>';
+        echo '<div style="text-align:right"><b>Pay Period:</b> ' . $e($data['period']) . '<br>';
+        echo '<b>Pay Date:</b> ' . $e($data['pay_date']) . '</div>';
+        echo '</div>';
+        echo '<div class="meta">';
+        echo '<b>Employee:</b> ' . $e($data['employee_name']) . ' (' . $e($data['employee_number']) . ')<br>';
+        echo '<b>Position:</b> ' . $e($data['position']) . ' &nbsp;&nbsp; <b>Branch:</b> ' . $e($data['branch_name']) . '<br>';
+        echo '<b>Daily Rate:</b> ₱' . $n($data['daily_rate']) . ' &nbsp;&nbsp; <b>Issue Date:</b> ' . $e($data['issue_date']);
+        echo '</div>';
+
+        echo '<table><thead><tr><th>EARNINGS</th><th style="text-align:right">AMOUNT</th></tr></thead><tbody>';
+        foreach ($data['earnings'] as $row) {
+            echo '<tr><td>' . $e($row['description']) . '</td><td style="text-align:right">₱' . $n((float)$row['amount']) . '</td></tr>';
+        }
+        echo '<tr class="total-row"><td>GROSS PAY</td><td style="text-align:right">₱' . $n($data['gross_pay']) . '</td></tr>';
+        echo '</tbody></table>';
+
+        echo '<table><thead><tr><th>DEDUCTIONS</th><th style="text-align:right">AMOUNT</th></tr></thead><tbody>';
+        foreach ($data['deductions'] as $row) {
+            echo '<tr><td>' . $e($row['description']) . '</td><td style="text-align:right">₱' . $n((float)$row['amount']) . '</td></tr>';
+        }
+        echo '<tr class="total-row"><td>TOTAL DEDUCTIONS</td><td style="text-align:right">₱' . $n($data['total_deductions']) . '</td></tr>';
+        echo '</tbody></table>';
+
+        echo '<table><tbody>';
+        echo '<tr class="net-row"><td><b>NET PAY</b></td><td style="text-align:right"><b>₱' . $n($data['net_pay']) . '</b></td></tr>';
+        echo '</tbody></table>';
+
+        echo '<p style="font-size:10px;margin-top:20px;color:#666">This is a system-generated payslip. — Light Diamond Enterprises</p>';
+        echo '<button onclick="window.print()" style="padding:6px 16px;cursor:pointer">🖨 Print</button>';
+        echo '</body></html>';
     }
 
     // -----------------------------------------------------------------------

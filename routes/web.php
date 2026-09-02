@@ -37,8 +37,14 @@ use Wbpms\Http\Controllers\UserController;
 $router->add('GET', '/health', [HealthController::class, 'index'], []);
 
 // Authentication
-$router->add('GET',  '/login',  [AuthController::class, 'showLogin'], []);
-$router->add('POST', '/login',  [AuthController::class, 'login'],     []);
+$router->add('GET',  '/login',         [AuthController::class, 'showLogin'],    []);
+$router->add('POST', '/login',         [AuthController::class, 'login'],        []);
+$router->add('GET',  '/forgot',        [AuthController::class, 'showForgot'],   []);
+$router->add('POST', '/forgot',        [AuthController::class, 'sendOtp'],      []);
+$router->add('GET',  '/reset-otp',     [AuthController::class, 'showOtpForm'],  []);
+$router->add('POST', '/reset-otp',     [AuthController::class, 'verifyOtp'],    []);
+$router->add('GET',  '/reset-password',[AuthController::class, 'showResetForm'],[]);
+$router->add('POST', '/reset-password',[AuthController::class, 'resetPassword'],[]);
 
 // ---------------------------------------------------------------------------
 // Shared authenticated routes
@@ -173,5 +179,6 @@ $router->add('GET',  '/employee/attendance',      [EmployeePortalController::cla
 $router->add('GET',  '/employee/requests',        [EmployeePortalController::class, 'requests'],      ['Employee']);
 $router->add('GET',  '/employee/requests/new',    [EmployeePortalController::class, 'requestForm'],   ['Employee']);
 $router->add('POST', '/employee/requests',        [EmployeePortalController::class, 'storeRequest'],  ['Employee']);
-$router->add('GET',  '/employee/payslips',        [EmployeePortalController::class, 'payslips'],      ['Employee']);
-$router->add('GET',  '/employee/payslips/{id}',   [EmployeePortalController::class, 'payslipDetail'], ['Employee']);
+$router->add('GET',  '/employee/payslips',            [EmployeePortalController::class, 'payslips'],      ['Employee']);
+$router->add('GET',  '/employee/payslips/{id}',       [EmployeePortalController::class, 'payslipDetail'], ['Employee']);
+$router->add('GET',  '/employee/payslips/{id}/print', [EmployeePortalController::class, 'payslipPrint'],  ['Employee']);

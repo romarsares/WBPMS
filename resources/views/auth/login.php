@@ -70,6 +70,8 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
     </form>
 
     <p class="login-footer">
+        <a href="<?= $base ?>/forgot">Forgot password?</a>
+        &nbsp;·&nbsp;
         Internal use only. All access is logged and audited.
     </p>
 
