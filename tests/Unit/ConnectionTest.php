@@ -68,8 +68,10 @@ final class ConnectionTest extends TestCase
     public function it_rolls_back_and_rethrows_on_exception(): void
     {
         $pdo = $this->createMock(\PDO::class);
+        // inTransaction() returns false initially (not nested), then true after beginTransaction
+        // (so the catch block guard passes and rollBack is called).
+        $pdo->method('inTransaction')->willReturnOnConsecutiveCalls(false, true);
         $pdo->method('beginTransaction')->willReturn(true);
-        $pdo->method('inTransaction')->willReturn(true);
         $pdo->expects($this->once())->method('rollBack')->willReturn(true);
         $pdo->expects($this->never())->method('commit');
 

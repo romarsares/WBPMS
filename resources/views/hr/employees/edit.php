@@ -191,6 +191,12 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <?= $isEdit ? 'Save Changes' : 'Create Employee' ?>
             </button>
             <a href="<?= $base ?>/hr/employees" class="btn btn-secondary">Cancel</a>
+            <?php if ($isEdit): ?>
+                <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/transfer"
+                   class="btn btn-warning" style="margin-left:auto;">
+                    Transfer Branch
+                </a>
+            <?php endif; ?>
         </div>
     </form>
 </div>

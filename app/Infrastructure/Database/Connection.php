@@ -52,6 +52,11 @@ class Connection
     /**
      * Execute $callback inside a single database transaction.
      *
+     * If the PDO handle is already inside a transaction (e.g. in integration
+     * tests that wrap each test in a transaction for rollback isolation),
+     * the callback is executed without opening a new transaction; the outer
+     * transaction owner is responsible for commit/rollback.
+     *
      * Commits on success. On any Throwable, rolls back and re-throws so
      * callers can react to the original exception without a partial state.
      *
@@ -61,16 +66,23 @@ class Connection
      */
     public function transaction(callable $callback): mixed
     {
-        $pdo = $this->pdo();
-        $pdo->beginTransaction();
+        $pdo    = $this->pdo();
+        $nested = $pdo->inTransaction();
+
+        if (!$nested) {
+            $pdo->beginTransaction();
+        }
 
         try {
             $result = $callback($pdo);
-            $pdo->commit();
+
+            if (!$nested) {
+                $pdo->commit();
+            }
 
             return $result;
         } catch (\Throwable $e) {
-            if ($pdo->inTransaction()) {
+            if (!$nested && $pdo->inTransaction()) {
                 $pdo->rollBack();
             }
             throw $e;

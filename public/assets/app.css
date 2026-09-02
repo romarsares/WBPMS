@@ -264,7 +264,7 @@ img { display: block; max-width: 100%; }
     padding: 0;
 }
 .notif-btn:hover { background: var(--line); }
-.notif-btn .bell { font-size: 18px; line-height: 1; }
+.notif-btn .bell { width: 18px; height: 18px; display: block; flex-shrink: 0; }
 .notif-btn .badge-count {
     position: absolute;
     right: -4px; top: -4px;

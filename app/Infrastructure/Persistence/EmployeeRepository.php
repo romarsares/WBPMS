@@ -296,6 +296,85 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
     }
 
     /**
+     * Transfer an employee to a new branch.
+     *
+     * Closes the current active branch assignment (effective_to = transfer_date - 1 day)
+     * and opens a new one (effective_from = transfer_date). The operation is transactional.
+     *
+     * ADR-0002: branch assignments must not overlap; the half-open [from, to) period is enforced.
+     *
+     * @param int    $employeeId   Target employee
+     * @param int    $newBranchId  Destination branch
+     * @param string $transferDate YYYY-MM-DD — the first day on the new branch
+     * @throws \RuntimeException   when no active assignment exists, branch unchanged,
+     *                             or transfer date would create an overlap
+     */
+    public function transferEmployee(int $employeeId, int $newBranchId, string $transferDate): void
+    {
+        $this->connection->transaction(function (\PDO $pdo) use ($employeeId, $newBranchId, $transferDate): void {
+            // Fetch the current open assignment with a write lock
+            $stmt = $pdo->prepare(
+                "SELECT branch_assignment_id, branch_id, effective_from
+                   FROM employee_branch_assignment
+                  WHERE employee_id   = :emp
+                    AND effective_to  IS NULL
+                  FOR UPDATE"
+            );
+            $stmt->execute([':emp' => $employeeId]);
+            $current = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($current === false) {
+                throw new \RuntimeException('No active branch assignment found for this employee.');
+            }
+
+            if ((int) $current['branch_id'] === $newBranchId) {
+                throw new \RuntimeException('The employee is already assigned to that branch.');
+            }
+
+            if ($transferDate <= $current['effective_from']) {
+                throw new \RuntimeException(
+                    'Transfer date must be after the current assignment start date ('
+                    . $current['effective_from'] . ').'
+                );
+            }
+
+            // Check for any future closed assignment that would overlap
+            $overlap = $pdo->prepare(
+                "SELECT COUNT(*) FROM employee_branch_assignment
+                  WHERE employee_id    = :emp
+                    AND effective_from >= :date
+                    AND effective_to   IS NOT NULL"
+            );
+            $overlap->execute([':emp' => $employeeId, ':date' => $transferDate]);
+            if ((int) $overlap->fetchColumn() > 0) {
+                throw new \RuntimeException(
+                    'A future branch assignment already exists; resolve it before transferring.'
+                );
+            }
+
+            // Close the current assignment one day before transfer date
+            $closeDate = (new \DateTimeImmutable($transferDate))->modify('-1 day')->format('Y-m-d');
+            $pdo->prepare(
+                "UPDATE employee_branch_assignment
+                    SET effective_to = :close,
+                        updated_at   = NOW()
+                  WHERE branch_assignment_id = :id"
+            )->execute([':close' => $closeDate, ':id' => $current['branch_assignment_id']]);
+
+            // Open the new assignment
+            $pdo->prepare(
+                "INSERT INTO employee_branch_assignment
+                    (employee_id, branch_id, effective_from, effective_to)
+                 VALUES (:emp, :branch, :from, NULL)"
+            )->execute([
+                ':emp'    => $employeeId,
+                ':branch' => $newBranchId,
+                ':from'   => $transferDate,
+            ]);
+        });
+    }
+
+    /**
      * Return all active branches for use in dropdown filters.
      *
      * @return list<array{id: int, name: string}>

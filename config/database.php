@@ -19,8 +19,7 @@ $baseOptions = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
-    // Use the global constant for PHP < 8.4 compatibility; Pdo\Mysql requires PHP 8.4+.
-    PDO::MYSQL_ATTR_INIT_COMMAND => $strictMode,
+    Pdo\Mysql::ATTR_INIT_COMMAND => $strictMode,
 ];
 
 $configs = [

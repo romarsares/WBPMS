@@ -169,6 +169,83 @@ final class EmployeeController
     }
 
     /**
+     * GET /hr/employees/{id}/transfer
+     *
+     * @param array<string, string> $params
+     */
+    public function transferForm(array $params = []): void
+    {
+        $id  = (int) ($params['id'] ?? 0);
+        $row = $this->makeRepo()->findById($id);
+
+        if ($row === null) {
+            http_response_code(404);
+            ViewRenderer::render('errors/404', [], '404 Not Found');
+            return;
+        }
+
+        $branches = (new Connection(require APP_ROOT . '/config/database.php'))->pdo()->query(
+            "SELECT branch_id AS id, branch_name AS name FROM branch WHERE status = 'Active' ORDER BY branch_name"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        ViewRenderer::render('hr/employees/transfer', [
+            'employee' => $row,
+            'branches' => $branches,
+            'errors'   => [],
+        ], 'Transfer Employee');
+    }
+
+    /**
+     * POST /hr/employees/{id}/transfer
+     *
+     * @param array<string, string> $params
+     */
+    public function transfer(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $repo     = $this->makeRepo();
+        $row      = $repo->findById($id);
+
+        if ($row === null) {
+            http_response_code(404);
+            ViewRenderer::render('errors/404', [], '404 Not Found');
+            return;
+        }
+
+        $newBranchId  = (int) ($_POST['branch_id']     ?? 0);
+        $transferDate = trim((string) ($_POST['transfer_date'] ?? ''));
+        $errors       = [];
+
+        if ($newBranchId <= 0) {
+            $errors['branch_id'] = 'Destination branch is required.';
+        }
+        if ($transferDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $transferDate)) {
+            $errors['transfer_date'] = 'Transfer date is required (YYYY-MM-DD).';
+        }
+
+        if ($errors === []) {
+            try {
+                $repo->transferEmployee($id, $newBranchId, $transferDate);
+                ViewRenderer::flash('Employee transferred successfully.');
+                $this->redirect('/hr/employees/' . $id . '/edit');
+                return;
+            } catch (\RuntimeException $e) {
+                $errors['transfer_date'] = $e->getMessage();
+            }
+        }
+
+        $branches = (new Connection(require APP_ROOT . '/config/database.php'))->pdo()->query(
+            "SELECT branch_id AS id, branch_name AS name FROM branch WHERE status = 'Active' ORDER BY branch_name"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        ViewRenderer::render('hr/employees/transfer', [
+            'employee' => $row,
+            'branches' => $branches,
+            'errors'   => $errors,
+        ], 'Transfer Employee');
+    }
+
+    /**
      * POST /hr/employees/{id}  (with _method=PUT from the form)
      *
      * @param array<string, string> $params

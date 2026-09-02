@@ -24,12 +24,12 @@
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem">
     <?php
     $reportTypes = [
-        ['label'=>'Payroll Summary', 'type'=>'payroll', 'icon'=>'💰'],
-        ['label'=>'Attendance Report', 'type'=>'attendance', 'icon'=>'📅'],
-        ['label'=>'Leave/Request Report', 'type'=>'requests', 'icon'=>'📋'],
-        ['label'=>'Contributions Report', 'type'=>'contributions', 'icon'=>'🏦'],
-        ['label'=>'13th Month Pay', 'type'=>'13th_month', 'icon'=>'🎁'],
-        ['label'=>'Employee List', 'type'=>'employees', 'icon'=>'👥'],
+        ['label'=>'Payroll Summary',      'type'=>'payroll',     'icon'=>'₱'],
+        ['label'=>'Attendance Report',    'type'=>'attendance',  'icon'=>'◷'],
+        ['label'=>'Leave/Request Report', 'type'=>'requests',    'icon'=>'▤'],
+        ['label'=>'Contributions Report', 'type'=>'contributions','icon'=>'♦'],
+        ['label'=>'13th Month Pay',       'type'=>'13th_month',  'icon'=>'★'],
+        ['label'=>'Employee List',        'type'=>'employees',   'icon'=>'♟'],
     ];
     foreach ($reportTypes as $rt): ?>
     <a href="<?= $base ?>/hr/reports/export?type=<?= htmlspecialchars($rt['type']) ?>"

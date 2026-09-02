@@ -198,17 +198,19 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
         }
 
         // 4. Find current work schedule for employee on punch date
+        //    Now resolved via employee_schedule_assignment (work_schedule is no longer per-employee).
         $stmt = $this->pdo->prepare(
-            "SELECT schedule_id FROM work_schedule
-              WHERE employee_id    = :emp_id
-                AND effective_from <= :punch_date
-                AND (effective_to IS NULL OR effective_to > :punch_date)
-                AND status = 'Active'
-              ORDER BY effective_from DESC
+            "SELECT esa.schedule_id
+               FROM employee_schedule_assignment esa
+              WHERE esa.employee_id    = :emp_id
+                AND esa.effective_from <= :punch_date
+                AND (esa.effective_to IS NULL OR esa.effective_to > :punch_date)
+                AND esa.status = 'Active'
+              ORDER BY esa.effective_from DESC
               LIMIT 1"
         );
         $stmt->execute([':emp_id' => $employeeId, ':punch_date' => $punchDate]);
-        $schedule = $stmt->fetch(PDO::FETCH_ASSOC);
+        $schedule   = $stmt->fetch(PDO::FETCH_ASSOC);
         $scheduleId = $schedule ? (int) $schedule['schedule_id'] : 0;
 
         return AttendancePunchMatch::matched($employeeId, $branchId, $scheduleId);

@@ -92,19 +92,30 @@ $router->add('GET', '/hr/dashboard', [DashboardController::class, 'hrDashboard']
 // NOTE: /hr/employees/new must be before /hr/employees/{id}
 // ---------------------------------------------------------------------------
 
-$router->add('GET',  '/hr/employees',            [EmployeeController::class, 'index'],    ['HRHead']);
-$router->add('GET',  '/hr/employees/new',         [EmployeeController::class, 'create'],   ['HRHead']);
-$router->add('POST', '/hr/employees',            [EmployeeController::class, 'store'],    ['HRHead']);
-$router->add('GET',  '/hr/employees/{id}',       [EmployeeController::class, 'show'],     ['HRHead']);
-$router->add('GET',  '/hr/employees/{id}/edit',  [EmployeeController::class, 'editForm'], ['HRHead']);
-$router->add('POST', '/hr/employees/{id}',       [EmployeeController::class, 'update'],   ['HRHead']);
+$router->add('GET',  '/hr/employees',                [EmployeeController::class, 'index'],        ['HRHead']);
+$router->add('GET',  '/hr/employees/new',             [EmployeeController::class, 'create'],       ['HRHead']);
+$router->add('POST', '/hr/employees',                [EmployeeController::class, 'store'],         ['HRHead']);
+$router->add('GET',  '/hr/employees/{id}/transfer',  [EmployeeController::class, 'transferForm'],  ['HRHead']);
+$router->add('POST', '/hr/employees/{id}/transfer',  [EmployeeController::class, 'transfer'],      ['HRHead']);
+$router->add('GET',  '/hr/employees/{id}',           [EmployeeController::class, 'show'],          ['HRHead']);
+$router->add('GET',  '/hr/employees/{id}/edit',      [EmployeeController::class, 'editForm'],      ['HRHead']);
+$router->add('POST', '/hr/employees/{id}',           [EmployeeController::class, 'update'],        ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Work schedule management  (REQ025–REQ031)
 // ---------------------------------------------------------------------------
 
-$router->add('GET',  '/hr/schedules',      [ScheduleController::class, 'index'], ['HRHead']);
-$router->add('POST', '/hr/schedules',      [ScheduleController::class, 'store'], ['HRHead']);
+$router->add('GET',  '/hr/schedules',               [ScheduleController::class, 'index'],       ['HRHead']);
+$router->add('POST', '/hr/schedules',               [ScheduleController::class, 'store'],       ['HRHead']);
+$router->add('GET',  '/hr/schedules/assign',        [ScheduleController::class, 'assignForm'],  ['HRHead']);
+$router->add('POST', '/hr/schedules/assign',        [ScheduleController::class, 'assign'],      ['HRHead']);
+$router->add('GET',  '/hr/schedules/holidays',      [ScheduleController::class, 'holidayIndex'],['HRHead']);
+$router->add('POST', '/hr/schedules/holidays',      [ScheduleController::class, 'storeHoliday'],['HRHead']);
+$router->add('GET',  '/hr/schedules/holidays/{id}/edit',   [ScheduleController::class, 'editHoliday'],  ['HRHead']);
+$router->add('POST', '/hr/schedules/holidays/{id}',        [ScheduleController::class, 'updateHoliday'],['HRHead']);
+$router->add('POST', '/hr/schedules/holidays/{id}/delete', [ScheduleController::class, 'deleteHoliday'],['HRHead']);
+$router->add('GET',  '/hr/schedules/{id}/edit',     [ScheduleController::class, 'editForm'],    ['HRHead']);
+$router->add('POST', '/hr/schedules/{id}',          [ScheduleController::class, 'update'],      ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Attendance import  (REQ018–REQ024)

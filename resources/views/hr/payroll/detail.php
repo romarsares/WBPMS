@@ -124,5 +124,5 @@ $netTotal   = array_sum(array_column($details, 'net_pay'));
 <?php elseif ($run['status'] === 'Approved'): ?>
 <p style="color:#10b981;font-weight:600">✓ This payroll run has been approved and is read-only.</p>
 <?php else: ?>
-<p style="color:#f59e0b;font-weight:600">⏳ Awaiting Business Owner approval.</p>
+<p style="color:#f59e0b;font-weight:600">&#9711; Awaiting Business Owner approval.</p>
 <?php endif; ?>

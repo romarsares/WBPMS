@@ -492,6 +492,11 @@ final class PayrollService
         $pdo = $this->connection->pdo();
         $run = $this->findRunOrFail($runId);
 
+        // REQ010.11: approved runs are immutable
+        if ($run['status'] === 'Approved') {
+            throw new RuntimeException('Approved payroll runs are immutable and cannot be resubmitted.');
+        }
+
         if (!in_array($run['status'], ['Computed', 'Returned'], true)) {
             throw new RuntimeException('Only Computed or Returned runs can be submitted for approval.');
         }
@@ -566,6 +571,11 @@ final class PayrollService
     {
         $pdo = $this->connection->pdo();
         $run = $this->findRunOrFail($runId);
+
+        // REQ010.11: approved runs are immutable — cannot be returned after approval
+        if ($run['status'] === 'Approved') {
+            throw new RuntimeException('Approved payroll runs are immutable and cannot be returned.');
+        }
 
         if ($run['status'] !== 'PendingOwnerApproval') {
             throw new RuntimeException('Only runs pending approval can be returned.');
