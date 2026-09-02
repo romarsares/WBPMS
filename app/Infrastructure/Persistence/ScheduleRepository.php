@@ -44,20 +44,21 @@ final class ScheduleRepository extends AbstractRepository
     {
         $stmt = $this->pdo()->query(
             "SELECT
-                schedule_id       AS id,
-                schedule_name,
-                working_days,
-                rest_days,
-                work_start_time   AS time_in,
-                work_end_time     AS time_out,
-                break_minutes,
-                grace_minutes,
-                overtime_allowed,
-                standard_minutes,
-                effective_from,
-                LOWER(status)     AS status
-             FROM work_schedule
-             ORDER BY schedule_name ASC"
+                ws.schedule_id                              AS id,
+                CONCAT(e.last_name, ', ', e.first_name)    AS employee_name,
+                e.employee_number,
+                ws.working_days,
+                ws.rest_days,
+                ws.work_start_time   AS time_in,
+                ws.work_end_time     AS time_out,
+                ws.break_minutes,
+                ws.standard_minutes,
+                ws.effective_from,
+                ws.effective_to,
+                LOWER(ws.status)     AS status
+             FROM work_schedule ws
+             JOIN employee e ON e.employee_id = ws.employee_id
+             ORDER BY e.last_name ASC, ws.effective_from DESC"
         );
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -71,24 +72,21 @@ final class ScheduleRepository extends AbstractRepository
     {
         $stmt = $this->pdo()->prepare(
             "SELECT
-                schedule_id       AS id,
-                schedule_name,
-                working_days,
-                rest_days,
-                work_start_time   AS time_in,
-                work_end_time     AS time_out,
-                break_minutes,
-                grace_minutes,
-                overtime_allowed,
-                standard_minutes,
-                break_start_time,
-                break_end_time,
-                notes,
-                effective_from,
-                effective_to,
-                LOWER(status)     AS status
-             FROM work_schedule
-             WHERE schedule_id = :id"
+                ws.schedule_id                              AS id,
+                CONCAT(e.last_name, ', ', e.first_name)    AS employee_name,
+                e.employee_id,
+                ws.working_days,
+                ws.rest_days,
+                ws.work_start_time   AS time_in,
+                ws.work_end_time     AS time_out,
+                ws.break_minutes,
+                ws.standard_minutes,
+                ws.effective_from,
+                ws.effective_to,
+                LOWER(ws.status)     AS status
+             FROM work_schedule ws
+             JOIN employee e ON e.employee_id = ws.employee_id
+             WHERE ws.schedule_id = :id"
         );
         $stmt->execute([':id' => $scheduleId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -116,33 +114,24 @@ final class ScheduleRepository extends AbstractRepository
     {
         $stmt = $this->pdo()->prepare(
             'INSERT INTO work_schedule (
-                schedule_name, working_days, rest_days,
-                break_minutes, grace_minutes, overtime_allowed,
-                work_start_time, work_end_time, standard_minutes,
-                break_start_time, break_end_time, notes,
-                effective_from, effective_to, status
+                employee_id, working_days, rest_days,
+                break_minutes, work_start_time, work_end_time,
+                standard_minutes, effective_from, effective_to, status
              ) VALUES (
-                :schedule_name, :working_days, :rest_days,
-                :break_minutes, :grace_minutes, :overtime_allowed,
-                :work_start_time, :work_end_time, :standard_minutes,
-                :break_start_time, :break_end_time, :notes,
-                :effective_from, :effective_to, :status
+                :employee_id, :working_days, :rest_days,
+                :break_minutes, :work_start_time, :work_end_time,
+                :standard_minutes, :effective_from, :effective_to, :status
              )'
         );
 
         $stmt->execute([
-            ':schedule_name'    => $attributes['schedule_name'],
+            ':employee_id'      => (int) $attributes['employee_id'],
             ':working_days'     => $attributes['working_days'],
             ':rest_days'        => $attributes['rest_days']         ?? '["Saturday","Sunday"]',
             ':break_minutes'    => (int) ($attributes['break_minutes']   ?? 60),
-            ':grace_minutes'    => (int) ($attributes['grace_minutes']   ?? 0),
-            ':overtime_allowed' => (int) ($attributes['overtime_allowed'] ?? 1),
             ':work_start_time'  => $attributes['work_start_time'],
             ':work_end_time'    => $attributes['work_end_time'],
             ':standard_minutes' => (int) ($attributes['standard_minutes'] ?? 480),
-            ':break_start_time' => $attributes['break_start_time']  ?? null,
-            ':break_end_time'   => $attributes['break_end_time']    ?? null,
-            ':notes'            => $attributes['notes']             ?? null,
             ':effective_from'   => $attributes['effective_from'],
             ':effective_to'     => $attributes['effective_to']      ?? null,
             ':status'           => $attributes['status']            ?? 'Active',
@@ -159,11 +148,9 @@ final class ScheduleRepository extends AbstractRepository
     public function update(int $scheduleId, array $attributes): void
     {
         $allowed = [
-            'schedule_name', 'working_days', 'rest_days',
+            'working_days', 'rest_days',
             'work_start_time', 'work_end_time', 'standard_minutes',
-            'break_minutes', 'grace_minutes', 'overtime_allowed',
-            'break_start_time', 'break_end_time', 'notes',
-            'effective_from', 'effective_to', 'status',
+            'break_minutes', 'effective_from', 'effective_to', 'status',
         ];
 
         $setClauses = [];
@@ -193,10 +180,12 @@ final class ScheduleRepository extends AbstractRepository
     public function dropdownList(): array
     {
         $stmt = $this->pdo()->query(
-            "SELECT schedule_id AS id, schedule_name AS name
-             FROM work_schedule
-             WHERE status = 'Active'
-             ORDER BY schedule_name ASC"
+            "SELECT ws.schedule_id AS id,
+                    CONCAT(e.last_name, ', ', e.first_name, ' (', ws.work_start_time, '–', ws.work_end_time, ')') AS name
+             FROM work_schedule ws
+             JOIN employee e ON e.employee_id = ws.employee_id
+             WHERE ws.status = 'Active'
+             ORDER BY e.last_name ASC"
         );
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -206,7 +195,19 @@ final class ScheduleRepository extends AbstractRepository
     // =========================================================================
 
     /**
-     * Return all assignments for a given employee, newest first.
+     * Return all assignments — stub, returns empty array since
+     * employee_schedule_assignment table is not in this migration set.
+     * Schedules are per-employee rows in work_schedule directly.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function findAllAssignments(): array
+    {
+        return [];
+    }
+
+    /**
+     * Return all assignments for a given employee — stub.
      *
      * @return list<array<string, mixed>>
      */
@@ -214,94 +215,65 @@ final class ScheduleRepository extends AbstractRepository
     {
         $stmt = $this->pdo()->prepare(
             "SELECT
-                esa.assignment_id,
-                esa.employee_id,
-                CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
-                esa.schedule_id,
-                ws.schedule_name,
+                ws.schedule_id                           AS id,
+                ws.working_days,
+                ws.rest_days,
                 ws.work_start_time AS time_in,
                 ws.work_end_time   AS time_out,
-                esa.effective_from,
-                esa.effective_to,
-                LOWER(esa.status)  AS status
-             FROM employee_schedule_assignment esa
-             JOIN employee     e  ON e.employee_id  = esa.employee_id
-             JOIN work_schedule ws ON ws.schedule_id = esa.schedule_id
-             WHERE esa.employee_id = :emp_id
-             ORDER BY esa.effective_from DESC"
+                ws.break_minutes,
+                ws.standard_minutes,
+                ws.effective_from,
+                ws.effective_to,
+                LOWER(ws.status)   AS status
+             FROM work_schedule ws
+             WHERE ws.employee_id = :emp_id
+             ORDER BY ws.effective_from DESC"
         );
         $stmt->execute([':emp_id' => $employeeId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
-     * Return all assignments (all employees), for the assignment list view.
+     * Assign a work schedule to an employee by inserting a new work_schedule row.
+     * Closes any open current schedule for the employee first.
      *
-     * @return list<array<string, mixed>>
-     */
-    public function findAllAssignments(): array
-    {
-        $stmt = $this->pdo()->query(
-            "SELECT
-                esa.assignment_id,
-                CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
-                e.employee_number,
-                ws.schedule_name,
-                ws.work_start_time AS time_in,
-                ws.work_end_time   AS time_out,
-                esa.effective_from,
-                esa.effective_to,
-                LOWER(esa.status)  AS status
-             FROM employee_schedule_assignment esa
-             JOIN employee      e  ON e.employee_id  = esa.employee_id
-             JOIN work_schedule ws ON ws.schedule_id = esa.schedule_id
-             ORDER BY e.last_name ASC, esa.effective_from DESC"
-        );
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    /**
-     * Assign a work schedule to an employee.
-     *
-     * Closes any open (effective_to IS NULL) assignment for the same employee
-     * before inserting the new one — ensuring only one active assignment at a
-     * time per employee.
-     *
-     * @param  array<string, mixed> $attributes  employee_id, schedule_id, effective_from, [effective_to], [notes]
+     * @param  array<string, mixed> $attributes  employee_id, schedule_id (ignored — inserts new row), effective_from, [effective_to], [notes]
      */
     public function assign(array $attributes): int
     {
-        $employeeId   = (int) $attributes['employee_id'];
-        $scheduleId   = (int) $attributes['schedule_id'];
+        $employeeId    = (int) $attributes['employee_id'];
         $effectiveFrom = $attributes['effective_from'];
 
-        // Close any open current assignment one day before the new one starts
+        // Close any open current schedule
         $this->pdo()->prepare(
-            "UPDATE employee_schedule_assignment
-             SET effective_to = DATE_SUB(:new_from, INTERVAL 1 DAY),
-                 updated_at   = NOW()
-             WHERE employee_id   = :emp_id
-               AND effective_to IS NULL
-               AND status        = 'Active'"
+            "UPDATE work_schedule
+                SET effective_to = DATE_SUB(:new_from, INTERVAL 1 DAY),
+                    status = 'Archived',
+                    updated_at = NOW()
+              WHERE employee_id   = :emp_id
+                AND effective_to IS NULL
+                AND status        = 'Active'"
         )->execute([':new_from' => $effectiveFrom, ':emp_id' => $employeeId]);
 
-        $stmt = $this->pdo()->prepare(
-            'INSERT INTO employee_schedule_assignment
-                (employee_id, schedule_id, effective_from, effective_to, status, notes)
-             VALUES
-                (:employee_id, :schedule_id, :effective_from, :effective_to, :status, :notes)'
-        );
+        // Copy the referenced schedule template into a new per-employee row
+        $scheduleId = (int) $attributes['schedule_id'];
+        $tmpl = $this->findById($scheduleId);
+        if (!$tmpl) {
+            throw new \RuntimeException('Schedule template not found.');
+        }
 
-        $stmt->execute([
-            ':employee_id'   => $employeeId,
-            ':schedule_id'   => $scheduleId,
-            ':effective_from' => $effectiveFrom,
-            ':effective_to'  => $attributes['effective_to'] ?? null,
-            ':status'        => 'Active',
-            ':notes'         => $attributes['notes'] ?? null,
+        return $this->create([
+            'employee_id'      => $employeeId,
+            'working_days'     => $tmpl['working_days'],
+            'rest_days'        => $tmpl['rest_days'],
+            'work_start_time'  => $tmpl['time_in'],
+            'work_end_time'    => $tmpl['time_out'],
+            'break_minutes'    => $tmpl['break_minutes'],
+            'standard_minutes' => $tmpl['standard_minutes'],
+            'effective_from'   => $effectiveFrom,
+            'effective_to'     => $attributes['effective_to'] ?? null,
+            'status'           => 'Active',
         ]);
-
-        return (int) $this->pdo()->lastInsertId();
     }
 
     /**

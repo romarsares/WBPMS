@@ -83,7 +83,18 @@ gates controller actions:
   creates the new permanent assignment, and retains the employee/user identity.
   Overlapping assignments are rejected.
 - `archiveEmployee(id): void`
+- `archiveEmployee(employeeId, lastWorkingDate, reason, note, archivedBy): void`
+  — transactional lifecycle operation that closes only future effective-dated
+  relationships, disables the linked active account, invalidates its sessions,
+  records an append-only lifecycle event, and never mutates historical payroll
+  or attendance.
+- `rehireEmployee(employeeId, data, rehiredBy): Employee` — appends a new
+  employment episode and creates new branch/schedule/biometric/salary/bank
+  periods without changing the stable employee identity or prior history.
 - Implements REQ009–REQ017.
+
+The complete archive, rehire, blocker, and document-storage rules are in
+[Employee Lifecycle, Archive, Rehire, and Document Specification](employee-lifecycle-archive-rehire-spec.md).
 
 ### Branch and Biometric Device Services
 - `BranchService.create/update/archive` manages configurable branch master data.
@@ -359,6 +370,26 @@ employee(employee_id PK, employee_number UNIQUE, employee_type,
          -- a display column, but both sources place the rate on `salary`,
          -- keyed by effective_date; the employee list should join current
          -- salary rather than duplicate the rate on employee.
+
+employee_employment_episode(episode_id PK, employee_id FK, started_on,
+                            ended_on NULL, start_reason, end_reason NULL,
+                            created_by FK -> users, notes, created_at)
+                         -- [extension: REQ012 lifecycle/rehire]; append-only
+                         -- employment episodes, one open episode per employee.
+
+employee_lifecycle_event(event_id PK, employee_id FK, episode_id FK NULL,
+                         event_type, prior_status, new_status, effective_date,
+                         reason, note, acted_by FK -> users, created_at)
+                         -- [extension: REQ012 lifecycle audit].
+
+employee_document(document_id PK, employee_id FK, document_type,
+                  document_number_masked NULL, original_filename, storage_key,
+                  mime_type, byte_size, sha256, issued_on NULL, expires_on NULL,
+                  status, replaces_document_id FK NULL, uploaded_by FK -> users,
+                  uploaded_at, verified_by FK -> users NULL, verified_at NULL,
+                  archived_at NULL, notes NULL)
+                         -- [extension: employee scanned-document metadata;
+                         -- file content remains in private storage].
 
 employment_contract_review(review_id PK, employee_id FK, review_due_date,
                            outcome ENUM('Regularized','Renewed','Separated'),

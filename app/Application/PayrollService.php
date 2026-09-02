@@ -275,11 +275,13 @@ final class PayrollService
                 AND s.effective_from <= :period_start
                 AND (s.effective_to IS NULL OR s.effective_to > :period_start)
                 AND s.status = 'Active'
+               LEFT JOIN employee_schedule_assignment esa
+                 ON esa.employee_id = e.employee_id
+                AND esa.effective_from <= :period_start
+                AND (esa.effective_to IS NULL OR esa.effective_to > :period_start)
+                AND esa.status = 'Active'
                LEFT JOIN work_schedule ws
-                 ON ws.employee_id   = e.employee_id
-                AND ws.effective_from <= :period_start
-                AND (ws.effective_to IS NULL OR ws.effective_to > :period_start)
-                AND ws.status = 'Active'
+                 ON ws.schedule_id = esa.schedule_id
               WHERE eba.branch_id     = (SELECT branch_id FROM payroll_run WHERE payroll_run_id = :run_id)
                 AND eba.effective_from <= :period_start
                 AND (eba.effective_to IS NULL OR eba.effective_to > :period_start)

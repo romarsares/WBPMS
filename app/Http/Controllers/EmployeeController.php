@@ -62,13 +62,14 @@ final class EmployeeController
      */
     public function create(array $params = []): void
     {
-        [$branches, $schedules, $devices] = $this->dropdownData();
+        [$branches, $schedules, $devices, $positions] = $this->dropdownData();
 
         ViewRenderer::render('hr/employees/edit', [
             'employee'  => null,
             'branches'  => $branches,
             'schedules' => $schedules,
             'devices'   => $devices,
+            'positions' => $positions,
             'errors'    => [],
         ], 'Add Employee');
     }
@@ -80,34 +81,42 @@ final class EmployeeController
      */
     public function store(array $params = []): void
     {
+        $repo   = $this->makeRepo();
         $data   = $this->extractPostFields();
-        $errors = $this->validate($data, false);
+        $errors = $this->validate($data, false, $repo);
 
         if ($errors !== []) {
-            [$branches, $schedules, $devices] = $this->dropdownData();
+            [$branches, $schedules, $devices, $positions] = $this->dropdownData();
             ViewRenderer::render('hr/employees/edit', [
                 'employee'  => null,
                 'branches'  => $branches,
                 'schedules' => $schedules,
                 'devices'   => $devices,
+                'positions' => $positions,
                 'errors'    => $errors,
             ], 'Add Employee');
             return;
         }
 
-        $repo       = $this->makeRepo();
         $connection = $this->makeConnection();
 
-        $connection->transaction(function () use ($data, $repo): void {
+        try {
+            $connection->transaction(function () use ($data, $repo): void {
             $employeeId = $repo->createEmployee([
-                'employee_number'  => $data['employee_number'],
-                'employee_type'    => 'Regular',
-                'first_name'       => $data['first_name'],
-                'middle_initial'   => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
-                'last_name'        => $data['last_name'],
-                'hire_date'        => $data['effective_from'],
-                'position'         => 'Employee', // Default; full position field deferred
-                'status'           => 'Active',
+                'employee_number'   => $data['employee_number'],
+                'employee_type'     => $data['employee_type'] ?: 'Regular',
+                'first_name'        => $data['first_name'],
+                'middle_initial'    => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
+                'last_name'         => $data['last_name'],
+                'email'             => $data['email']          !== '' ? $data['email']          : null,
+                'contact_number'    => $data['contact_number'] !== '' ? $data['contact_number'] : null,
+                'birthdate'         => $data['birthdate']      !== '' ? $data['birthdate']      : null,
+                'hire_date'         => $data['effective_from'],
+                'position'          => $data['position']       !== '' ? $data['position']       : 'Employee',
+                'status'            => 'Active',
+                'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
+                'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
+                'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
             ]);
 
             $repo->assignInitialBranch(
@@ -115,6 +124,11 @@ final class EmployeeController
                 (int) $data['branch_id'],
                 $data['effective_from']
             );
+
+            // Save daily rate in salary table if provided
+            if ($data['daily_rate'] !== '' && (float) $data['daily_rate'] > 0) {
+                $repo->createSalary($employeeId, (float) $data['daily_rate'], $data['effective_from']);
+            }
 
             if ($data['device_id'] !== '' && $data['enrollment_code'] !== '') {
                 $repo->enrollBiometricCode(
@@ -124,7 +138,24 @@ final class EmployeeController
                     $data['effective_from']
                 );
             }
-        });
+            });
+        } catch (\PDOException $e) {
+            $fieldErrors = $this->uniqueConstraintErrors($e);
+            if ($fieldErrors === []) {
+                throw $e;
+            }
+
+            [$branches, $schedules, $devices, $positions] = $this->dropdownData();
+            ViewRenderer::render('hr/employees/edit', [
+                'employee'  => null,
+                'branches'  => $branches,
+                'schedules' => $schedules,
+                'devices'   => $devices,
+                'positions' => $positions,
+                'errors'    => $fieldErrors,
+            ], 'Add Employee');
+            return;
+        }
 
         ViewRenderer::flash('Employee created successfully.');
         $this->redirect('/hr/employees');
@@ -157,13 +188,14 @@ final class EmployeeController
             return;
         }
 
-        [$branches, $schedules, $devices] = $this->dropdownData();
+        [$branches, $schedules, $devices, $positions] = $this->dropdownData();
 
         ViewRenderer::render('hr/employees/edit', [
             'employee'  => $row,
             'branches'  => $branches,
             'schedules' => $schedules,
             'devices'   => $devices,
+            'positions' => $positions,
             'errors'    => [],
         ], 'Edit Employee');
     }
@@ -263,10 +295,10 @@ final class EmployeeController
         }
 
         $data   = $this->extractPostFields();
-        $errors = $this->validate($data, true);
+        $errors = $this->validate($data, true, $repo, $id);
 
         if ($errors !== []) {
-            [$branches, $schedules, $devices] = $this->dropdownData();
+            [$branches, $schedules, $devices, $positions] = $this->dropdownData();
             // Merge posted values back into the employee array for repopulation
             $merged = array_merge($row, $data, ['id' => $id]);
             ViewRenderer::render('hr/employees/edit', [
@@ -274,17 +306,31 @@ final class EmployeeController
                 'branches'  => $branches,
                 'schedules' => $schedules,
                 'devices'   => $devices,
+                'positions' => $positions,
                 'errors'    => $errors,
             ], 'Edit Employee');
             return;
         }
 
         $repo->updateEmployee($id, [
-            'first_name'     => $data['first_name'],
-            'middle_initial' => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
-            'last_name'      => $data['last_name'],
-            'status'         => ucfirst(strtolower($data['status'] ?? 'active')),
+            'employee_type'     => $data['employee_type'] ?: 'Regular',
+            'first_name'        => $data['first_name'],
+            'middle_initial'    => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
+            'last_name'         => $data['last_name'],
+            'email'             => $data['email']          !== '' ? $data['email']          : null,
+            'contact_number'    => $data['contact_number'] !== '' ? $data['contact_number'] : null,
+            'birthdate'         => $data['birthdate']      !== '' ? $data['birthdate']      : null,
+            'position'          => $data['position']       !== '' ? $data['position']       : null,
+            'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
+            'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
+            'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
+            'status'            => ucfirst(strtolower($data['status'] ?? 'active')),
         ]);
+
+        // Update daily rate if provided (insert new effective-dated salary row)
+        if ($data['daily_rate'] !== '' && (float) $data['daily_rate'] > 0) {
+            $repo->updateSalary($id, (float) $data['daily_rate']);
+        }
 
         ViewRenderer::flash('Employee updated successfully.');
         $this->redirect('/hr/employees');
@@ -311,16 +357,26 @@ final class EmployeeController
     private function extractPostFields(): array
     {
         return [
-            'employee_number' => trim((string) ($_POST['employee_number'] ?? '')),
-            'first_name'      => trim((string) ($_POST['first_name']      ?? '')),
-            'middle_name'     => trim((string) ($_POST['middle_name']     ?? '')),
-            'last_name'       => trim((string) ($_POST['last_name']       ?? '')),
-            'effective_from'  => trim((string) ($_POST['effective_from']  ?? '')),
-            'branch_id'       => trim((string) ($_POST['branch_id']       ?? '')),
-            'schedule_id'     => trim((string) ($_POST['schedule_id']     ?? '')),
-            'device_id'       => trim((string) ($_POST['device_id']       ?? '')),
-            'enrollment_code' => trim((string) ($_POST['enrollment_code'] ?? '')),
-            'status'          => trim((string) ($_POST['status']          ?? 'active')),
+            'employee_number'      => trim((string) ($_POST['employee_number']      ?? '')),
+            'employee_type'        => trim((string) ($_POST['employee_type']        ?? 'Regular')),
+            'first_name'           => trim((string) ($_POST['first_name']           ?? '')),
+            'middle_name'          => trim((string) ($_POST['middle_name']          ?? '')),
+            'last_name'            => trim((string) ($_POST['last_name']            ?? '')),
+            'email'                => trim((string) ($_POST['email']                ?? '')),
+            'contact_number'       => trim((string) ($_POST['contact_number']       ?? '')),
+            'birthdate'            => trim((string) ($_POST['birthdate']            ?? '')),
+            'position'             => trim((string) ($_POST['position']             ?? '')),
+            'hire_date'            => trim((string) ($_POST['hire_date']            ?? '')),
+            'effective_from'       => trim((string) ($_POST['effective_from']       ?? '')),
+            'branch_id'            => trim((string) ($_POST['branch_id']            ?? '')),
+            'schedule_id'          => trim((string) ($_POST['schedule_id']          ?? '')),
+            'device_id'            => trim((string) ($_POST['device_id']            ?? '')),
+            'enrollment_code'      => trim((string) ($_POST['enrollment_code']      ?? '')),
+            'daily_rate'           => trim((string) ($_POST['daily_rate']           ?? '')),
+            'philhealth_number'    => trim((string) ($_POST['philhealth_number']    ?? '')),
+            'pagibig_number'       => trim((string) ($_POST['pagibig_number']       ?? '')),
+            'tin_number'           => trim((string) ($_POST['tin_number']           ?? '')),
+            'status'               => trim((string) ($_POST['status']               ?? 'active')),
         ];
     }
 
@@ -329,12 +385,27 @@ final class EmployeeController
      * @param  bool                  $isEdit  Skip immutable fields on update
      * @return array<string, string> Validation errors keyed by field name
      */
-    private function validate(array $data, bool $isEdit): array
+    private function validate(
+        array $data,
+        bool $isEdit,
+        ?EmployeeRepository $repo = null,
+        ?int $currentEmployeeId = null
+    ): array
     {
         $errors = [];
 
         if (!$isEdit && $data['employee_number'] === '') {
             $errors['employee_number'] = 'Employee number is required.';
+        }
+
+        if (!$isEdit && $data['employee_number'] !== '' && $repo !== null
+            && $repo->employeeNumberExists($data['employee_number'])) {
+            $errors['employee_number'] = 'Employee number ' . $data['employee_number'] . ' is already assigned. Use a different employee number.';
+        }
+
+        if ($data['email'] !== '' && $repo !== null
+            && $repo->emailExists($data['email'], $currentEmployeeId)) {
+            $errors['email'] = 'This email address is already assigned to another employee.';
         }
 
         if ($data['first_name'] === '') {
@@ -343,6 +414,14 @@ final class EmployeeController
 
         if ($data['last_name'] === '') {
             $errors['last_name'] = 'Last name is required.';
+        }
+
+        if ($data['position'] === '') {
+            $errors['position'] = 'Position is required.';
+        }
+
+        if ($data['daily_rate'] === '' || (float) $data['daily_rate'] <= 0) {
+            $errors['daily_rate'] = 'Daily rate is required and must be greater than 0.';
         }
 
         if (!$isEdit) {
@@ -355,6 +434,29 @@ final class EmployeeController
         }
 
         return $errors;
+    }
+
+    /**
+     * Convert duplicate-key races into safe, field-level form errors.
+     *
+     * @return array<string, string>
+     */
+    private function uniqueConstraintErrors(\PDOException $exception): array
+    {
+        $driverCode = (int) ($exception->errorInfo[1] ?? 0);
+        if ((string) $exception->getCode() !== '23000' || $driverCode !== 1062) {
+            return [];
+        }
+
+        $message = $exception->getMessage();
+        if (str_contains($message, 'uq_employee_number')) {
+            return ['employee_number' => 'This employee number is already assigned. Use a different employee number.'];
+        }
+        if (str_contains($message, 'uq_employee_email')) {
+            return ['email' => 'This email address is already assigned to another employee.'];
+        }
+
+        return [];
     }
 
     /**
@@ -376,11 +478,10 @@ final class EmployeeController
 
         $schedules = $pdo->query(
             "SELECT ws.schedule_id AS id,
-                    CONCAT(e.last_name,', ',e.first_name,' — ', ws.work_start_time,'–',ws.work_end_time) AS name
+                    CONCAT(ws.schedule_name, ' — ', ws.work_start_time, '–', ws.work_end_time) AS name
              FROM work_schedule ws
-             JOIN employee e ON e.employee_id = ws.employee_id
              WHERE ws.status = 'Active'
-             ORDER BY e.last_name, ws.work_start_time"
+             ORDER BY ws.schedule_name, ws.work_start_time"
         )->fetchAll(PDO::FETCH_ASSOC);
 
         $devices = $pdo->query(
@@ -388,7 +489,14 @@ final class EmployeeController
              FROM biometric_device WHERE status = 'Active' ORDER BY device_name"
         )->fetchAll(PDO::FETCH_ASSOC);
 
-        return [$branches, $schedules, $devices];
+        $positions = $pdo->query(
+            "SELECT position_id AS id, position_title AS name, department
+               FROM job_position
+              WHERE status = 'Active'
+              ORDER BY sort_order ASC, position_title ASC"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        return [$branches, $schedules, $devices, $positions];
     }
 
     private function makeRepo(): EmployeeRepository

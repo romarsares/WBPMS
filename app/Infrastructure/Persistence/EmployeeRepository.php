@@ -139,6 +139,38 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
         ]);
     }
 
+    /**
+     * Return whether an employee number is already assigned.
+     */
+    public function employeeNumberExists(string $employeeNumber): bool
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT 1 FROM employee WHERE employee_number = :employee_number LIMIT 1'
+        );
+        $stmt->execute([':employee_number' => $employeeNumber]);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
+    /**
+     * Return whether an email is used by another employee.
+     */
+    public function emailExists(string $email, ?int $excludeEmployeeId = null): bool
+    {
+        $sql = 'SELECT 1 FROM employee WHERE email = :email';
+        $params = [':email' => $email];
+
+        if ($excludeEmployeeId !== null) {
+            $sql .= ' AND employee_id != :employee_id';
+            $params[':employee_id'] = $excludeEmployeeId;
+        }
+
+        $stmt = $this->pdo()->prepare($sql . ' LIMIT 1');
+        $stmt->execute($params);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
     // -----------------------------------------------------------------------
     // Read methods for EmployeeController
     // -----------------------------------------------------------------------
@@ -207,9 +239,11 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                    ON eba.employee_id = e.employee_id
                   AND eba.effective_to IS NULL
             LEFT JOIN branch b ON b.branch_id = eba.branch_id
-            LEFT JOIN work_schedule ws
-                   ON ws.employee_id = e.employee_id
-                  AND ws.effective_to IS NULL
+            LEFT JOIN employee_schedule_assignment esa
+                   ON esa.employee_id = e.employee_id
+                  AND esa.effective_to IS NULL
+                  AND esa.status = 'Active'
+            LEFT JOIN work_schedule ws ON ws.schedule_id = esa.schedule_id
             {$whereClause}
             ORDER BY e.last_name ASC, e.first_name ASC
             LIMIT 200
@@ -235,24 +269,37 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                 e.employee_type,
                 e.first_name,
                 e.middle_initial,
+                e.middle_initial           AS middle_name,
                 e.last_name,
                 e.email,
                 e.contact_number,
                 e.birthdate,
                 e.hire_date,
+                e.hire_date                AS effective_from,
                 e.position,
-                e.status,
+                LOWER(e.status)            AS status,
                 e.philhealth_number,
                 e.pagibig_number,
                 e.tin_number,
                 e.contract_review_date,
                 COALESCE(b.branch_id, 0)   AS branch_id,
-                COALESCE(b.branch_name,'—') AS branch_name
+                COALESCE(b.branch_name,'—') AS branch_name,
+                COALESCE(s.daily_rate, 0)  AS daily_rate,
+                COALESCE(ebe.device_id, 0) AS device_id,
+                COALESCE(ebe.device_employee_code, '') AS enrollment_code
              FROM employee e
              LEFT JOIN employee_branch_assignment eba
                     ON eba.employee_id = e.employee_id
                    AND eba.effective_to IS NULL
              LEFT JOIN branch b ON b.branch_id = eba.branch_id
+             LEFT JOIN salary s
+                    ON s.employee_id = e.employee_id
+                   AND s.effective_to IS NULL
+                   AND s.status = 'Active'
+             LEFT JOIN employee_biometric_enrollment ebe
+                    ON ebe.employee_id = e.employee_id
+                   AND ebe.effective_to IS NULL
+                   AND ebe.status = 'Active'
              WHERE e.employee_id = :id"
         );
         $stmt->execute([':id' => $employeeId]);
@@ -293,6 +340,38 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
         $sql  = 'UPDATE employee SET ' . implode(', ', $setClauses) . ' WHERE employee_id = :id';
         $stmt = $this->pdo()->prepare($sql);
         $stmt->execute($params);
+    }
+
+    /**
+     * Insert a new salary row for an employee (effective-dated).
+     */
+    public function createSalary(int $employeeId, float $dailyRate, string $effectiveFrom): void
+    {
+        $this->pdo()->prepare(
+            "INSERT INTO salary (employee_id, daily_rate, effective_from, effective_to, status, created_at, updated_at)
+             VALUES (:emp_id, :rate, :from, NULL, 'Active', NOW(), NOW())"
+        )->execute([
+            ':emp_id' => $employeeId,
+            ':rate'   => $dailyRate,
+            ':from'   => $effectiveFrom,
+        ]);
+    }
+
+    /**
+     * Update the current active salary (archive old row, insert new one today).
+     */
+    public function updateSalary(int $employeeId, float $dailyRate): void
+    {
+        $today = date('Y-m-d');
+
+        // Archive existing active salary
+        $this->pdo()->prepare(
+            "UPDATE salary SET effective_to = :today, status = 'Archived', updated_at = NOW()
+              WHERE employee_id = :emp_id AND effective_to IS NULL AND status = 'Active'"
+        )->execute([':today' => $today, ':emp_id' => $employeeId]);
+
+        // Insert new rate effective today
+        $this->createSalary($employeeId, $dailyRate, $today);
     }
 
     /**

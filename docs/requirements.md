@@ -493,6 +493,39 @@ routine information.
 5. IF an employee attempts to access another employee's records THEN the
    system SHALL deny access.
 
+### Requirement 13: Employee Lifecycle and Documents (extension)
+
+**User Story:** As the HR Head, I want to archive a separated employee,
+rehire the same person without losing history, and maintain verified employee
+documents, so that current operations are accurate while company records stay
+complete and auditable.
+
+#### Acceptance Criteria
+
+1. WHEN HR archives an employee, THEN the system SHALL close only future
+   operational relationships at the archive effective date, disable the linked
+   active login, and retain historical attendance, payroll, requests,
+   contributions, payslips, and audit evidence. [REQ012 extension]
+2. IF an employee has a pending request, unresolved cash advance, or mutable
+   payroll membership, THEN the system SHALL block archive and identify the
+   required resolution. Approved payroll SHALL never be changed. [REQ012,
+   REQ047-REQ051 extension]
+3. WHEN HR rehires an archived employee, THEN the system SHALL reuse the
+   existing employee identity, create a new employment episode and current
+   effective-dated setup, and retain prior employment history. [REQ009-REQ012
+   extension]
+4. WHEN HR uploads an employee document, THEN the system SHALL store it in
+   private storage with validated type, size, checksum, and access control;
+   replacement documents SHALL retain the prior document history. [REQN007,
+   REQN011 extension]
+5. WHEN an employee is archived or rehired, THEN the system SHALL preserve
+   documents and flag them for HR review; it SHALL not delete or silently
+   overwrite them. [REQ012 extension]
+
+> The complete lifecycle, cascade boundaries, rehire rules, and document
+> controls are defined in
+> [Employee Lifecycle, Archive, Rehire, and Document Specification](employee-lifecycle-archive-rehire-spec.md).
+
 ---
 
 ## Non-Functional Requirements

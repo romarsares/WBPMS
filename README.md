@@ -131,6 +131,7 @@ device identifiers are retained for HR review.
 | [Design](docs/design.md) | Application architecture, service interfaces, reconciled data model, error handling, and testing strategy. |
 | [Technology stack](docs/tech.md) | Planned runtime, framework, database, integrations, and non-functional constraints. |
 | [Implementation plan](docs/tasks.md) | Module-by-module implementation and testing checklist. |
+| [Employee lifecycle specification](docs/employee-lifecycle-archive-rehire-spec.md) | Proposed archive, rehire, account, historical-data, and scanned-document rules. |
 | [Two-developer task distribution](docs/two-developer-task-distribution.md) | Active P0 ownership, task IDs, handoffs, and deferred work for the current team. |
 | [Five-day development roadmap](docs/five-day-development-roadmap.md) | Two-developer MVP scope, ownership workstreams, daily integration gates, and delivery workflow. |
 | [Consolidated recommendations](docs/recommendation.md) | Cross-document recommendations with their ADR-0001/ADR-0002 resolution status. |

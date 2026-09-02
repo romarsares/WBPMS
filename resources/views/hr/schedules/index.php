@@ -62,13 +62,13 @@ $v = static fn(string $key, string $fallback = ''): string =>
             <table class="data-table" id="schedTable">
                 <thead>
                     <tr>
-                        <th>Name</th>
+                        <th>Employee</th>
                         <th>Working Days</th>
                         <th>Time In</th>
                         <th>Time Out</th>
                         <th>Break</th>
-                        <th>Grace</th>
-                        <th>OT</th>
+                        <th>Effective From</th>
+                        <th>Effective To</th>
                         <th>Status</th>
                         <th></th>
                     </tr>
@@ -87,13 +87,14 @@ $v = static fn(string $key, string $fallback = ''): string =>
                     $badge = strtolower($s['status']) === 'active' ? 'ok' : 'off';
                     ?>
                     <tr>
-                        <td><strong><?= Formatter::escape($s['schedule_name']) ?></strong></td>
+                        <td><strong><?= Formatter::escape($s['employee_name'] ?? '—') ?></strong><br>
+                            <small class="muted"><?= Formatter::escape($s['employee_number'] ?? '') ?></small></td>
                         <td style="font-size:13px"><?= Formatter::escape($days) ?></td>
                         <td><?= Formatter::escape($s['time_in'] ?? '—') ?></td>
                         <td><?= Formatter::escape($s['time_out'] ?? '—') ?></td>
-                        <td><?= (int) $s['break_minutes'] ?>m</td>
-                        <td><?= (int) $s['grace_minutes'] ?>m</td>
-                        <td><?= (int) $s['overtime_allowed'] ? 'Yes' : 'No' ?></td>
+                        <td><?= (int) ($s['break_minutes'] ?? 0) ?>m</td>
+                        <td><?= Formatter::escape($s['effective_from'] ?? '—') ?></td>
+                        <td><?= $s['effective_to'] ? Formatter::escape($s['effective_to']) : '<span class="muted">current</span>' ?></td>
                         <td><span class="badge <?= $badge ?>"><?= Formatter::escape(ucfirst($s['status'])) ?></span></td>
                         <td>
                             <a href="<?= $base ?>/hr/schedules/<?= (int) $s['id'] ?>/edit"
@@ -115,7 +116,6 @@ $v = static fn(string $key, string $fallback = ''): string =>
                 <thead>
                     <tr>
                         <th>Employee</th>
-                        <th>Schedule</th>
                         <th>Time</th>
                         <th>Effective From</th>
                         <th>Effective To</th>
@@ -130,12 +130,11 @@ $v = static fn(string $key, string $fallback = ''): string =>
                     ?>
                     <tr>
                         <td>
-                            <strong><?= Formatter::escape($a['employee_name']) ?></strong><br>
-                            <small class="muted"><?= Formatter::escape($a['employee_number']) ?></small>
+                            <strong><?= Formatter::escape($a['employee_name'] ?? '—') ?></strong><br>
+                            <small class="muted"><?= Formatter::escape($a['employee_number'] ?? '') ?></small>
                         </td>
-                        <td><?= Formatter::escape($a['schedule_name']) ?></td>
-                        <td style="font-size:13px"><?= Formatter::escape($a['time_in']) ?> – <?= Formatter::escape($a['time_out']) ?></td>
-                        <td><?= Formatter::escape($a['effective_from']) ?></td>
+                        <td><?= Formatter::escape($a['time_in'] ?? '—') ?> – <?= Formatter::escape($a['time_out'] ?? '—') ?></td>
+                        <td><?= Formatter::escape($a['effective_from'] ?? '—') ?></td>
                         <td><?= $a['effective_to'] ? Formatter::escape($a['effective_to']) : '<span class="muted">current</span>' ?></td>
                         <td><span class="badge <?= $badge ?>"><?= Formatter::escape(ucfirst($a['status'])) ?></span></td>
                     </tr>

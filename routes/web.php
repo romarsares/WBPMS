@@ -21,6 +21,7 @@ use Wbpms\Http\Controllers\DashboardController;
 use Wbpms\Http\Controllers\EmployeeController;
 use Wbpms\Http\Controllers\EmployeePortalController;
 use Wbpms\Http\Controllers\HealthController;
+use Wbpms\Http\Controllers\PositionController;
 use Wbpms\Http\Controllers\OwnerController;
 use Wbpms\Http\Controllers\PayrollController;
 use Wbpms\Http\Controllers\ReportsController;
@@ -178,6 +179,16 @@ $router->add('POST', '/hr/payroll/{id}/submit',      [PayrollController::class, 
 
 $router->add('GET',  '/hr/reports',        [ReportsController::class, 'index'],    ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/export', [ReportsController::class, 'export'],   ['HRHead', 'BusinessOwner']);
+
+// ---------------------------------------------------------------------------
+// HR Head — Settings  (Job Positions)
+// NOTE: /hr/settings/positions/{id}/toggle before /hr/settings/positions/{id}
+// ---------------------------------------------------------------------------
+
+$router->add('GET',  '/hr/settings/positions',              [PositionController::class, 'index'],  ['HRHead']);
+$router->add('POST', '/hr/settings/positions',              [PositionController::class, 'store'],  ['HRHead']);
+$router->add('POST', '/hr/settings/positions/{id}/toggle',  [PositionController::class, 'toggle'], ['HRHead']);
+$router->add('POST', '/hr/settings/positions/{id}',         [PositionController::class, 'update'], ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // Employee self-service portal  (REQ074–REQ082)

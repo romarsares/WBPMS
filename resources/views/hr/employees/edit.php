@@ -32,6 +32,7 @@ $employee ??= null;
 $branches ??= [];
 $schedules ??= [];
 $devices  ??= [];
+$positions ??= [];
 $errors   ??= [];
 $csrf     ??= '';
 
@@ -73,7 +74,7 @@ $err = static fn(string $key): string => isset($errors[$key])
             <div class="form-group">
                 <label for="middle_name">Middle name</label>
                 <input type="text" id="middle_name" name="middle_name"
-                    value="<?= $v('middle_name') ?>">
+                    value="<?= $v('middle_name') ?? $v('middle_initial') ?>">
             </div>
             <div class="form-group">
                 <label for="last_name">Last name <span style="color:#dc2626">*</span></label>
@@ -86,18 +87,125 @@ $err = static fn(string $key): string => isset($errors[$key])
 
         <div class="form-row">
             <div class="form-group">
+                <label for="birthdate">Birthdate</label>
+                <input type="date" id="birthdate" name="birthdate"
+                    value="<?= $v('birthdate') ?>">
+            </div>
+            <div class="form-group">
+                <label for="contact_number">Contact number</label>
+                <input type="text" id="contact_number" name="contact_number"
+                    value="<?= $v('contact_number') ?>"
+                    placeholder="09XXXXXXXXX">
+            </div>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email"
+                    value="<?= $v('email') ?>"
+                    class="<?= isset($errors['email']) ? 'is-invalid' : '' ?>"
+                    placeholder="optional">
+                <?= $err('email') ?>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="position">Position / Job title <span style="color:#dc2626">*</span></label>
+                <select id="position_select" name="position" required
+                        onchange="syncPositionInput(this)"
+                        class="<?= isset($errors['position']) ? 'is-invalid' : '' ?>">
+                    <option value="">— select position —</option>
+                    <?php
+                    $currentPosition = (string) ($employee['position'] ?? ($_POST['position'] ?? ''));
+                    $matched = false;
+                    foreach ($positions ?? [] as $pos):
+                        $selected = ($pos['name'] === $currentPosition);
+                        if ($selected) $matched = true;
+                    ?>
+                    <option value="<?= Formatter::escape($pos['name']) ?>"
+                            <?= $selected ? 'selected' : '' ?>>
+                        <?= Formatter::escape($pos['name']) ?>
+                        <?php if ($pos['department']): ?>
+                            (<?= Formatter::escape($pos['department']) ?>)
+                        <?php endif; ?>
+                    </option>
+                    <?php endforeach; ?>
+                    <option value="__other__" <?= (!$matched && $currentPosition !== '') ? 'selected' : '' ?>>
+                        Other (type below)
+                    </option>
+                </select>
+                <input type="text" id="position_other" name="position_other"
+                       value="<?= (!$matched && $currentPosition !== '') ? Formatter::escape($currentPosition) : '' ?>"
+                       placeholder="Type custom position title"
+                       style="margin-top:.4rem;<?= (!$matched && $currentPosition !== '') ? '' : 'display:none' ?>">
+                <small class="muted">
+                    Can't find the title?
+                    <a href="<?= $base ?>/hr/settings/positions" target="_blank">Add it in Settings →</a>
+                </small>
+                <?= $err('position') ?>
+            </div>
+            <div class="form-group">
+                <label for="employee_type">Employee type <span style="color:#dc2626">*</span></label>
+                <select id="employee_type" name="employee_type" required>
+                    <option value="Regular"      <?= $sel($employee['employee_type'] ?? 'Regular', 'Regular') ?>>Regular</option>
+                    <option value="Contractual"  <?= $sel($employee['employee_type'] ?? '',        'Contractual') ?>>Contractual</option>
+                </select>
+            </div>
+        </div>
+
+        <script>
+        function syncPositionInput(sel) {
+            var other = document.getElementById('position_other');
+            if (sel.value === '__other__') {
+                other.style.display = '';
+                other.required = true;
+                other.name = 'position';
+                sel.name = '_position_select';
+            } else {
+                other.style.display = 'none';
+                other.required = false;
+                other.name = 'position_other';
+                sel.name = 'position';
+            }
+        }
+        // Run on page load to handle the pre-selected "Other" state
+        (function(){ syncPositionInput(document.getElementById('position_select')); })();
+        </script>
+
+        <div class="form-row">
+            <div class="form-group">
                 <label for="employee_number">Employee number <span style="color:#dc2626">*</span></label>
                 <input type="text" id="employee_number" name="employee_number"
                     value="<?= $v('employee_number') ?>"
-                    class="<?= isset($errors['employee_number']) ? 'is-invalid' : '' ?>" required>
+                    <?= $isEdit ? 'readonly style="background:#f3f4f6"' : 'required' ?>
+                    class="<?= isset($errors['employee_number']) ? 'is-invalid' : '' ?>">
                 <?= $err('employee_number') ?>
             </div>
             <div class="form-group">
-                <label for="effective_from">Effective from <span style="color:#dc2626">*</span></label>
+                <label for="effective_from"><?= $isEdit ? 'Hire date' : 'Effective from' ?> <span style="color:#dc2626">*</span></label>
                 <input type="date" id="effective_from" name="effective_from"
                     value="<?= $v('effective_from') ?>"
-                    class="<?= isset($errors['effective_from']) ? 'is-invalid' : '' ?>" required>
+                    class="<?= isset($errors['effective_from']) ? 'is-invalid' : '' ?>"
+                    <?= $isEdit ? 'readonly style="background:#f3f4f6"' : 'required' ?>>
                 <?= $err('effective_from') ?>
+            </div>
+        </div>
+
+        <h2>Government IDs</h2>
+        <div class="form-row-3">
+            <div class="form-group">
+                <label for="philhealth_number">PhilHealth number</label>
+                <input type="text" id="philhealth_number" name="philhealth_number"
+                    value="<?= $v('philhealth_number') ?>" placeholder="optional">
+            </div>
+            <div class="form-group">
+                <label for="pagibig_number">Pag-IBIG number</label>
+                <input type="text" id="pagibig_number" name="pagibig_number"
+                    value="<?= $v('pagibig_number') ?>" placeholder="optional">
+            </div>
+            <div class="form-group">
+                <label for="tin_number">TIN</label>
+                <input type="text" id="tin_number" name="tin_number"
+                    value="<?= $v('tin_number') ?>" placeholder="optional">
             </div>
         </div>
 
@@ -138,20 +246,23 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <label for="daily_rate">Daily rate (₱) <span style="color:#dc2626">*</span></label>
                 <input type="number" id="daily_rate" name="daily_rate"
                     value="<?= $v('daily_rate') ?>"
-                    min="0" step="0.01"
-                    class="<?= isset($errors['daily_rate']) ? 'is-invalid' : '' ?>" required>
+                    min="0" step="0.01" required
+                    class="<?= isset($errors['daily_rate']) ? 'is-invalid' : '' ?>">
                 <?= $err('daily_rate') ?>
             </div>
-            <?php if ($isEdit): ?>
             <div class="form-group">
-                <label for="status">Status <span style="color:#dc2626">*</span></label>
-                <select id="status" name="status" required>
-                    <option value="active"   <?= $sel($employee['status'] ?? 'active', 'active')   ?>>Active</option>
-                    <option value="inactive" <?= $sel($employee['status'] ?? '',        'inactive') ?>>Inactive</option>
-                    <option value="archived" <?= $sel($employee['status'] ?? '',        'archived') ?>>Archived</option>
+                <label for="status">Status</label>
+                <select id="status" name="status">
+                    <?php
+                    $currentStatus = strtolower((string) ($employee['status'] ?? 'active'));
+                    ?>
+                    <option value="active"   <?= $currentStatus === 'active'   ? 'selected' : '' ?>>Active</option>
+                    <option value="inactive" <?= $currentStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                    <?php if ($isEdit): ?>
+                    <option value="archived" <?= $currentStatus === 'archived' ? 'selected' : '' ?>>Archived</option>
+                    <?php endif; ?>
                 </select>
             </div>
-            <?php endif; ?>
         </div>
 
         <h2>Biometric Enrollment</h2>

@@ -48,6 +48,7 @@ $nav = match ($roleName) {
         ['hr/salary',        'Salary Management',      '₱', 'salary'],
         ['hr/benefits',      'Benefits & Deductions',  '＋', 'benefits'],
         ['hr/reports',       'Reports',                '▤', 'reports'],
+        ['hr/settings/positions', 'Settings',         '⚙', 'settings'],
     ],
     default => [ // Employee
         ['employee/dashboard',  'Dashboard',                   '⌂', 'dashboard'],
