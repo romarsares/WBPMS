@@ -1,6 +1,5 @@
 <?php
 
-declare(strict_types=1);
 
 use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\Middleware\CsrfMiddleware;

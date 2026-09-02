@@ -1,4 +1,4 @@
-<?php declare(strict_types=1);
+<?php
 use Wbpms\Http\View\Formatter;
 /** @var list<array{value:mixed,label:string}> $stats */
 /** @var string $base */

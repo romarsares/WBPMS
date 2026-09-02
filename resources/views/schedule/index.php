@@ -1,4 +1,4 @@
-<?php declare(strict_types=1);
+<?php
 use Wbpms\Http\View\Formatter;
 /** @var array[] $schedules @var array[] $holidays @var int $total @var int $active @var int $hTotal @var int $upcoming @var string $base */
 ?>

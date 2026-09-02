@@ -1,4 +1,4 @@
-<?php declare(strict_types=1);
+<?php
 use Wbpms\Http\View\Formatter;
 /** @var int $totalEmployees @var int $approvedPayroll @var float $approvedNetPay @var int $totalRequests @var array[] $payrollSummary @var string $base */
 ?>

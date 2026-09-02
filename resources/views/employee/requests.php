@@ -1,4 +1,4 @@
-<?php declare(strict_types=1);
+<?php
 use Wbpms\Http\View\Formatter;
 /** @var array[] $rows @var int $total @var int $pending @var int $approved @var int $rejected @var string $base @var string $displayName */
 ?>

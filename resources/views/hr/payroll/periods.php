@@ -1,5 +1,4 @@
 <?php
-declare(strict_types=1);
 use Wbpms\Http\View\Formatter;
 /**
  * View: hr/payroll/periods  (GET + POST /hr/payroll/periods)

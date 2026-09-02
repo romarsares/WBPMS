@@ -1,6 +1,5 @@
 <?php
 
-declare(strict_types=1);
 
 /**
  * Login view — Light Diamond Enterprises design.

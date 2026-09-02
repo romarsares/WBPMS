@@ -18,17 +18,29 @@ final class UserManagementController
         $roleName    = $identity['role_name'] ?? '';
         $base        = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
         $csrfField   = CsrfMiddleware::field();
-        $flash       = $_SESSION['_flash'] ?? [];
+        $flash       = isset($_SESSION['_flash']) ? (array) $_SESSION['_flash'] : [];
         unset($_SESSION['_flash']);
+        // Normalize flash to array of [type, message] pairs for the view
+        $flashNorm = [];
+        foreach ($flash as $item) {
+            if (is_array($item) && count($item) === 2) {
+                $flashNorm[] = $item;
+            }
+        }
+        $flash = $flashNorm;
 
         $config = require APP_ROOT . '/config/database.php';
         $pdo    = (new Connection($config))->pdo();
 
         $rows = $pdo->query(
             "SELECT u.user_id, u.username, u.account_email, u.status, u.created_at,
-                    r.role_name
+                    r.role_name,
+                    CASE WHEN e.employee_id IS NOT NULL
+                         THEN CONCAT(e.first_name, ' ', e.last_name)
+                         ELSE NULL END AS employee_name
                FROM users u
                JOIN role r ON r.role_id = u.role_id
+               LEFT JOIN employee e ON e.employee_id = u.employee_id
               ORDER BY u.created_at DESC"
         )->fetchAll();
 

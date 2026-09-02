@@ -1,4 +1,4 @@
-<?php declare(strict_types=1);
+<?php
 use Wbpms\Http\View\Formatter;
 /** @var array[] $policies @var array[] $records @var int $totalPolicies @var int $active @var int $totalRecords @var int $programs @var string $base */
 ?>
