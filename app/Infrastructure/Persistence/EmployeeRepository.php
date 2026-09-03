@@ -113,11 +113,17 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
      */
     public function assignEffectiveSchedule(int $employeeId, int $scheduleId, string $effectiveFrom): void
     {
-        // In this schema the schedule row already contains employee_id.
-        // This method updates the effective_from of the schedule row if it
-        // already exists, or is a no-op (the schedule was created with the right
-        // employee_id in ScheduleRepository::create()).
-        // Included for full EmployeeSetupGateway compliance.
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO employee_schedule_assignment
+                (employee_id, schedule_id, effective_from, effective_to, status)
+             VALUES (:employee_id, :schedule_id, :effective_from, NULL, :status)'
+        );
+        $stmt->execute([
+            ':employee_id'    => $employeeId,
+            ':schedule_id'    => $scheduleId,
+            ':effective_from' => $effectiveFrom,
+            ':status'         => 'Active',
+        ]);
     }
 
     /**
@@ -284,6 +290,7 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                 e.contract_review_date,
                 COALESCE(b.branch_id, 0)   AS branch_id,
                 COALESCE(b.branch_name,'—') AS branch_name,
+                COALESCE(esa.schedule_id, 0) AS schedule_id,
                 COALESCE(s.daily_rate, 0)  AS daily_rate,
                 COALESCE(ebe.device_id, 0) AS device_id,
                 COALESCE(ebe.device_employee_code, '') AS enrollment_code
@@ -292,6 +299,10 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                     ON eba.employee_id = e.employee_id
                    AND eba.effective_to IS NULL
              LEFT JOIN branch b ON b.branch_id = eba.branch_id
+             LEFT JOIN employee_schedule_assignment esa
+                    ON esa.employee_id = e.employee_id
+                   AND esa.effective_to IS NULL
+                   AND esa.status = 'Active'
              LEFT JOIN salary s
                     ON s.employee_id = e.employee_id
                    AND s.effective_to IS NULL

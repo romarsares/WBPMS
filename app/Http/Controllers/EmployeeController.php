@@ -125,6 +125,12 @@ final class EmployeeController
                 $data['effective_from']
             );
 
+            $repo->assignEffectiveSchedule(
+                $employeeId,
+                (int) $data['schedule_id'],
+                $data['effective_from']
+            );
+
             // Save daily rate in salary table if provided
             if ($data['daily_rate'] !== '' && (float) $data['daily_rate'] > 0) {
                 $repo->createSalary($employeeId, (float) $data['daily_rate'], $data['effective_from']);
@@ -430,6 +436,9 @@ final class EmployeeController
             }
             if ($data['branch_id'] === '') {
                 $errors['branch_id'] = 'Branch is required.';
+            }
+            if ($data['schedule_id'] === '') {
+                $errors['schedule_id'] = 'Work schedule is required.';
             }
         }
 
