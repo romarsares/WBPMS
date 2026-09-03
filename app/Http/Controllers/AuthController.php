@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wbpms\Http\Controllers;
 
 use Wbpms\Application\AuthService;
+use Wbpms\Application\UnlinkedEmployeeAccountException;
 use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\Middleware\CsrfMiddleware;
 use Wbpms\Infrastructure\Database\Connection;
@@ -80,13 +81,19 @@ final class AuthController
         $connection = $this->makeConnection();
         $service    = new AuthService($connection);
 
-        $identity = $service->attemptLogin(
-            $username,
-            $password,
-            $this->requestId(),
-            $this->clientIp(),
-            (string) ($_SERVER['HTTP_USER_AGENT'] ?? '')
-        );
+        try {
+            $identity = $service->attemptLogin(
+                $username,
+                $password,
+                $this->requestId(),
+                $this->clientIp(),
+                (string) ($_SERVER['HTTP_USER_AGENT'] ?? '')
+            );
+        } catch (UnlinkedEmployeeAccountException $e) {
+            $_SESSION['_login_error'] = $e->getMessage();
+            $this->redirect('/login');
+            return;
+        }
 
         if ($identity === null) {
             // Generic error — do not reveal whether username or password was wrong

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wbpms\Http\Middleware;
 
 use Wbpms\Application\AuthService;
+use Wbpms\Application\AuthenticationPolicy;
 use Wbpms\Infrastructure\Database\Connection;
 /**
  * Authentication and RBAC middleware.
@@ -113,31 +114,48 @@ final class AuthMiddleware
             return null;
         }
 
-        // Account status is authoritative even when a browser still has a
-        // valid session cookie. This immediately revokes access after HR
-        // archives the linked employee account.
+        // Database account state is authoritative. Refresh security-sensitive
+        // identity fields so an unlink, role change, or deactivation invalidates
+        // stale session data on the very next request.
         try {
-            $isActive = (new AuthService(new Connection(require APP_ROOT . '/config/database.php')))
-                ->isUserActive((int) $auth['user_id']);
+            $current = (new AuthService(new Connection(require APP_ROOT . '/config/database.php')))
+                ->currentIdentity((int) $auth['user_id']);
         } catch (\Throwable) {
             // Fail closed if account state cannot be checked.
-            $isActive = false;
+            $current = null;
         }
-        if (!$isActive) {
+
+        if ($current === null) {
             self::destroySession();
 
             return null;
         }
 
-        // Refresh last_active
+        if (AuthenticationPolicy::isUnlinkedEmployee($current['role_name'], $current['employee_id'])) {
+            self::clearAuthentication(AuthenticationPolicy::UNLINKED_EMPLOYEE_MESSAGE);
+
+            return null;
+        }
+
+        if ($current['status'] !== 'Active') {
+            self::destroySession();
+
+            return null;
+        }
+
+        // Refresh the session from the authoritative row and update last_active.
+        $_SESSION[self::SESSION_KEY]['username'] = $current['username'];
+        $_SESSION[self::SESSION_KEY]['role_name'] = $current['role_name'];
+        $_SESSION[self::SESSION_KEY]['employee_id'] = $current['employee_id'];
+        $_SESSION[self::SESSION_KEY]['requires_password_change'] = $current['requires_password_change'];
         $_SESSION[self::SESSION_KEY]['last_active'] = $now;
 
         return [
-            'user_id'                  => (int)    $auth['user_id'],
-            'username'                 => (string) $auth['username'],
-            'role_name'                => (string) $auth['role_name'],
-            'employee_id'              => $auth['employee_id'] !== null ? (int) $auth['employee_id'] : null,
-            'requires_password_change' => (bool)   ($auth['requires_password_change'] ?? false),
+            'user_id'                  => $current['user_id'],
+            'username'                 => $current['username'],
+            'role_name'                => $current['role_name'],
+            'employee_id'              => $current['employee_id'],
+            'requires_password_change' => $current['requires_password_change'],
         ];
     }
 
@@ -172,10 +190,13 @@ final class AuthMiddleware
             if ($isApiRequest) {
                 http_response_code(401);
                 header('Content-Type: application/json; charset=utf-8');
+                $message = (string) ($_SESSION['_flash_error']
+                    ?? 'Authentication required. Please sign in.');
+                unset($_SESSION['_flash_error']);
                 echo json_encode([
                     'error' => [
                         'code'    => 'UNAUTHENTICATED',
-                        'message' => 'Authentication required. Please sign in.',
+                        'message' => $message,
                     ],
                 ]);
                 exit;
@@ -187,7 +208,7 @@ final class AuthMiddleware
             if (session_status() === PHP_SESSION_NONE) {
                 self::startSession();
             }
-            $_SESSION['_flash_error'] = 'Your session has expired. Please sign in again.';
+            $_SESSION['_flash_error'] ??= 'Your session has expired. Please sign in again.';
 
             $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
             header('Location: ' . $base . '/login', true, 302);
@@ -233,5 +254,17 @@ final class AuthMiddleware
             $_SESSION = [];
             session_destroy();
         }
+    }
+
+    /** Replace an authenticated session with a fresh anonymous flash session. */
+    private static function clearAuthentication(string $message): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        $_SESSION = [];
+        session_regenerate_id(true);
+        $_SESSION['_flash_error'] = $message;
     }
 }

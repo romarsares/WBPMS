@@ -66,11 +66,7 @@ final class AuthService
 
         $actionAt = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s');
 
-        if (
-            $user === false
-            || $user['status'] !== 'Active'
-            || !password_verify($plainPassword, (string) $user['password_hash'])
-        ) {
+        if ($user === false || !password_verify($plainPassword, (string) $user['password_hash'])) {
             // Audit: failed login — user_id is NULL per ADR-0002 §10
             $this->writeAudit(
                 $pdo,
@@ -80,6 +76,49 @@ final class AuthService
                 null,
                 null,
                 $username,          // attempted_identifier
+                $requestId,
+                $ipAddress,
+                $userAgent,
+                'Login failed: invalid credentials or inactive account.',
+                $actionAt
+            );
+
+            return null;
+        }
+
+        $employeeId = $user['employee_id'] !== null ? (int) $user['employee_id'] : null;
+        $isUnlinkedEmployee = AuthenticationPolicy::isUnlinkedEmployee(
+            (string) $user['role_name'],
+            $employeeId
+        );
+        if ($user['status'] !== 'Archived' && $isUnlinkedEmployee) {
+            $this->writeAudit(
+                $pdo,
+                (int) $user['user_id'],
+                'login_failure',
+                'login_attempt',
+                'users',
+                (int) $user['user_id'],
+                null,
+                $requestId,
+                $ipAddress,
+                $userAgent,
+                'Login blocked: Employee account has no linked employee profile.',
+                $actionAt
+            );
+
+            throw new UnlinkedEmployeeAccountException();
+        }
+
+        if ($user['status'] !== 'Active') {
+            $this->writeAudit(
+                $pdo,
+                null,
+                'login_failure',
+                'login_attempt',
+                null,
+                null,
+                $username,
                 $requestId,
                 $ipAddress,
                 $userAgent,
@@ -117,26 +156,45 @@ final class AuthService
             'user_id'                  => (int)    $user['user_id'],
             'username'                 => (string) $user['username'],
             'role_name'                => (string) $user['role_name'],
-            'employee_id'              => $user['employee_id'] !== null ? (int) $user['employee_id'] : null,
+            'employee_id'              => $employeeId,
             'requires_password_change' => (bool)   ($user['requires_password_change'] ?? false),
         ];
     }
 
     /**
-     * Revalidate an existing session against the account state.
+     * Return the current authoritative identity for an existing session.
      *
-     * Archive changes set employee-linked accounts to Inactive. Checking this
-     * on each protected request makes that change take effect immediately for
-     * already-open sessions as well as future login attempts.
+     * Session-cached role and employee links are never authoritative. Middleware
+     * calls this on every protected request so status, role, and link changes
+     * take effect immediately.
+     *
+     * @return array{user_id:int, username:string, role_name:string, employee_id:int|null, requires_password_change:bool, status:string}|null
      */
-    public function isUserActive(int $userId): bool
+    public function currentIdentity(int $userId): ?array
     {
         $stmt = $this->connection->pdo()->prepare(
-            "SELECT status FROM users WHERE user_id = :id LIMIT 1"
+            "SELECT u.user_id, u.username, u.employee_id,
+                    u.requires_password_change, u.status, r.role_name
+               FROM users u
+               JOIN role r ON r.role_id = u.role_id
+              WHERE u.user_id = :id
+              LIMIT 1"
         );
         $stmt->execute([':id' => $userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return $stmt->fetchColumn() === 'Active';
+        if ($user === false) {
+            return null;
+        }
+
+        return [
+            'user_id'                  => (int) $user['user_id'],
+            'username'                 => (string) $user['username'],
+            'role_name'                => (string) $user['role_name'],
+            'employee_id'              => $user['employee_id'] !== null ? (int) $user['employee_id'] : null,
+            'requires_password_change' => (bool) ($user['requires_password_change'] ?? false),
+            'status'                   => (string) $user['status'],
+        ];
     }
 
     /**

@@ -200,7 +200,7 @@ final class EmployeeLifecycleRepository extends AbstractRepository
         $stmt = $this->pdo()->prepare(
             "UPDATE users
                 SET status = 'Active', password_hash = :password, requires_password_change = 1, updated_at = NOW()
-              WHERE employee_id = :id AND status = 'Inactive'"
+              WHERE employee_id = :id AND status IN ('Inactive', 'Archived')"
         );
         $stmt->execute([':id' => $employeeId, ':password' => password_hash($temporaryPassword, PASSWORD_DEFAULT)]);
 

@@ -36,15 +36,20 @@ final class EmployeeController
      */
     public function index(array $params = []): void
     {
-        $repo     = $this->makeRepo();
-        $search   = trim((string) ($_GET['search'] ?? ''));
-        $branch   = (string) ($_GET['branch']  ?? '');
-        $status   = (string) ($_GET['status']  ?? '');
+        $repo   = $this->makeRepo();
+        $search = trim((string) ($_GET['search'] ?? ''));
+        $branch = (string) ($_GET['branch']  ?? '');
+
+        // Default to 'active' only on the initial page load (no status key in URL).
+        // When the filter form is submitted with "All statuses", status='' is sent
+        // explicitly — honour that and show all statuses rather than forcing Active.
+        $statusInUrl = array_key_exists('status', $_GET);
+        $status      = $statusInUrl ? (string) ($_GET['status'] ?? '') : 'active';
 
         $employees = $repo->findAll([
             'search' => $search,
             'branch' => $branch,
-            'status' => $status !== '' ? $status : 'active',
+            'status' => $status,
         ]);
         $branches = $repo->activeBranches();
 
@@ -53,7 +58,7 @@ final class EmployeeController
             'branches'     => $branches,
             'search'       => $search,
             'filterBranch' => $branch,
-            'filterStatus' => $status !== '' ? $status : 'active',
+            'filterStatus' => $status,
         ], 'Employees');
     }
 

@@ -9,6 +9,8 @@ use PDOStatement;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 use Wbpms\Application\AuthService;
+use Wbpms\Application\AuthenticationPolicy;
+use Wbpms\Application\UnlinkedEmployeeAccountException;
 use Wbpms\Infrastructure\Database\Connection;
 
 /**
@@ -182,6 +184,98 @@ final class AuthServiceTest extends TestCase
         $identity = $service->attemptLogin('hrhead', 'wrong-password');
 
         $this->assertNull($identity, 'Expected null for wrong password');
+    }
+
+    public function testEmployeeWithoutLinkIsRejectedAfterValidPassword(): void
+    {
+        $userRow = [
+            'user_id'       => 8,
+            'username'      => 'unlinked.employee',
+            'password_hash' => password_hash('correct-password', PASSWORD_DEFAULT),
+            'status'        => 'Inactive',
+            'employee_id'   => null,
+            'role_name'     => 'Employee',
+        ];
+
+        $service = new AuthService($this->makeConnection($this->makePdoWithUser($userRow)));
+
+        $this->expectException(UnlinkedEmployeeAccountException::class);
+        $this->expectExceptionMessage(AuthenticationPolicy::UNLINKED_EMPLOYEE_MESSAGE);
+        $service->attemptLogin('unlinked.employee', 'correct-password');
+    }
+
+    public function testWrongPasswordDoesNotRevealMissingEmployeeLink(): void
+    {
+        $userRow = [
+            'user_id'       => 8,
+            'username'      => 'unlinked.employee',
+            'password_hash' => password_hash('correct-password', PASSWORD_DEFAULT),
+            'status'        => 'Inactive',
+            'employee_id'   => null,
+            'role_name'     => 'Employee',
+        ];
+
+        $service = new AuthService($this->makeConnection($this->makePdoWithUser($userRow)));
+
+        self::assertNull($service->attemptLogin('unlinked.employee', 'wrong-password'));
+    }
+
+    public function testCurrentIdentityReturnsFreshEmployeeLinkAndRole(): void
+    {
+        $currentRow = [
+            'user_id'                  => 8,
+            'username'                 => 'employee',
+            'status'                   => 'Active',
+            'employee_id'              => 99,
+            'role_name'                => 'Employee',
+            'requires_password_change' => 0,
+        ];
+
+        /** @var PDOStatement&MockObject $stmt */
+        $stmt = $this->createMock(PDOStatement::class);
+        $stmt->expects(self::once())->method('execute')->with([':id' => 8])->willReturn(true);
+        $stmt->method('fetch')->willReturn($currentRow);
+
+        /** @var PDO&MockObject $pdo */
+        $pdo = $this->createMock(PDO::class);
+        $pdo->method('prepare')->willReturn($stmt);
+
+        $identity = (new AuthService($this->makeConnection($pdo)))->currentIdentity(8);
+
+        self::assertNotNull($identity);
+        self::assertSame(99, $identity['employee_id']);
+        self::assertSame('Employee', $identity['role_name']);
+        self::assertSame('Active', $identity['status']);
+    }
+
+    public function testCurrentIdentityPreservesNullLinkForMiddlewareRejection(): void
+    {
+        $currentRow = [
+            'user_id'                  => 8,
+            'username'                 => 'unlinked.employee',
+            'status'                   => 'Inactive',
+            'employee_id'              => null,
+            'role_name'                => 'Employee',
+            'requires_password_change' => 0,
+        ];
+
+        /** @var PDOStatement&MockObject $stmt */
+        $stmt = $this->createMock(PDOStatement::class);
+        $stmt->method('execute')->willReturn(true);
+        $stmt->method('fetch')->willReturn($currentRow);
+
+        /** @var PDO&MockObject $pdo */
+        $pdo = $this->createMock(PDO::class);
+        $pdo->method('prepare')->willReturn($stmt);
+
+        $identity = (new AuthService($this->makeConnection($pdo)))->currentIdentity(8);
+
+        self::assertNotNull($identity);
+        self::assertNull($identity['employee_id']);
+        self::assertTrue(AuthenticationPolicy::isUnlinkedEmployee(
+            $identity['role_name'],
+            $identity['employee_id']
+        ));
     }
 
     /**

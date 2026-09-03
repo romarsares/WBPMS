@@ -221,8 +221,10 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
         // Search by name or employee number
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
-            $where[]         = '(e.last_name LIKE :search OR e.first_name LIKE :search OR e.employee_number LIKE :search)';
-            $params[':search'] = '%' . $search . '%';
+            $where[]              = '(e.last_name LIKE :search_ln OR e.first_name LIKE :search_fn OR e.employee_number LIKE :search_en)';
+            $params[':search_ln'] = '%' . $search . '%';
+            $params[':search_fn'] = '%' . $search . '%';
+            $params[':search_en'] = '%' . $search . '%';
         }
 
         $whereClause = $where !== [] ? 'WHERE ' . implode(' AND ', $where) : '';

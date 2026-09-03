@@ -24,7 +24,8 @@ use Wbpms\Infrastructure\Database\Connection;
  *   - Passwords are hashed with password_hash(PASSWORD_DEFAULT).
  *   - An Archived user cannot be re-activated; status transitions are
  *     Active → Inactive → Active (toggle) and any → Archived (one-way).
- *   - employee_id is optional (NULL for the Business Owner account).
+ *   - Employee-role accounts require employee_id. Unlinking an existing
+ *     Employee account automatically deactivates it.
  *   - All mutations are audited via audit_logs when an acting_user_id is supplied.
  *
  * No SQL belongs in controllers; all queries live here.
@@ -244,7 +245,10 @@ final class UserService
         $this->validateCreateInput($username, $email, $password, $roleId);
         $this->assertUniqueUsername($username);
         $this->assertUniqueEmail($email);
-        $this->assertValidRole($roleId);
+        $roleName = $this->roleNameForId($roleId);
+        if (AuthenticationPolicy::isUnlinkedEmployee($roleName, $employeeId)) {
+            throw new RuntimeException('An Employee account must be linked to an employee profile.');
+        }
         if ($employeeId !== null) {
             $this->assertEmployeeNotLinked($employeeId);
         }
@@ -317,20 +321,25 @@ final class UserService
         if ($email !== $user['account_email']) {
             $this->assertUniqueEmail($email, $userId);
         }
-        if ($roleId !== (int) $user['role_id']) {
-            $this->assertValidRole($roleId);
+        $roleName = $this->roleNameForId($roleId);
+        $status   = (string) $user['status'];
+        if (AuthenticationPolicy::isUnlinkedEmployee($roleName, $employeeId)) {
+            if ((string) $user['role_name'] !== 'Employee') {
+                throw new RuntimeException('An Employee account must be linked to an employee profile.');
+            }
+            $status = 'Inactive';
         }
         if ($employeeId !== null && $employeeId !== ($user['employee_id'] !== null ? (int) $user['employee_id'] : null)) {
             $this->assertEmployeeNotLinked($employeeId, $userId);
         }
 
         $this->connection->transaction(function (PDO $pdo) use (
-            $userId, $username, $email, $roleId, $employeeId, $actingUserId
+            $userId, $username, $email, $roleId, $employeeId, $status, $actingUserId
         ): void {
             $stmt = $pdo->prepare(
                 "UPDATE users
                     SET username = :user, account_email = :email,
-                        role_id  = :role, employee_id   = :emp
+                        role_id  = :role, employee_id   = :emp, status = :status
                   WHERE user_id  = :id"
             );
             $stmt->execute([
@@ -338,11 +347,12 @@ final class UserService
                 ':email' => $email,
                 ':role'  => $roleId,
                 ':emp'   => $employeeId,
+                ':status'=> $status,
                 ':id'    => $userId,
             ]);
 
             $this->insertAudit($pdo, $actingUserId, 'user_updated', 'users', $userId,
-                "Updated user_id={$userId}: username='{$username}', role_id={$roleId}");
+                "Updated user_id={$userId}: username='{$username}', role_id={$roleId}, status='{$status}'");
         });
     }
 
@@ -365,6 +375,16 @@ final class UserService
         }
 
         $newStatus = $user['status'] === 'Active' ? 'Inactive' : 'Active';
+
+        if (
+            $newStatus === 'Active'
+            && AuthenticationPolicy::isUnlinkedEmployee(
+                (string) $user['role_name'],
+                $user['employee_id'] !== null ? (int) $user['employee_id'] : null
+            )
+        ) {
+            throw new RuntimeException('Link this Employee account to an employee profile before activating it.');
+        }
 
         $this->connection->transaction(function (PDO $pdo) use ($userId, $newStatus, $actingUserId): void {
             $pdo->prepare("UPDATE users SET status = :s WHERE user_id = :id")
@@ -525,15 +545,18 @@ final class UserService
         }
     }
 
-    private function assertValidRole(int $roleId): void
+    private function roleNameForId(int $roleId): string
     {
         $stmt = $this->connection->pdo()->prepare(
-            "SELECT COUNT(*) FROM role WHERE role_id = :id"
+            "SELECT role_name FROM role WHERE role_id = :id"
         );
         $stmt->execute([':id' => $roleId]);
-        if ((int) $stmt->fetchColumn() === 0) {
+        $roleName = $stmt->fetchColumn();
+        if ($roleName === false) {
             throw new RuntimeException("Role #{$roleId} does not exist.");
         }
+
+        return (string) $roleName;
     }
 
     private function assertEmployeeNotLinked(int $employeeId, ?int $excludeUserId = null): void

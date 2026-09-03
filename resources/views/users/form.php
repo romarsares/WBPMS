@@ -92,9 +92,9 @@ $val = static function (string $key) use ($old, $user): string {
             </select>
         </div>
 
-        <!-- LINKED EMPLOYEE (optional) -->
+        <!-- LINKED EMPLOYEE -->
         <div class="form-group">
-            <label for="employee_id">Linked Employee <span class="muted">(optional)</span></label>
+            <label for="employee_id">Linked Employee <span id="employeeRequired" class="req" hidden>*</span></label>
             <select id="employee_id" name="employee_id">
                 <option value="">— None (e.g. Business Owner) —</option>
                 <?php foreach ($employees as $emp): ?>
@@ -105,7 +105,7 @@ $val = static function (string $key) use ($old, $user): string {
                     </option>
                 <?php endforeach; ?>
             </select>
-            <small class="muted">Link to an employee record. Leave blank for the Business Owner account.</small>
+            <small class="muted">Required for Employee accounts. Unlinking an existing Employee account deactivates it immediately.</small>
         </div>
 
         <div class="form-actions">
@@ -116,6 +116,25 @@ $val = static function (string $key) use ($old, $user): string {
         </div>
     </form>
 </div>
+
+<script>
+(function () {
+    var roleSelect = document.getElementById('role_id');
+    var employeeSelect = document.getElementById('employee_id');
+    var requiredMarker = document.getElementById('employeeRequired');
+    var isEdit = <?= $isEdit ? 'true' : 'false' ?>;
+
+    function updateEmployeeRequirement() {
+        var selected = roleSelect.options[roleSelect.selectedIndex];
+        var isEmployee = selected && selected.text.trim() === 'Employee';
+        employeeSelect.required = isEmployee && !isEdit;
+        requiredMarker.hidden = !isEmployee;
+    }
+
+    roleSelect.addEventListener('change', updateEmployeeRequirement);
+    updateEmployeeRequirement();
+})();
+</script>
 
 <style>
 .form-group { margin-bottom: 20px; }

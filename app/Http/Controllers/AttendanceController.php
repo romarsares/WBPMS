@@ -45,21 +45,108 @@ final class AttendanceController
     {
         $pdo = $this->makeConnection()->pdo();
 
-        $total = (int) $pdo->query("SELECT COUNT(*) FROM attendance")->fetchColumn();
+        // ---------------------------------------------------------------
+        // Filter resolution
+        //
+        // Priority: period_id (cut-off) > month > (default: current month)
+        // ---------------------------------------------------------------
+        $periodId   = isset($_GET['period_id']) && $_GET['period_id'] !== ''
+                      ? (int) $_GET['period_id'] : null;
+        $monthInput = trim((string) ($_GET['month'] ?? ''));
+        $tabHint    = (string) ($_GET['_tab'] ?? '');
 
-        $complete = (int) $pdo->query(
-            "SELECT COUNT(*) FROM attendance WHERE status IN ('Complete','Approved')"
-        )->fetchColumn();
+        // Load all payroll periods for the cut-off dropdown
+        $periods = $pdo->query(
+            "SELECT payroll_period_id, period_start, period_end, pay_date, status
+               FROM payroll_period
+              ORDER BY period_start DESC"
+        )->fetchAll();
 
-        $incomplete = (int) $pdo->query(
-            "SELECT COUNT(*) FROM attendance WHERE status IN ('Incomplete','ReviewRequired')"
-        )->fetchColumn();
+        // Resolve date range
+        $dateFrom  = null;
+        $dateTo    = null;
+        $activeTab = 'month'; // 'month' | 'cutoff'
 
-        $unmatched = (int) $pdo->query(
-            "SELECT COUNT(*) FROM biometric_punch WHERE match_status IN ('unmatched','coverage_exception')"
-        )->fetchColumn();
+        if ($periodId !== null) {
+            // Cut-off filter
+            $stmt = $pdo->prepare(
+                "SELECT period_start, period_end FROM payroll_period WHERE payroll_period_id = :id"
+            );
+            $stmt->execute([':id' => $periodId]);
+            $period = $stmt->fetch();
+            if ($period) {
+                $dateFrom  = $period['period_start'];
+                $dateTo    = $period['period_end'];
+                $activeTab = 'cutoff';
+            } else {
+                $periodId = null; // invalid id — fall through to month
+            }
+        }
 
-        $rows = $pdo->query(
+        if ($dateFrom === null) {
+            // Month filter — default to current Manila month
+            $manilaNow = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila'));
+            if ($monthInput !== '' && preg_match('/^\d{4}-(?:0[1-9]|1[0-2])$/', $monthInput)) {
+                [$yr, $mo] = array_map('intval', explode('-', $monthInput));
+            } else {
+                $yr = (int) $manilaNow->format('Y');
+                $mo = (int) $manilaNow->format('m');
+                $monthInput = $manilaNow->format('Y-m');
+            }
+            $dateFrom  = sprintf('%04d-%02d-01', $yr, $mo);
+            $dateTo    = (new \DateTimeImmutable($dateFrom))->modify('last day of this month')->format('Y-m-d');
+            // Stay on cutoff tab if that's what the user selected, even with no period chosen
+            $activeTab = $tabHint === 'cutoff' ? 'cutoff' : 'month';
+        }
+
+        // ---------------------------------------------------------------
+        // Summary counts — scoped to the same date range
+        // ---------------------------------------------------------------
+        $countStmt = $pdo->prepare(
+            "SELECT
+                COUNT(*)                                                           AS total,
+                SUM(CASE WHEN status IN ('Complete','Approved')     THEN 1 ELSE 0 END) AS complete,
+                SUM(CASE WHEN status IN ('Incomplete','ReviewRequired') THEN 1 ELSE 0 END) AS incomplete
+               FROM attendance
+              WHERE attendance_date BETWEEN :from AND :to"
+        );
+        $countStmt->execute([':from' => $dateFrom, ':to' => $dateTo]);
+        $counts     = $countStmt->fetch();
+        $total      = (int) ($counts['total']      ?? 0);
+        $complete   = (int) ($counts['complete']   ?? 0);
+        $incomplete = (int) ($counts['incomplete'] ?? 0);
+
+        // Unmatched punches within the same window (filter by source_local_at date part)
+        $umStmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM biometric_punch
+              WHERE match_status IN ('unmatched','coverage_exception')
+                AND DATE(source_local_at) BETWEEN :from AND :to"
+        );
+        $umStmt->execute([':from' => $dateFrom, ':to' => $dateTo]);
+        $unmatched = (int) $umStmt->fetchColumn();
+
+        // ---------------------------------------------------------------
+        // Main row query — filtered + branch filter + employee search
+        // ---------------------------------------------------------------
+        $search   = trim((string) ($_GET['search']   ?? ''));
+        $branchId = isset($_GET['branch_id']) && $_GET['branch_id'] !== ''
+                    ? (int) $_GET['branch_id'] : null;
+
+        $where  = ['a.attendance_date BETWEEN :from AND :to'];
+        $bind   = [':from' => $dateFrom, ':to' => $dateTo];
+
+        if ($search !== '') {
+            $where[]          = "(e.last_name LIKE :s OR e.first_name LIKE :s OR e.employee_number LIKE :s)";
+            $bind[':s']       = '%' . $search . '%';
+        }
+        if ($branchId !== null) {
+            $where[]           = 'eba.branch_id = :branch_id';
+            $bind[':branch_id'] = $branchId;
+        }
+
+        $whereClause = 'WHERE ' . implode(' AND ', $where);
+
+        $rows = $pdo->prepare(
             "SELECT a.attendance_id,
                     e.employee_number,
                     CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
@@ -71,22 +158,41 @@ final class AttendanceController
                     a.late_minutes,
                     a.undertime_minutes,
                     a.overtime_minutes,
+                    a.status,
                     CASE WHEN a.status IN ('Incomplete','ReviewRequired') THEN 1 ELSE 0 END AS is_incomplete
                FROM attendance a
                JOIN employee e ON e.employee_id = a.employee_id
                JOIN employee_branch_assignment eba
                      ON eba.branch_assignment_id = a.branch_assignment_id
                LEFT JOIN branch b ON b.branch_id = eba.branch_id
+              {$whereClause}
               ORDER BY a.attendance_date DESC, e.last_name
-              LIMIT 200"
+              LIMIT 500"
+        );
+        $rows->execute($bind);
+        $rows = $rows->fetchAll();
+
+        // Branch list for filter dropdown
+        $branches = $pdo->query(
+            "SELECT branch_id, branch_name FROM branch WHERE status = 'Active' ORDER BY branch_name"
         )->fetchAll();
 
         ViewRenderer::render('hr/attendance/index', [
-            'rows'       => $rows,
-            'total'      => $total,
-            'complete'   => $complete,
-            'incomplete' => $incomplete,
-            'unmatched'  => $unmatched,
+            'rows'        => $rows,
+            'total'       => $total,
+            'complete'    => $complete,
+            'incomplete'  => $incomplete,
+            'unmatched'   => $unmatched,
+            // filter state
+            'activeTab'   => $activeTab,
+            'monthInput'  => $monthInput,
+            'periodId'    => $periodId,
+            'dateFrom'    => $dateFrom,
+            'dateTo'      => $dateTo,
+            'periods'     => $periods,
+            'branches'    => $branches,
+            'branchId'    => $branchId,
+            'search'      => $search,
         ], 'Attendance Management');
     }
 
