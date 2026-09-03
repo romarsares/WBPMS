@@ -111,6 +111,11 @@ $nav = match ($roleName) {
             </form>
         </div>
 
+        <!-- Version badge — helps collaborators verify they are on the same build -->
+        <div class="side-version" title="<?= htmlspecialchars(\Wbpms\Http\View\AppVersion::hash(), ENT_QUOTES, 'UTF-8') ?>">
+            <?= htmlspecialchars(\Wbpms\Http\View\AppVersion::label(), ENT_QUOTES, 'UTF-8') ?>
+        </div>
+
     </aside>
 
     <!-- ================================================================
@@ -227,6 +232,26 @@ function filterRows(input, tableId) {
     });
 }
 </script>
+
+<!-- Build version — visible only in page source for non-sidebar views -->
+<meta name="app-version" content="<?= htmlspecialchars(\Wbpms\Http\View\AppVersion::label(), ENT_QUOTES, 'UTF-8') ?>">
+<meta name="app-commit" content="<?= htmlspecialchars(\Wbpms\Http\View\AppVersion::hash(), ENT_QUOTES, 'UTF-8') ?>">
+
+<style>
+.side-version {
+    font-size: .68rem;
+    color: #9ca3af;
+    padding: .4rem .9rem .6rem;
+    letter-spacing: .03em;
+    word-break: break-all;
+    border-top: 1px solid rgba(255,255,255,.08);
+    margin-top: auto;
+    cursor: default;
+}
+.side-version:hover {
+    color: #d1d5db;
+}
+</style>
 
 </body>
 </html>
