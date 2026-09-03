@@ -258,9 +258,6 @@ $err = static fn(string $key): string => isset($errors[$key])
                     ?>
                     <option value="active"   <?= $currentStatus === 'active'   ? 'selected' : '' ?>>Active</option>
                     <option value="inactive" <?= $currentStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
-                    <?php if ($isEdit): ?>
-                    <option value="archived" <?= $currentStatus === 'archived' ? 'selected' : '' ?>>Archived</option>
-                    <?php endif; ?>
                 </select>
             </div>
         </div>
@@ -307,6 +304,10 @@ $err = static fn(string $key): string => isset($errors[$key])
                    class="btn btn-warning" style="margin-left:auto;">
                     Transfer Branch
                 </a>
+                <?php if (strtolower((string) $employee['status']) !== 'archived'): ?>
+                <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/archive"
+                   class="btn btn-secondary">Archive</a>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </form>

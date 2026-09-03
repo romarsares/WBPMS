@@ -39,23 +39,24 @@
   - [ ] 4.4 `transferEmployee` transaction (close old assignment, open new non-overlapping one)
   - [ ] 4.5 Integration test: create → filter → transfer → historical lookup → archive
   - [ ] 4.6 Employee lifecycle archive, rehire, and document capability
-    - [ ] 4.6.1 Add `employee_employment_episode`, `employee_lifecycle_event`, and
-          `employee_document` migrations, keys, retention metadata, and schema invariants.
-    - [ ] 4.6.2 Implement `EmployeeLifecycleService::archive` as a locked transaction:
+    - [x] 4.6.1 Add `employee_employment_episode` and `employee_lifecycle_event`
+          migrations, keys, and date invariants. `employee_document` remains pending.
+    - [x] 4.6.2 Implement `EmployeeLifecycleService::archive` as a locked transaction:
           validate blockers; close effective branch/schedule/biometric/salary/bank records;
           set employee Archived; set a linked Active user Inactive; revoke sessions; write
           lifecycle and audit events; preserve immutable history.
-    - [ ] 4.6.3 Implement the rehire transaction: reuse employee identity, create a new
+    - [x] 4.6.3 Implement the rehire transaction: reuse employee identity, create a new
           employment episode and current setup, prevent overlap, and require controlled
           account reactivation.
-    - [ ] 4.6.4 Replace generic employee-status editing with HR archive/rehire confirmation
+    - [x] 4.6.4 Replace generic employee-status editing with HR archive/rehire confirmation
           flows that show effective dates, impacted records, and blockers.
     - [ ] 4.6.5 Add private employee-document upload/list/view/replace/verify/archive flows;
           random storage keys, PDF/JPEG/PNG signature/type/size validation, checksums,
           malware-scan state, HR-only authorization, and access audit logs.
-    - [ ] 4.6.6 Tests: successful archive cascade; rollback on each blocker; no mutation of
+    - [ ] 4.6.6 Automated tests: successful archive cascade; rollback on each blocker; no mutation of
           approved payroll/history; session revocation; rehire without duplicate employee or
-          account; document replacement lineage; upload/security rejection cases.
+          account; document replacement lineage; upload/security rejection cases. A rollback-only
+          development-database smoke test has passed for archive to rehire.
     - _Specification: `employee-lifecycle-archive-rehire-spec.md`; Requirements: REQ012,
       REQN007, REQN011 extensions_
   - _Requirements: 4_

@@ -79,7 +79,7 @@ final class AttendanceImportService
                     $punches,
                     $this->gateway->effectiveSchedule($group['scheduleId'], $date),
                 );
-                $this->gateway->saveGeneratedAttendance($attendance);
+                $this->gateway->saveGeneratedAttendance($batchId, $attendance);
                 $branch = $group['branchId'];
                 $byBranch[$branch] ??= ['matched' => 0, 'unmatched' => 0, 'duplicates' => 0, 'incomplete' => 0, 'multiPunch' => 0];
                 $byBranch[$branch]['matched'] += count($punches);

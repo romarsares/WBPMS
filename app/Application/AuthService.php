@@ -41,7 +41,7 @@ final class AuthService
      * @param  string $requestId         Request UUID for audit correlation
      * @param  string $ipAddress         Remote IP address
      * @param  string $userAgent         HTTP user agent string
-     * @return array{user_id: int, username: string, role_name: string, employee_id: int|null}|null
+     * @return array{user_id: int, username: string, role_name: string, employee_id: int|null, requires_password_change: bool}|null
      */
     public function attemptLogin(
         string $username,
@@ -55,7 +55,7 @@ final class AuthService
         // Fetch user + role in a single query
         $stmt = $pdo->prepare(
             'SELECT u.user_id, u.username, u.password_hash, u.status,
-                    u.employee_id, r.role_name
+                    u.employee_id, u.requires_password_change, r.role_name
              FROM users u
              JOIN role r ON r.role_id = u.role_id
              WHERE u.username = :username
@@ -114,11 +114,29 @@ final class AuthService
         }
 
         return [
-            'user_id'     => (int)    $user['user_id'],
-            'username'    => (string) $user['username'],
-            'role_name'   => (string) $user['role_name'],
-            'employee_id' => $user['employee_id'] !== null ? (int) $user['employee_id'] : null,
+            'user_id'                  => (int)    $user['user_id'],
+            'username'                 => (string) $user['username'],
+            'role_name'                => (string) $user['role_name'],
+            'employee_id'              => $user['employee_id'] !== null ? (int) $user['employee_id'] : null,
+            'requires_password_change' => (bool)   ($user['requires_password_change'] ?? false),
         ];
+    }
+
+    /**
+     * Revalidate an existing session against the account state.
+     *
+     * Archive changes set employee-linked accounts to Inactive. Checking this
+     * on each protected request makes that change take effect immediately for
+     * already-open sessions as well as future login attempts.
+     */
+    public function isUserActive(int $userId): bool
+    {
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT status FROM users WHERE user_id = :id LIMIT 1"
+        );
+        $stmt->execute([':id' => $userId]);
+
+        return $stmt->fetchColumn() === 'Active';
     }
 
     /**

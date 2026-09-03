@@ -99,6 +99,13 @@ final class AuthController
         // Persist authenticated identity; regenerates session ID internally
         AuthMiddleware::setIdentity($identity);
 
+        // Requirement 13, AC5: auto-provisioned accounts must change their
+        // temporary password before accessing any other module.
+        if ($identity['requires_password_change']) {
+            $this->redirect('/change-password');
+            return;
+        }
+
         $this->redirectToDashboard($identity['role_name']);
     }
 
@@ -112,6 +119,98 @@ final class AuthController
         $this->startSessionIfNeeded();
         AuthMiddleware::destroySession();
         $this->redirect('/login');
+    }
+
+    /**
+     * GET /change-password — mandatory first-login password change screen.
+     *
+     * Only accessible while the session has requires_password_change = true.
+     * Any other authenticated user is redirected to their dashboard.
+     * Unauthenticated users are sent to /login.
+     *
+     * Requirement 13, AC5.
+     *
+     * @param array<string, string> $params
+     */
+    public function showChangePassword(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+        $identity = AuthMiddleware::identity();
+
+        if ($identity === null) {
+            $this->redirect('/login');
+            return;
+        }
+
+        if (!$identity['requires_password_change']) {
+            // Already changed — send to normal dashboard
+            $this->redirectToDashboard($identity['role_name']);
+            return;
+        }
+
+        $csrfField = CsrfMiddleware::field();
+        $error     = $_SESSION['_change_pwd_error'] ?? null;
+        unset($_SESSION['_change_pwd_error']);
+
+        http_response_code(200);
+        header('Content-Type: text/html; charset=utf-8');
+        require APP_ROOT . '/resources/views/auth/change-password.php';
+    }
+
+    /**
+     * POST /change-password — persist new password and clear the flag.
+     *
+     * Requirement 13, AC5–AC6.
+     *
+     * @param array<string, string> $params
+     */
+    public function changePassword(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+        $identity = AuthMiddleware::identity();
+
+        if ($identity === null) {
+            $this->redirect('/login');
+            return;
+        }
+
+        if (!$identity['requires_password_change']) {
+            $this->redirectToDashboard($identity['role_name']);
+            return;
+        }
+
+        $password = (string) ($_POST['password']         ?? '');
+        $confirm  = (string) ($_POST['password_confirm'] ?? '');
+
+        if (strlen($password) < 8) {
+            $_SESSION['_change_pwd_error'] = 'Password must be at least 8 characters.';
+            $this->redirect('/change-password');
+            return;
+        }
+
+        if ($password !== $confirm) {
+            $_SESSION['_change_pwd_error'] = 'Passwords do not match.';
+            $this->redirect('/change-password');
+            return;
+        }
+
+        $connection  = $this->makeConnection();
+        $userService = new \Wbpms\Application\UserService($connection);
+
+        // Hash and persist the new password; also clear the flag.
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        $connection->pdo()->prepare(
+            "UPDATE users
+                SET password_hash = :hash,
+                    requires_password_change = 0,
+                    updated_at = UTC_TIMESTAMP()
+              WHERE user_id = :id"
+        )->execute([':hash' => $hash, ':id' => $identity['user_id']]);
+
+        // Remove the flag from the live session so the user can access the app.
+        $_SESSION['_auth']['requires_password_change'] = false;
+
+        $this->redirectToDashboard($identity['role_name']);
     }
 
     /**

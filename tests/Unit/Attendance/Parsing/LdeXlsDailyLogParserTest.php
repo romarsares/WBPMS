@@ -43,4 +43,23 @@ final class LdeXlsDailyLogParserTest extends TestCase
             @unlink($file->temporaryPath);
         }
     }
+
+    public function testItReportsOneActionableErrorForTheWrongSelectedMonth(): void
+    {
+        $file = XlsFixture::make([['department' => 'Office', 'userId' => '5', 'name' => 'Ana Cruz', 'enrollId' => '00123', 'times' => ['08/03' => '08:01', '08/04' => '17:10']]]);
+        try {
+            try {
+                (new LdeXlsDailyLogParser())->parse($file, new ParserContext(1, 2026, 9));
+                self::fail('Expected a source-period validation failure.');
+            } catch (AttendanceParseException $exception) {
+                self::assertCount(1, $exception->errors);
+                self::assertSame('DATE_CONTEXT_MISMATCH', $exception->errors[0]->code);
+                self::assertSame('E', $exception->errors[0]->column);
+                self::assertStringContainsString('August', $exception->errors[0]->message);
+                self::assertStringContainsString('September 2026', $exception->errors[0]->message);
+            }
+        } finally {
+            @unlink($file->temporaryPath);
+        }
+    }
 }

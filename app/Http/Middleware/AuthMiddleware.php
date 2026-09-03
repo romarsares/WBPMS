@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Wbpms\Http\Middleware;
 
+use Wbpms\Application\AuthService;
+use Wbpms\Infrastructure\Database\Connection;
 /**
  * Authentication and RBAC middleware.
  *
@@ -11,12 +13,13 @@ namespace Wbpms\Http\Middleware;
  * The Router calls requireRoles() before dispatching any protected route.
  *
  * Session keys:
- *   _auth.user_id     int
- *   _auth.username    string
- *   _auth.role_name   string  (BusinessOwner | HRHead | Employee)
- *   _auth.employee_id int|null
- *   _auth.logged_in_at int    Unix timestamp (for absolute expiry check)
- *   _auth.last_active  int    Unix timestamp (for idle expiry check)
+ *   _auth.user_id                  int
+ *   _auth.username                 string
+ *   _auth.role_name                string  (BusinessOwner | HRHead | Employee)
+ *   _auth.employee_id              int|null
+ *   _auth.requires_password_change bool    (true for auto-provisioned accounts on first login)
+ *   _auth.logged_in_at             int    Unix timestamp (for absolute expiry check)
+ *   _auth.last_active              int    Unix timestamp (for idle expiry check)
  *
  * REQN007: role-based access control on every protected route.
  * ADR-0001: 30-minute idle + 12-hour absolute session expiry.
@@ -57,7 +60,7 @@ final class AuthMiddleware
      *
      * Regenerates the session ID to prevent fixation attacks.
      *
-     * @param array{user_id: int, username: string, role_name: string, employee_id: int|null} $identity
+     * @param array{user_id: int, username: string, role_name: string, employee_id: int|null, requires_password_change: bool} $identity
      */
     public static function setIdentity(array $identity): void
     {
@@ -65,12 +68,13 @@ final class AuthMiddleware
 
         $now = time();
         $_SESSION[self::SESSION_KEY] = [
-            'user_id'      => $identity['user_id'],
-            'username'     => $identity['username'],
-            'role_name'    => $identity['role_name'],
-            'employee_id'  => $identity['employee_id'],
-            'logged_in_at' => $now,
-            'last_active'  => $now,
+            'user_id'                  => $identity['user_id'],
+            'username'                 => $identity['username'],
+            'role_name'                => $identity['role_name'],
+            'employee_id'              => $identity['employee_id'],
+            'requires_password_change' => (bool) ($identity['requires_password_change'] ?? false),
+            'logged_in_at'             => $now,
+            'last_active'              => $now,
         ];
     }
 
@@ -79,7 +83,7 @@ final class AuthMiddleware
      *
      * Updates last_active on every call for idle-expiry tracking.
      *
-     * @return array{user_id: int, username: string, role_name: string, employee_id: int|null}|null
+     * @return array{user_id: int, username: string, role_name: string, employee_id: int|null, requires_password_change: bool}|null
      */
     public static function identity(): ?array
     {
@@ -109,14 +113,31 @@ final class AuthMiddleware
             return null;
         }
 
+        // Account status is authoritative even when a browser still has a
+        // valid session cookie. This immediately revokes access after HR
+        // archives the linked employee account.
+        try {
+            $isActive = (new AuthService(new Connection(require APP_ROOT . '/config/database.php')))
+                ->isUserActive((int) $auth['user_id']);
+        } catch (\Throwable) {
+            // Fail closed if account state cannot be checked.
+            $isActive = false;
+        }
+        if (!$isActive) {
+            self::destroySession();
+
+            return null;
+        }
+
         // Refresh last_active
         $_SESSION[self::SESSION_KEY]['last_active'] = $now;
 
         return [
-            'user_id'     => (int)    $auth['user_id'],
-            'username'    => (string) $auth['username'],
-            'role_name'   => (string) $auth['role_name'],
-            'employee_id' => $auth['employee_id'] !== null ? (int) $auth['employee_id'] : null,
+            'user_id'                  => (int)    $auth['user_id'],
+            'username'                 => (string) $auth['username'],
+            'role_name'                => (string) $auth['role_name'],
+            'employee_id'              => $auth['employee_id'] !== null ? (int) $auth['employee_id'] : null,
+            'requires_password_change' => (bool)   ($auth['requires_password_change'] ?? false),
         ];
     }
 
@@ -174,6 +195,20 @@ final class AuthMiddleware
         }
 
         if (!empty($allowedRoles) && !in_array($identity['role_name'], $allowedRoles, true)) {
+            $acceptHeader = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+            $isApiRequest = str_contains($acceptHeader, 'application/json')
+                && !str_contains($acceptHeader, 'text/html');
+
+            if (!$isApiRequest) {
+                http_response_code(403);
+                header('Content-Type: text/html; charset=utf-8');
+
+                $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+                $roleName = $identity['role_name'];
+                require APP_ROOT . '/resources/views/errors/403.php';
+                exit;
+            }
+
             http_response_code(403);
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode([

@@ -76,12 +76,12 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
                  source_year, source_month, parser_version, status,
                  records_parsed, records_matched, records_unmatched,
                  duplicates_skipped, incomplete_days, multi_punch_days,
-                 uploaded_at, created_at, updated_at)
+                 uploaded_at)
              VALUES
                 (:device_id, :uploaded_by, '', :checksum,
                  :year, :month, :version, 'Processing',
                  0, 0, 0, 0, 0, 0,
-                 :now, :now, :now)"
+                 :now)"
         );
         $stmt->execute([
             ':device_id'   => $deviceId,
@@ -107,8 +107,7 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
                 duplicates_skipped  = :duplicates,
                 incomplete_days     = :incomplete,
                 multi_punch_days    = :multi,
-                completed_at        = :now,
-                updated_at          = :now
+                completed_at        = :now
               WHERE import_batch_id = :id"
         );
         $stmt->execute([
@@ -142,15 +141,16 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
                FROM employee_biometric_enrollment ebe
               WHERE ebe.device_id            = :device_id
                 AND ebe.device_employee_code = :code
-                AND ebe.effective_from      <= :punch_date
-                AND (ebe.effective_to IS NULL OR ebe.effective_to > :punch_date)
+                AND ebe.effective_from      <= :enrollment_from_date
+                AND (ebe.effective_to IS NULL OR ebe.effective_to > :enrollment_to_date)
                 AND ebe.status = 'Active'
               LIMIT 1"
         );
         $stmt->execute([
             ':device_id'  => $punch->deviceId,
             ':code'       => $punch->enrollmentCode,
-            ':punch_date' => $punchDate,
+            ':enrollment_from_date' => $punchDate,
+            ':enrollment_to_date'   => $punchDate,
         ]);
         $enrollment = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -165,12 +165,16 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
             "SELECT eba.branch_assignment_id, eba.branch_id
                FROM employee_branch_assignment eba
               WHERE eba.employee_id    = :emp_id
-                AND eba.effective_from <= :punch_date
-                AND (eba.effective_to IS NULL OR eba.effective_to > :punch_date)
+                AND eba.effective_from <= :branch_from_date
+                AND (eba.effective_to IS NULL OR eba.effective_to > :branch_to_date)
               ORDER BY eba.effective_from DESC
               LIMIT 1"
         );
-        $stmt->execute([':emp_id' => $employeeId, ':punch_date' => $punchDate]);
+        $stmt->execute([
+            ':emp_id' => $employeeId,
+            ':branch_from_date' => $punchDate,
+            ':branch_to_date' => $punchDate,
+        ]);
         $branch = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$branch) {
@@ -184,14 +188,15 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
             "SELECT COUNT(*) FROM biometric_device_branch
               WHERE device_id    = :device_id
                 AND branch_id    = :branch_id
-                AND effective_from <= :punch_date
-                AND (effective_to IS NULL OR effective_to > :punch_date)
+                AND effective_from <= :coverage_from_date
+                AND (effective_to IS NULL OR effective_to > :coverage_to_date)
                 AND status = 'Active'"
         );
         $stmt->execute([
             ':device_id'  => $punch->deviceId,
             ':branch_id'  => $branchId,
-            ':punch_date' => $punchDate,
+            ':coverage_from_date' => $punchDate,
+            ':coverage_to_date'   => $punchDate,
         ]);
         if ((int) $stmt->fetchColumn() === 0) {
             return AttendancePunchMatch::unmatched(AttendancePunchMatch::OUT_OF_COVERAGE);
@@ -203,13 +208,17 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
             "SELECT esa.schedule_id
                FROM employee_schedule_assignment esa
               WHERE esa.employee_id    = :emp_id
-                AND esa.effective_from <= :punch_date
-                AND (esa.effective_to IS NULL OR esa.effective_to > :punch_date)
+                AND esa.effective_from <= :schedule_from_date
+                AND (esa.effective_to IS NULL OR esa.effective_to > :schedule_to_date)
                 AND esa.status = 'Active'
               ORDER BY esa.effective_from DESC
               LIMIT 1"
         );
-        $stmt->execute([':emp_id' => $employeeId, ':punch_date' => $punchDate]);
+        $stmt->execute([
+            ':emp_id' => $employeeId,
+            ':schedule_from_date' => $punchDate,
+            ':schedule_to_date' => $punchDate,
+        ]);
         $schedule   = $stmt->fetch(PDO::FETCH_ASSOC);
         $scheduleId = $schedule ? (int) $schedule['schedule_id'] : 0;
 
@@ -242,8 +251,8 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
 
         return new WorkSchedule(
             (int) $row['schedule_id'],
-            (string) $row['work_start_time'],
-            (string) $row['work_end_time'],
+            substr((string) $row['work_start_time'], 0, 5),
+            substr((string) $row['work_end_time'], 0, 5),
             (int) $row['break_minutes'],
             (int) $row['standard_minutes'],
         );
@@ -285,11 +294,15 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
         $stmt = $this->pdo->prepare(
             "SELECT branch_assignment_id FROM employee_branch_assignment
               WHERE employee_id = :emp_id
-                AND effective_from <= :d
-                AND (effective_to IS NULL OR effective_to > :d)
+                AND effective_from <= :branch_from_date
+                AND (effective_to IS NULL OR effective_to > :branch_to_date)
               ORDER BY effective_from DESC LIMIT 1"
         );
-        $stmt->execute([':emp_id' => $employeeId, ':d' => $punchDate]);
+        $stmt->execute([
+            ':emp_id' => $employeeId,
+            ':branch_from_date' => $punchDate,
+            ':branch_to_date' => $punchDate,
+        ]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         $baId = $row ? (int) $row['branch_assignment_id'] : null;
 
@@ -341,7 +354,7 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
     // Generated attendance persistence
     // -----------------------------------------------------------------------
 
-    public function saveGeneratedAttendance(GeneratedAttendance $attendance): void
+    public function saveGeneratedAttendance(int $batchId, GeneratedAttendance $attendance): void
     {
         $now      = $this->utcNow();
         $timeIn   = $attendance->timeIn  ? $attendance->timeIn->format('H:i:s')  : null;
@@ -360,23 +373,32 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
         $stmt = $this->pdo->prepare(
             "SELECT branch_assignment_id FROM employee_branch_assignment
               WHERE employee_id = :emp_id
-                AND effective_from <= :d
-                AND (effective_to IS NULL OR effective_to > :d)
+                AND effective_from <= :branch_from_date
+                AND (effective_to IS NULL OR effective_to > :branch_to_date)
               ORDER BY effective_from DESC LIMIT 1"
         );
-        $stmt->execute([':emp_id' => $attendance->employeeId, ':d' => $punchDate]);
+        $stmt->execute([
+            ':emp_id' => $attendance->employeeId,
+            ':branch_from_date' => $punchDate,
+            ':branch_to_date' => $punchDate,
+        ]);
         $baRow = $stmt->fetch(PDO::FETCH_ASSOC);
         $baId  = $baRow ? (int) $baRow['branch_assignment_id'] : null;
 
         $stmt = $this->pdo->prepare(
-            "SELECT schedule_id FROM work_schedule
-              WHERE employee_id = :emp_id
-                AND effective_from <= :d
-                AND (effective_to IS NULL OR effective_to > :d)
-                AND status = 'Active'
-              ORDER BY effective_from DESC LIMIT 1"
+            "SELECT esa.schedule_id
+               FROM employee_schedule_assignment esa
+              WHERE esa.employee_id = :emp_id
+                AND esa.effective_from <= :schedule_from_date
+                AND (esa.effective_to IS NULL OR esa.effective_to > :schedule_to_date)
+                AND esa.status = 'Active'
+              ORDER BY esa.effective_from DESC LIMIT 1"
         );
-        $stmt->execute([':emp_id' => $attendance->employeeId, ':d' => $punchDate]);
+        $stmt->execute([
+            ':emp_id' => $attendance->employeeId,
+            ':schedule_from_date' => $punchDate,
+            ':schedule_to_date' => $punchDate,
+        ]);
         $schRow    = $stmt->fetch(PDO::FETCH_ASSOC);
         $scheduleId = $schRow ? (int) $schRow['schedule_id'] : null;
 
@@ -392,8 +414,8 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
                 (:emp_id, :ba_id, :sch_id,
                  :date, :time_in, :time_out,
                  :worked, :late, :undertime, :overtime,
-                 :status, 'xls_import', NULL,
-                 :now, :now)
+                 :status, 'xls_import', :batch_id,
+                 :created_at, :updated_at)
              ON DUPLICATE KEY UPDATE
                 time_in               = VALUES(time_in),
                 time_out              = VALUES(time_out),
@@ -416,7 +438,9 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
             ':undertime' => $attendance->undertimeMinutes,
             ':overtime'  => $attendance->overtimeMinutes,
             ':status'    => $status,
-            ':now'       => $now,
+            ':batch_id'  => $batchId,
+            ':created_at' => $now,
+            ':updated_at' => $now,
         ]);
     }
 

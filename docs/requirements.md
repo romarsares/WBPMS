@@ -493,7 +493,55 @@ routine information.
 5. IF an employee attempts to access another employee's records THEN the
    system SHALL deny access.
 
-### Requirement 13: Employee Lifecycle and Documents (extension)
+### Requirement 13: Automatic Employee User Account Provisioning
+
+**User Story:** As the HR Head, when I add a new employee, I want the
+system to automatically create a login account for that employee, so that
+employees can access the self-service portal immediately without a separate
+manual setup step.
+
+#### Acceptance Criteria
+
+1. WHEN the HR Head successfully creates a new employee record THEN the
+   system SHALL automatically provision a linked user account with the
+   `Employee` role in the same transaction. [REQ010 extension]
+2. WHEN a new employee account is provisioned THEN the system SHALL derive
+   the username as `firstname.lastname` (lowercase, no spaces, ASCII-safe),
+   where `firstname` is the employee's given name and `lastname` is the
+   family name. [REQ010 extension]
+3. IF the derived username already exists THEN the system SHALL append a
+   sequential numeric suffix (e.g., `juan.dela_cruz2`) until the username is
+   unique, and surface the final assigned username to the HR Head.
+4. WHEN the auto-provisioned account is created THEN the system SHALL assign
+   a system-generated temporary password and mark the account
+   `requires_password_change = true`.
+5. WHEN an employee logs in with a `requires_password_change = true` account
+   THEN the system SHALL redirect the employee to a mandatory password-change
+   screen before granting access to any other module; the employee SHALL NOT
+   be able to navigate away without completing the change.
+6. WHEN the employee submits the new password THEN the system SHALL enforce
+   the same password policy as any other account reset, hash it with
+   `password_hash()` / `PASSWORD_DEFAULT`, clear the
+   `requires_password_change` flag, and redirect to the Employee dashboard.
+7. WHEN a new employee account is provisioned THEN the system SHALL display
+   the assigned username and the temporary password to the HR Head exactly
+   once, in a dismissible confirmation dialog, so HR can relay credentials
+   to the employee securely.
+8. THE SYSTEM SHALL NOT send credentials by email during initial provisioning;
+   email delivery of temporary credentials is out of scope until an SMTP
+   integration is approved.
+9. WHEN an employee record is archived THEN the system SHALL simultaneously
+   deactivate the linked user account, preventing further login. [REQ012,
+   Requirement 13 lifecycle extension]
+10. WHEN an archived employee is rehired THEN the system SHALL reactivate the
+    existing linked user account, generate a new temporary password, set
+    `requires_password_change = true`, and display the new temporary password
+    to the HR Head. [REQ009–REQ012 extension]
+11. FOR the one-to-one link between employee and user account, THE SYSTEM
+    SHALL enforce at most one active user account per employee identity and
+    at most one employee profile per user account at any given time.
+
+### Requirement 14: Employee Lifecycle and Documents (extension)
 
 **User Story:** As the HR Head, I want to archive a separated employee,
 rehire the same person without losing history, and maintain verified employee
@@ -525,6 +573,8 @@ complete and auditable.
 > The complete lifecycle, cascade boundaries, rehire rules, and document
 > controls are defined in
 > [Employee Lifecycle, Archive, Rehire, and Document Specification](employee-lifecycle-archive-rehire-spec.md).
+> Auto-provisioning rules for employee user accounts are defined in
+> Requirement 13 above.
 
 ---
 

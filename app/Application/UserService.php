@@ -63,6 +63,159 @@ final class UserService
     }
 
     // -----------------------------------------------------------------------
+    // Requirement 13 — Auto-provision an Employee user account
+    // -----------------------------------------------------------------------
+
+    /**
+     * Derive a unique username from first and last name.
+     *
+     * Format: firstname.lastname (lowercase ASCII, spaces/hyphens stripped).
+     * If the base candidate is taken, appends an incrementing suffix:
+     *   juan.delacruz → juan.delacruz2 → juan.delacruz3 …
+     *
+     * Called by EmployeeController::store() before the transaction opens.
+     */
+    public function deriveUsername(string $firstName, string $lastName): string
+    {
+        $slug = static fn(string $s): string =>
+            preg_replace(
+                '/[^a-z0-9.]/',
+                '',
+                str_replace([' ', '-', "'"], '', strtolower(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s))
+            ) ?? '';
+
+        $base = $slug($firstName) . '.' . $slug($lastName);
+        if ($base === '.') {
+            $base = 'employee';
+        }
+
+        // Trim to fit column limit (50) leaving room for a suffix
+        $base = substr($base, 0, 45);
+
+        $pdo  = $this->connection->pdo();
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE username = :u");
+
+        $candidate = $base;
+        $suffix    = 2;
+        while (true) {
+            $stmt->execute([':u' => $candidate]);
+            if ((int) $stmt->fetchColumn() === 0) {
+                break;
+            }
+            $candidate = $base . $suffix;
+            $suffix++;
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * Generate a cryptographically random temporary password.
+     *
+     * Produces a 12-character mixed-case alphanumeric string that satisfies
+     * the minimum 8-character policy enforced by validateCreateInput().
+     */
+    public function generateTemporaryPassword(): string
+    {
+        $chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        $len   = strlen($chars);
+        $out   = '';
+        for ($i = 0; $i < 12; $i++) {
+            $out .= $chars[random_int(0, $len - 1)];
+        }
+        return $out;
+    }
+
+    /**
+     * Provision an Employee user account inside an already-open transaction.
+     *
+     * Must be called with the *same* PDO connection that owns the outer
+     * transaction so that employee creation + account creation are atomic.
+     *
+     * Returns the new user_id.
+     *
+     * Requirement 13, AC1–AC4, AC7, AC11.
+     *
+     * @throws RuntimeException on role lookup failure or duplicate username
+     */
+    public function provisionForEmployee(
+        PDO    $pdo,
+        int    $employeeId,
+        string $username,
+        string $temporaryPassword,
+        int    $actingUserId
+    ): int {
+        // Resolve the Employee role_id
+        $roleStmt = $pdo->prepare("SELECT role_id FROM role WHERE role_name = 'Employee' LIMIT 1");
+        $roleStmt->execute();
+        $roleId = $roleStmt->fetchColumn();
+        if ($roleId === false) {
+            throw new RuntimeException("Role 'Employee' not found in the role table.");
+        }
+        $roleId = (int) $roleId;
+
+        // Guard: employee must not already have an active account
+        $dupStmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM users WHERE employee_id = :emp AND status != 'Archived'"
+        );
+        $dupStmt->execute([':emp' => $employeeId]);
+        if ((int) $dupStmt->fetchColumn() > 0) {
+            throw new RuntimeException('This employee already has an active user account.');
+        }
+
+        $hash = password_hash($temporaryPassword, PASSWORD_DEFAULT);
+
+        $ins = $pdo->prepare(
+            "INSERT INTO users
+                (employee_id, role_id, username, account_email,
+                 password_hash, status, requires_password_change)
+             VALUES
+                (:emp, :role, :user, :email,
+                 :pwd, 'Active', 1)"
+        );
+        $ins->execute([
+            ':emp'   => $employeeId,
+            ':role'  => $roleId,
+            ':user'  => $username,
+            // account_email is required (NOT NULL unique); use a system placeholder
+            // so HR can supply a real address later via User Management.
+            ':email' => 'noemail+emp' . $employeeId . '@lde.local',
+            ':pwd'   => $hash,
+        ]);
+
+        $newUserId = (int) $pdo->lastInsertId();
+
+        // Audit inside the same transaction
+        $pdo->prepare(
+            "INSERT INTO audit_logs
+                (user_id, event_type, action_performed, table_affected,
+                 record_id, description, action_at)
+             VALUES
+                (:uid, 'user_provisioned', 'user_provisioned', 'users',
+                 :rid, :desc, NOW())"
+        )->execute([
+            ':uid'  => $actingUserId,
+            ':rid'  => $newUserId,
+            ':desc' => "Auto-provisioned Employee account '{$username}' for employee_id={$employeeId}",
+        ]);
+
+        return $newUserId;
+    }
+
+    /**
+     * Clear the requires_password_change flag after the employee sets their
+     * own password.  Called by AuthController::changePassword().
+     *
+     * Requirement 13, AC6.
+     */
+    public function clearPasswordChangeFlag(int $userId): void
+    {
+        $this->connection->pdo()
+            ->prepare("UPDATE users SET requires_password_change = 0 WHERE user_id = :id")
+            ->execute([':id' => $userId]);
+    }
+
+    // -----------------------------------------------------------------------
     // REQ005 — Create
     // -----------------------------------------------------------------------
 
@@ -264,8 +417,10 @@ final class UserService
     {
         $stmt = $this->connection->pdo()->prepare(
             "SELECT u.user_id, u.username, u.account_email, u.status,
-                    u.employee_id, u.role_id, u.created_at
+                    u.employee_id, u.role_id, u.created_at,
+                    r.role_name
                FROM users u
+               JOIN role r ON r.role_id = u.role_id
               WHERE u.user_id = :id"
         );
         $stmt->execute([':id' => $userId]);

@@ -186,10 +186,14 @@ or deleted.
 
 ## 8. Implementation sequence
 
+**Implementation note (2026-09-03):** The lifecycle schema, transaction
+service, confirmation screens, and generic-status-edit guard are implemented.
+The employee-document and scanned-attachment capability in section 6 remains
+the next phase.
+
 Implement the lifecycle schema and service before exposing archive/re-hire
 buttons. Then add the document capability. Do not retrofit this by adding
 status updates inside the existing generic employee edit action; that would
 miss blockers, session invalidation, effective dating, and audit evidence.
 
 The exact engineering checklist is in `tasks.md` under task 4.6.
-

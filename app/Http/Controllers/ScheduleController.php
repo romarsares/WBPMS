@@ -82,13 +82,18 @@ final class ScheduleController
         }
 
         $this->repo()->create([
-            'employee_id'       => (int) ($_POST['employee_id'] ?? 0),
+            'schedule_name'     => $data['schedule_name'],
             'working_days'      => $this->buildWorkingDaysJson($data['work_days']),
             'rest_days'         => $this->buildRestDaysJson($data['work_days']),
             'work_start_time'   => $data['time_in'],
             'work_end_time'     => $data['time_out'],
             'standard_minutes'  => $this->computeStandardMinutes($data['time_in'], $data['time_out'], (int) $data['break_minutes']),
             'break_minutes'     => (int) $data['break_minutes'],
+            'grace_minutes'     => (int) $data['grace_minutes'],
+            'overtime_allowed'  => (int) $data['overtime_allowed'],
+            'break_start_time'  => $data['break_start'] !== '' ? $data['break_start'] : null,
+            'break_end_time'    => $data['break_end'] !== '' ? $data['break_end'] : null,
+            'notes'             => $data['notes'] !== '' ? $data['notes'] : null,
             'effective_from'    => $data['effective_from'] !== '' ? $data['effective_from'] : date('Y-m-d'),
             'status'            => $data['status'] !== '' ? ucfirst($data['status']) : 'Active',
         ]);
@@ -147,12 +152,18 @@ final class ScheduleController
         }
 
         $repo->update($id, [
+            'schedule_name'     => $data['schedule_name'],
             'working_days'      => $this->buildWorkingDaysJson($data['work_days']),
             'rest_days'         => $this->buildRestDaysJson($data['work_days']),
             'work_start_time'   => $data['time_in'],
             'work_end_time'     => $data['time_out'],
             'standard_minutes'  => $this->computeStandardMinutes($data['time_in'], $data['time_out'], (int) $data['break_minutes']),
             'break_minutes'     => (int) $data['break_minutes'],
+            'grace_minutes'     => (int) $data['grace_minutes'],
+            'overtime_allowed'  => (int) $data['overtime_allowed'],
+            'break_start_time'  => $data['break_start'] !== '' ? $data['break_start'] : null,
+            'break_end_time'    => $data['break_end'] !== '' ? $data['break_end'] : null,
+            'notes'             => $data['notes'] !== '' ? $data['notes'] : null,
             'effective_from'    => $data['effective_from'] !== '' ? $data['effective_from'] : date('Y-m-d'),
             'status'            => $data['status'] !== '' ? ucfirst($data['status']) : 'Active',
         ]);

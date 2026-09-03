@@ -91,6 +91,7 @@ final class LdeXlsDailyLogParser implements AttendanceFileParser
 
         $columns = [];
         $dates = [];
+        $contextMismatches = [];
         for ($index = 5; $index <= $maxColumn; $index++) {
             $column = Coordinate::stringFromColumnIndex($index);
             $raw = trim((string) $sheet->getCell($column . '1')->getFormattedValue());
@@ -109,7 +110,17 @@ final class LdeXlsDailyLogParser implements AttendanceFileParser
             }
             $date = new DateTimeImmutable(sprintf('%04d-%02d-%02d', $context->sourceYear, $month, $day), $context->timezone);
             if ($month !== $context->sourceMonth || $date->format('D') !== $parts[3]) {
-                $errors[] = new ParserError('DATE_CONTEXT_MISMATCH', 'A date header does not match the selected source period.', 1, $column);
+                // Keep the valid column so its row values do not generate a
+                // second, misleading UNEXPECTED_CELL error. Import is still
+                // stopped below by one actionable source-period error.
+                $columns[$index] = $date;
+                $contextMismatches[] = [
+                    'column' => $column,
+                    'header' => $raw,
+                    'month' => $month,
+                    'weekday' => $parts[3],
+                    'expected_weekday' => $date->format('D'),
+                ];
                 continue;
             }
             $key = $date->format('Y-m-d');
@@ -119,6 +130,43 @@ final class LdeXlsDailyLogParser implements AttendanceFileParser
             }
             $dates[$key] = true;
             $columns[$index] = $date;
+        }
+
+        if ($contextMismatches !== []) {
+            $first = $contextMismatches[0];
+            $selectedPeriod = (new DateTimeImmutable(sprintf(
+                '%04d-%02d-01',
+                $context->sourceYear,
+                $context->sourceMonth,
+            ), $context->timezone))->format('F Y');
+
+            if ($first['month'] !== $context->sourceMonth) {
+                $headerMonth = (new DateTimeImmutable(sprintf(
+                    '%04d-%02d-01',
+                    $context->sourceYear,
+                    $first['month'],
+                ), $context->timezone))->format('F');
+                $message = sprintf(
+                    'Workbook header %s is in %s, but the selected source period is %s. Select %s %d and upload again.',
+                    $first['header'],
+                    $headerMonth,
+                    $selectedPeriod,
+                    $headerMonth,
+                    $context->sourceYear,
+                );
+            } else {
+                $message = sprintf(
+                    'Workbook header %s has weekday %s, but %04d-%02d-%02d is %s. Select the report year that matches the workbook and upload again.',
+                    $first['header'],
+                    $first['weekday'],
+                    $context->sourceYear,
+                    $first['month'],
+                    (int) substr($first['header'], strpos($first['header'], '/') + 1, 2),
+                    $first['expected_weekday'],
+                );
+            }
+
+            $errors[] = new ParserError('DATE_CONTEXT_MISMATCH', $message, 1, $first['column']);
         }
 
         if ($columns === []) {

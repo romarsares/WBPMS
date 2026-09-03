@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Wbpms\Http\Controllers;
 
 use PDO;
+use Wbpms\Application\EmployeeLifecycleService;
+use Wbpms\Application\UserService;
 use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
@@ -98,52 +100,75 @@ final class EmployeeController
             return;
         }
 
-        $connection = $this->makeConnection();
+        $connection  = $this->makeConnection();
+        $userService = new UserService($connection);
+
+        // Derive username and temporary password BEFORE opening the transaction
+        // so collision detection runs on the same connection without nesting.
+        $username  = $userService->deriveUsername($data['first_name'], $data['last_name']);
+        $tempPwd   = $userService->generateTemporaryPassword();
+        $actorId   = (int) (AuthMiddleware::identity()['user_id'] ?? 0);
+
+        // Capture provisioned credentials for the post-save display.
+        $provisionedUsername = '';
 
         try {
-            $connection->transaction(function () use ($data, $repo): void {
-            $employeeId = $repo->createEmployee([
-                'employee_number'   => $data['employee_number'],
-                'employee_type'     => $data['employee_type'] ?: 'Regular',
-                'first_name'        => $data['first_name'],
-                'middle_initial'    => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
-                'last_name'         => $data['last_name'],
-                'email'             => $data['email']          !== '' ? $data['email']          : null,
-                'contact_number'    => $data['contact_number'] !== '' ? $data['contact_number'] : null,
-                'birthdate'         => $data['birthdate']      !== '' ? $data['birthdate']      : null,
-                'hire_date'         => $data['effective_from'],
-                'position'          => $data['position']       !== '' ? $data['position']       : 'Employee',
-                'status'            => 'Active',
-                'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
-                'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
-                'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
-            ]);
+            $connection->transaction(function (PDO $pdo) use (
+                $data, $repo, $userService, $username, $tempPwd, $actorId,
+                &$provisionedUsername
+            ): void {
+                $employeeId = $repo->createEmployee([
+                    'employee_number'   => $data['employee_number'],
+                    'employee_type'     => $data['employee_type'] ?: 'Regular',
+                    'first_name'        => $data['first_name'],
+                    'middle_initial'    => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
+                    'last_name'         => $data['last_name'],
+                    'email'             => $data['email']          !== '' ? $data['email']          : null,
+                    'contact_number'    => $data['contact_number'] !== '' ? $data['contact_number'] : null,
+                    'birthdate'         => $data['birthdate']      !== '' ? $data['birthdate']      : null,
+                    'hire_date'         => $data['effective_from'],
+                    'position'          => $data['position']       !== '' ? $data['position']       : 'Employee',
+                    'status'            => 'Active',
+                    'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
+                    'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
+                    'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
+                ]);
 
-            $repo->assignInitialBranch(
-                $employeeId,
-                (int) $data['branch_id'],
-                $data['effective_from']
-            );
-
-            $repo->assignEffectiveSchedule(
-                $employeeId,
-                (int) $data['schedule_id'],
-                $data['effective_from']
-            );
-
-            // Save daily rate in salary table if provided
-            if ($data['daily_rate'] !== '' && (float) $data['daily_rate'] > 0) {
-                $repo->createSalary($employeeId, (float) $data['daily_rate'], $data['effective_from']);
-            }
-
-            if ($data['device_id'] !== '' && $data['enrollment_code'] !== '') {
-                $repo->enrollBiometricCode(
+                $repo->assignInitialBranch(
                     $employeeId,
-                    (int) $data['device_id'],
-                    $data['enrollment_code'],
+                    (int) $data['branch_id'],
                     $data['effective_from']
                 );
-            }
+
+                $repo->assignEffectiveSchedule(
+                    $employeeId,
+                    (int) $data['schedule_id'],
+                    $data['effective_from']
+                );
+
+                if ($data['daily_rate'] !== '' && (float) $data['daily_rate'] > 0) {
+                    $repo->createSalary($employeeId, (float) $data['daily_rate'], $data['effective_from']);
+                }
+
+                if ($data['device_id'] !== '' && $data['enrollment_code'] !== '') {
+                    $repo->enrollBiometricCode(
+                        $employeeId,
+                        (int) $data['device_id'],
+                        $data['enrollment_code'],
+                        $data['effective_from']
+                    );
+                }
+
+                // Auto-provision the Employee login account (Requirement 13).
+                $userService->provisionForEmployee(
+                    $pdo,
+                    $employeeId,
+                    $username,
+                    $tempPwd,
+                    $actorId
+                );
+
+                $provisionedUsername = $username;
             });
         } catch (\PDOException $e) {
             $fieldErrors = $this->uniqueConstraintErrors($e);
@@ -163,8 +188,14 @@ final class EmployeeController
             return;
         }
 
-        ViewRenderer::flash('Employee created successfully.');
-        $this->redirect('/hr/employees');
+        // Show credentials exactly once — HR must relay these to the employee.
+        // Requirement 13, AC7: display username + temporary password in a
+        // dismissible confirmation screen; do NOT persist the plain password.
+        ViewRenderer::render('hr/employees/created', [
+            'employeeName' => trim($data['first_name'] . ' ' . $data['last_name']),
+            'username'     => $provisionedUsername,
+            'tempPassword' => $tempPwd,
+        ], 'Employee Created');
     }
 
     /**
@@ -283,6 +314,121 @@ final class EmployeeController
         ], 'Transfer Employee');
     }
 
+    /** @param array<string, string> $params */
+    public function archiveForm(array $params = []): void
+    {
+        $employee = $this->makeRepo()->findById((int) ($params['id'] ?? 0));
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+        if (strtolower((string) $employee['status']) === 'archived') {
+            ViewRenderer::flashError('This employee is already archived.');
+            $this->redirect('/hr/employees?status=archived');
+        }
+        ViewRenderer::render('hr/employees/archive', ['employee' => $employee, 'errors' => []], 'Archive Employee');
+    }
+
+    /** @param array<string, string> $params */
+    public function archive(array $params = []): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $employee = $this->makeRepo()->findById($id);
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $lastWorkingDate = trim((string) ($_POST['last_working_date'] ?? ''));
+        $reason = trim((string) ($_POST['reason'] ?? ''));
+        $notes = trim((string) ($_POST['notes'] ?? ''));
+        $errors = [];
+        if (!$this->isIsoDate($lastWorkingDate)) {
+            $errors['last_working_date'] = 'Enter a valid last working date.';
+        } elseif ($lastWorkingDate > date('Y-m-d')) {
+            $errors['last_working_date'] = 'Last working date cannot be in the future.';
+        }
+        if ($reason === '') {
+            $errors['reason'] = 'Archive reason is required.';
+        }
+        if (mb_strlen($reason) > 100) {
+            $errors['reason'] = 'Archive reason must be 100 characters or fewer.';
+        }
+        if (mb_strlen($notes) > 1000) {
+            $errors['notes'] = 'HR note must be 1,000 characters or fewer.';
+        }
+        if ($errors !== []) {
+            ViewRenderer::render('hr/employees/archive', ['employee' => $employee, 'errors' => $errors], 'Archive Employee');
+            return;
+        }
+
+        try {
+            $actorId = (int) (AuthMiddleware::identity()['user_id'] ?? 0);
+            (new EmployeeLifecycleService($this->makeConnection()))->archive($id, $lastWorkingDate, $reason, $notes !== '' ? $notes : null, $actorId);
+            ViewRenderer::flash('Employee archived. Their active assignments, salary, biometric enrollment, and account were closed while history was retained.');
+            $this->redirect('/hr/employees?status=archived');
+        } catch (\RuntimeException $e) {
+            $errors['form'] = $e->getMessage();
+            ViewRenderer::render('hr/employees/archive', ['employee' => $employee, 'errors' => $errors], 'Archive Employee');
+        }
+    }
+
+    /** @param array<string, string> $params */
+    public function rehireForm(array $params = []): void
+    {
+        $employee = $this->makeRepo()->findById((int) ($params['id'] ?? 0));
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+        if (strtolower((string) $employee['status']) !== 'archived') {
+            ViewRenderer::flashError('Only an archived employee can be rehired from this screen.');
+            $this->redirect('/hr/employees/' . (int) $employee['id'] . '/edit');
+        }
+        [$branches, $schedules, $devices, $positions] = $this->dropdownData();
+        ViewRenderer::render('hr/employees/rehire', compact('employee', 'branches', 'schedules', 'devices', 'positions') + ['errors' => []], 'Rehire Employee');
+    }
+
+    /** @param array<string, string> $params */
+    public function rehire(array $params = []): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $employee = $this->makeRepo()->findById($id);
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+        $data = [
+            'rehire_date' => trim((string) ($_POST['rehire_date'] ?? '')),
+            'branch_id' => (int) ($_POST['branch_id'] ?? 0),
+            'schedule_id' => (int) ($_POST['schedule_id'] ?? 0),
+            'device_id' => (int) ($_POST['device_id'] ?? 0),
+            'enrollment_code' => trim((string) ($_POST['enrollment_code'] ?? '')),
+            'daily_rate' => (float) ($_POST['daily_rate'] ?? 0),
+            'position' => trim((string) ($_POST['position'] ?? '')),
+            'employee_type' => trim((string) ($_POST['employee_type'] ?? '')),
+            'notes' => trim((string) ($_POST['notes'] ?? '')),
+            'reactivate_account' => isset($_POST['reactivate_account']),
+        ];
+        $errors = $this->validateRehire($data);
+        if ($errors === []) {
+            try {
+                $actorId = (int) (AuthMiddleware::identity()['user_id'] ?? 0);
+                $temporaryPassword = (new EmployeeLifecycleService($this->makeConnection()))->rehire($id, $data, $actorId);
+                $message = 'Employee rehired. A new employment episode and effective-dated assignments were created; historic records remain unchanged.';
+                if ($temporaryPassword !== null) {
+                    $message .= ' New temporary password: ' . $temporaryPassword . ' (give it to the employee securely; they must change it on first login).';
+                }
+                ViewRenderer::flash($message);
+                $this->redirect('/hr/employees/' . $id . '/edit');
+            } catch (\RuntimeException $e) {
+                $errors['form'] = $e->getMessage();
+            }
+        }
+        [$branches, $schedules, $devices, $positions] = $this->dropdownData();
+        ViewRenderer::render('hr/employees/rehire', compact('employee', 'branches', 'schedules', 'devices', 'positions', 'errors'), 'Rehire Employee');
+    }
+
     /**
      * POST /hr/employees/{id}  (with _method=PUT from the form)
      *
@@ -302,6 +448,13 @@ final class EmployeeController
 
         $data   = $this->extractPostFields();
         $errors = $this->validate($data, true, $repo, $id);
+
+        if (in_array(strtolower($data['status']), ['archived', 'separated'], true)) {
+            $errors['status'] = 'Use the controlled archive workflow to end an employment record.';
+        }
+        if (strtolower((string) $row['status']) === 'archived') {
+            $errors['status'] = 'Archived employees must be rehired through the rehire workflow before editing operational details.';
+        }
 
         if ($errors !== []) {
             [$branches, $schedules, $devices, $positions] = $this->dropdownData();
@@ -349,14 +502,24 @@ final class EmployeeController
     /**
      * @return array{
      *   employee_number: string,
+     *   employee_type: string,
      *   first_name: string,
      *   middle_name: string,
      *   last_name: string,
+     *   email: string,
+     *   contact_number: string,
+     *   birthdate: string,
+     *   position: string,
+     *   hire_date: string,
      *   effective_from: string,
      *   branch_id: string,
      *   schedule_id: string,
      *   device_id: string,
      *   enrollment_code: string,
+     *   daily_rate: string,
+     *   philhealth_number: string,
+     *   pagibig_number: string,
+     *   tin_number: string,
      *   status: string
      * }
      */
@@ -445,6 +608,34 @@ final class EmployeeController
         return $errors;
     }
 
+    /** @param array<string,mixed> $data @return array<string,string> */
+    private function validateRehire(array $data): array
+    {
+        $errors = [];
+        if (!$this->isIsoDate((string) $data['rehire_date'])) $errors['rehire_date'] = 'Rehire date is required.';
+        if ((int) $data['branch_id'] <= 0) $errors['branch_id'] = 'Branch is required.';
+        if ((int) $data['schedule_id'] <= 0) $errors['schedule_id'] = 'Work schedule is required.';
+        if ((int) $data['device_id'] <= 0) $errors['device_id'] = 'Biometric device is required.';
+        if ((string) $data['enrollment_code'] === '') $errors['enrollment_code'] = 'Biometric enrollment ID is required.';
+        if ((float) $data['daily_rate'] <= 0) $errors['daily_rate'] = 'Daily rate must be greater than 0.';
+        if ((string) $data['position'] === '') $errors['position'] = 'Position is required.';
+        if (!in_array((string) $data['employee_type'], ['Regular', 'Contractual'], true)) $errors['employee_type'] = 'Choose a valid employee type.';
+        if (mb_strlen((string) $data['notes']) > 1000) $errors['notes'] = 'HR note must be 1,000 characters or fewer.';
+        return $errors;
+    }
+
+    private function isIsoDate(string $date): bool
+    {
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        return $parsed !== false && $parsed->format('Y-m-d') === $date;
+    }
+
+    private function renderNotFound(): void
+    {
+        http_response_code(404);
+        ViewRenderer::render('errors/404', [], '404 Not Found');
+    }
+
     /**
      * Convert duplicate-key races into safe, field-level form errors.
      *
@@ -474,7 +665,8 @@ final class EmployeeController
      * @return array{
      *   0: list<array{id: int, name: string}>,
      *   1: list<array{id: int, name: string}>,
-     *   2: list<array{id: int, name: string}>
+     *   2: list<array{id: int, name: string}>,
+     *   3: list<array{id: int, name: string}>
      * }
      */
     private function dropdownData(): array

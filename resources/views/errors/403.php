@@ -1,82 +1,35 @@
 <?php
 
+declare(strict_types=1);
 
 use Wbpms\Http\View\Formatter;
 
-/**
- * 403 Forbidden
- *
- * @var string|null $message  Optional context message (safe to display)
- */
-
-$message ??= null;
-
-http_response_code(403);
+/** @var string $base */
+/** @var string $roleName */
+$dashboardPath = match ($roleName) {
+    'BusinessOwner' => '/owner/dashboard',
+    'HRHead'        => '/hr/dashboard',
+    default         => '/employee/dashboard',
+};
 ?>
 <!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>403 Forbidden · WBPMS</title>
-    <style>
-        *, *::before, *::after { box-sizing: border-box; }
-        body {
-            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-            background: #f4f5f7;
-            color: #1a202c;
-            margin: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-        }
-        .card {
-            background: #fff;
-            border: 1px solid #e5e7eb;
-            border-radius: 10px;
-            padding: 2.5rem 3rem;
-            max-width: 480px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,.07);
-        }
-        .code {
-            font-size: 5rem;
-            font-weight: 800;
-            color: #dc2626;
-            line-height: 1;
-            margin-bottom: .25rem;
-        }
-        h1 { font-size: 1.4rem; color: #111827; margin: .5rem 0 .75rem; }
-        p { color: #6b7280; font-size: .95rem; margin: 0 0 1.5rem; }
-        a {
-            display: inline-block;
-            padding: .55rem 1.25rem;
-            background: #4f46e5;
-            color: #fff;
-            border-radius: 5px;
-            font-size: .9rem;
-            text-decoration: none;
-        }
-        a:hover { background: #4338ca; }
-    </style>
+    <title>Access Denied | Light Diamond Enterprises</title>
+    <link rel="stylesheet" href="<?= Formatter::escape($base) ?>/assets/app.css?v=<?= filemtime(APP_ROOT . '/public/assets/app.css') ?>">
 </head>
-<body>
-<div class="card">
-    <div class="code">403</div>
-    <h1>Access Denied</h1>
-    <p>
-        <?php if ($message !== null): ?>
-            <?= Formatter::escape($message) ?>
-        <?php else: ?>
-            You do not have permission to access this page.
-            If you believe this is an error, please contact the HR Head or system administrator.
-        <?php endif; ?>
-    </p>
-    <a href="javascript:history.back()">Go back</a>
-</div>
+<body style="min-height:100vh;display:grid;place-items:center;background:#f3f4f6;margin:0;padding:1.5rem">
+    <main class="card" style="max-width:560px;width:100%;text-align:center;padding:2.25rem">
+        <div aria-hidden="true" style="font-size:3rem;line-height:1;margin-bottom:.75rem">&#128274;</div>
+        <p style="margin:0;color:#b45309;font-weight:700;letter-spacing:.08em;font-size:.8rem">ERROR 403</p>
+        <h1 style="margin:.45rem 0 .75rem">You don’t have access to this page</h1>
+        <p class="muted" style="margin:0 auto 1.5rem;max-width:430px">
+            Your <strong><?= Formatter::escape($roleName) ?></strong> account does not have permission to perform this action.
+            If you think this is incorrect, ask the Business Owner to review your account role.
+        </p>
+        <a href="<?= Formatter::escape($base . $dashboardPath) ?>" class="btn btn-primary">Go to my dashboard</a>
+    </main>
 </body>
 </html>

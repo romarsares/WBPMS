@@ -62,7 +62,7 @@ $v = static fn(string $key, string $fallback = ''): string =>
             <table class="data-table" id="schedTable">
                 <thead>
                     <tr>
-                        <th>Employee</th>
+                        <th>Schedule</th>
                         <th>Working Days</th>
                         <th>Time In</th>
                         <th>Time Out</th>
@@ -77,6 +77,8 @@ $v = static fn(string $key, string $fallback = ''): string =>
                 <?php if (empty($schedules)): ?>
                     <tr><td colspan="9" class="muted" style="text-align:center;padding:24px">No schedules defined yet. Click <strong>+ New Schedule</strong> to create one.</td></tr>
                 <?php else: foreach ($schedules as $s):
+                    // Legacy display key retained while schedule templates are rendered by this view.
+                    $s['employee_name'] = $s['schedule_name'] ?? '';
                     $days = $s['working_days'] ?? '[]';
                     if (is_string($days)) {
                         $decoded = json_decode($days, true);

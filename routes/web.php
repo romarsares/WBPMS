@@ -53,6 +53,10 @@ $router->add('POST', '/reset-password',[AuthController::class, 'resetPassword'],
 
 $router->add('POST', '/logout', [AuthController::class, 'logout'], ['BusinessOwner', 'HRHead', 'Employee']);
 
+// Requirement 13: mandatory first-login password change (any authenticated role)
+$router->add('GET',  '/change-password', [AuthController::class, 'showChangePassword'], ['BusinessOwner', 'HRHead', 'Employee']);
+$router->add('POST', '/change-password', [AuthController::class, 'changePassword'],     ['BusinessOwner', 'HRHead', 'Employee']);
+
 // ---------------------------------------------------------------------------
 // Business Owner — dashboard
 // ---------------------------------------------------------------------------
@@ -65,13 +69,14 @@ $router->add('GET', '/owner/dashboard', [DashboardController::class, 'ownerDashb
 //       "create" being captured as an {id} segment.
 // ---------------------------------------------------------------------------
 
-$router->add('GET',  '/users',              [UserController::class, 'index'],   ['BusinessOwner']);
-$router->add('GET',  '/users/create',       [UserController::class, 'create'],  ['BusinessOwner']);
-$router->add('POST', '/users',              [UserController::class, 'store'],   ['BusinessOwner']);
-$router->add('GET',  '/users/{id}/edit',    [UserController::class, 'edit'],    ['BusinessOwner']);
-$router->add('POST', '/users/{id}',         [UserController::class, 'update'],  ['BusinessOwner']);
-$router->add('POST', '/users/{id}/toggle',  [UserController::class, 'toggle'],  ['BusinessOwner']);
-$router->add('POST', '/users/{id}/archive', [UserController::class, 'archive'], ['BusinessOwner']);
+$router->add('GET',  '/users',              [UserController::class, 'index'],         ['BusinessOwner', 'HRHead']);
+$router->add('GET',  '/users/create',       [UserController::class, 'create'],        ['BusinessOwner']);
+$router->add('POST', '/users',              [UserController::class, 'store'],         ['BusinessOwner']);
+$router->add('GET',  '/users/{id}/edit',    [UserController::class, 'edit'],          ['BusinessOwner']);
+$router->add('POST', '/users/{id}',         [UserController::class, 'update'],        ['BusinessOwner']);
+$router->add('POST', '/users/{id}/toggle',  [UserController::class, 'toggle'],        ['BusinessOwner']);
+$router->add('POST', '/users/{id}/archive', [UserController::class, 'archive'],       ['BusinessOwner']);
+$router->add('POST', '/users/{id}/reset-password', [UserController::class, 'resetPassword'], ['BusinessOwner', 'HRHead']);
 
 // ---------------------------------------------------------------------------
 // Business Owner — Payroll review  (REQ050, REQ051)
@@ -98,6 +103,10 @@ $router->add('GET',  '/hr/employees/new',             [EmployeeController::class
 $router->add('POST', '/hr/employees',                [EmployeeController::class, 'store'],         ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}/transfer',  [EmployeeController::class, 'transferForm'],  ['HRHead']);
 $router->add('POST', '/hr/employees/{id}/transfer',  [EmployeeController::class, 'transfer'],      ['HRHead']);
+$router->add('GET',  '/hr/employees/{id}/archive',   [EmployeeController::class, 'archiveForm'],   ['HRHead']);
+$router->add('POST', '/hr/employees/{id}/archive',   [EmployeeController::class, 'archive'],       ['HRHead']);
+$router->add('GET',  '/hr/employees/{id}/rehire',    [EmployeeController::class, 'rehireForm'],    ['HRHead']);
+$router->add('POST', '/hr/employees/{id}/rehire',    [EmployeeController::class, 'rehire'],        ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}',           [EmployeeController::class, 'show'],          ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}/edit',      [EmployeeController::class, 'editForm'],      ['HRHead']);
 $router->add('POST', '/hr/employees/{id}',           [EmployeeController::class, 'update'],        ['HRHead']);

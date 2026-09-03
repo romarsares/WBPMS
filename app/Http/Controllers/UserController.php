@@ -27,7 +27,77 @@ use Wbpms\Infrastructure\Database\Connection;
 final class UserController
 {
     // -----------------------------------------------------------------------
-    // GET /users
+    // POST /users/{id}/reset-password   (HRHead + BusinessOwner)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Reset a user's password to a new system-generated temporary password
+     * and force them to change it on next login.
+     *
+     * HR Head may only reset Employee-role accounts.
+     * Business Owner may reset any account.
+     *
+     * Requirement 13 — HR password reset extension.
+     *
+     * @param array<string,string> $params
+     */
+    public function resetPassword(array $params = []): void
+    {
+        [$service, $identity, $base] = $this->setup();
+
+        $userId    = (int) ($params['id'] ?? 0);
+        $actorRole = $identity['role_name'] ?? '';
+        $actorId   = (int) ($identity['user_id'] ?? 0);
+
+        try {
+            $user = $service->findOrFail($userId);
+        } catch (RuntimeException) {
+            $this->notFound();
+            return;
+        }
+
+        // HR Head may only reset Employee-role accounts
+        if ($actorRole === 'HRHead' && ($user['role_name'] ?? '') !== 'Employee') {
+            $_SESSION['_flash'][] = ['error', 'HR Head may only reset passwords for Employee accounts.'];
+            $this->redirect('/users');
+            return;
+        }
+
+        $config  = require APP_ROOT . '/config/database.php';
+        $conn    = new Connection($config);
+        $tempPwd = $service->generateTemporaryPassword();
+        $hash    = password_hash($tempPwd, PASSWORD_DEFAULT);
+
+        $conn->pdo()->prepare(
+            "UPDATE users
+                SET password_hash = :hash,
+                    requires_password_change = 1,
+                    updated_at = UTC_TIMESTAMP()
+              WHERE user_id = :id"
+        )->execute([':hash' => $hash, ':id' => $userId]);
+
+        $conn->pdo()->prepare(
+            "INSERT INTO audit_logs
+                (user_id, event_type, action_performed, table_affected,
+                 record_id, description, action_at)
+             VALUES
+                (:uid, 'password_reset', 'password_reset', 'users',
+                 :rid, :desc, NOW())"
+        )->execute([
+            ':uid'  => $actorId,
+            ':rid'  => $userId,
+            ':desc' => "Password reset by {$actorRole} (user_id={$actorId}) for user '{$user['username']}'",
+        ]);
+
+        \Wbpms\Http\View\ViewRenderer::render('users/reset-password-done', [
+            'username'     => $user['username'],
+            'tempPassword' => $tempPwd,
+            'resetBy'      => $actorRole,
+        ], 'Password Reset');
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /users — index
     // -----------------------------------------------------------------------
 
     /** @param array<string,string> $params */

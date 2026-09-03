@@ -31,7 +31,7 @@ interface AttendanceImportGateway
 
     public function retainMatchedPunch(int $batchId, ParsedPunch $punch, int $employeeId, int $branchId): void;
 
-    public function saveGeneratedAttendance(GeneratedAttendance $attendance): void;
+    public function saveGeneratedAttendance(int $batchId, GeneratedAttendance $attendance): void;
 
     public function completeImportBatch(int $batchId, AttendanceImportSummary $summary): void;
 }

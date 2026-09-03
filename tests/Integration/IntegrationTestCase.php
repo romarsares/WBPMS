@@ -112,7 +112,7 @@ abstract class IntegrationTestCase extends TestCase
 
             return $pdo;
         } catch (PDOException $e) {
-            static::markTestSuiteSkipped(
+            static::markTestSkipped(
                 "Integration tests skipped: cannot connect to test database ({$dbname}@{$host}:{$port}). "
                 . 'Run `vendor/bin/phinx migrate -e testing` and ensure MySQL is running. '
                 . 'Original error: ' . $e->getMessage()

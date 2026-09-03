@@ -13,7 +13,9 @@ use Wbpms\Http\View\Formatter;
 ?>
 <div class="page-head">
     <div><h1>User Management</h1><p>System accounts and role assignments.</p></div>
+    <?php if ($roleName === 'BusinessOwner'): ?>
     <a class="btn btn-primary" href="<?= $base ?>/users/create">＋ New User</a>
+    <?php endif; ?>
 </div>
 
 <?php foreach ($flash as [$type, $msg]): ?>
@@ -57,6 +59,7 @@ use Wbpms\Http\View\Formatter;
                 <td><?= Formatter::date($r['created_at']) ?></td>
                 <td>
                     <?php if (!$isArchived): ?>
+                        <?php if ($roleName === 'BusinessOwner'): ?>
                         <a class="btn-secondary btn-sm"
                            href="<?= $base ?>/users/<?= (int)$r['user_id'] ?>/edit">Edit</a>
 
@@ -79,6 +82,18 @@ use Wbpms\Http\View\Formatter;
                             <?= $csrfField ?>
                             <button type="submit" class="btn-danger btn-sm">Archive</button>
                         </form>
+                        <?php endif; ?>
+
+                        <!-- Reset Password — HRHead (Employee accounts only) + BusinessOwner (any account) -->
+                        <?php if ($roleName === 'BusinessOwner' || ($roleName === 'HRHead' && $r['role_name'] === 'Employee')): ?>
+                        <form method="POST"
+                              action="<?= $base ?>/users/<?= (int)$r['user_id'] ?>/reset-password"
+                              style="display:inline"
+                              onsubmit="return confirm('Reset password for <?= Formatter::escape($r['username']) ?>? A new temporary password will be generated.')">
+                            <?= $csrfField ?>
+                            <button type="submit" class="btn-secondary btn-sm">Reset Password</button>
+                        </form>
+                        <?php endif; ?>
                     <?php else: ?>
                         <span class="muted" style="font-size:13px">Archived</span>
                     <?php endif; ?>

@@ -210,9 +210,12 @@ final class DashboardController
         // Current schedule
         $stmt = $pdo->prepare(
             "SELECT CONCAT(work_start_time, ' – ', work_end_time) AS schedule_name
-             FROM work_schedule
-             WHERE employee_id = :id AND effective_to IS NULL
-             ORDER BY effective_from DESC LIMIT 1"
+              FROM employee_schedule_assignment esa
+              JOIN work_schedule ws ON ws.schedule_id = esa.schedule_id
+              WHERE esa.employee_id = :id
+                AND esa.effective_to IS NULL
+                AND esa.status = 'Active'
+              ORDER BY esa.effective_from DESC LIMIT 1"
         );
         $stmt->execute([':id' => $employeeId]);
         $row          = $stmt->fetch(PDO::FETCH_ASSOC);

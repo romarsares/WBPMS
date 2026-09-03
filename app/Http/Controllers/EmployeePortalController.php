@@ -45,7 +45,7 @@ final class EmployeePortalController
      *
      * REQ075: own attendance view, scoped to session.employee_id.
      * Variable contract: resources/views/employee/attendance.php
-     *   expects $attendance (list of rows with camelCase keys) and $month.
+     *   expects $rows, $total, $present, $incomplete, and $totalOT.
      *
      * @param array<string, string> $params
      */
@@ -54,34 +54,41 @@ final class EmployeePortalController
         $employeeId = $this->requireEmployeeId();
         $pdo        = $this->makeConnection()->pdo();
 
-        $month = trim((string) ($_GET['month'] ?? date('Y-m')));
-
         $stmt = $pdo->prepare(
-            "SELECT attendance_date                      AS date,
-                    time_in                              AS timeIn,
-                    time_out                             AS timeOut,
-                    COALESCE(hours_worked_minutes, 0)    AS workedMinutes,
-                    COALESCE(late_minutes, 0)            AS lateMinutes,
-                    COALESCE(undertime_minutes, 0)       AS undertimeMinutes,
-                    COALESCE(overtime_minutes, 0)        AS overtimeMinutes
+            "SELECT attendance_date,
+                    time_in,
+                    time_out,
+                    COALESCE(hours_worked_minutes, 0) AS worked_minutes,
+                    COALESCE(late_minutes, 0)         AS late_minutes,
+                    COALESCE(undertime_minutes, 0)    AS undertime_minutes,
+                    COALESCE(overtime_minutes, 0)     AS overtime_minutes,
+                    CASE
+                        WHEN status = 'Incomplete' OR time_in IS NULL OR time_out IS NULL THEN 1
+                        ELSE 0
+                    END AS is_incomplete
              FROM attendance
              WHERE employee_id = :emp_id
-               AND DATE_FORMAT(attendance_date, '%Y-%m') = :month
-             ORDER BY attendance_date ASC"
+               AND attendance_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 89 DAY) AND CURDATE()
+             ORDER BY attendance_date DESC"
         );
-        $stmt->execute([':emp_id' => $employeeId, ':month' => $month]);
+        $stmt->execute([':emp_id' => $employeeId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Add empty flags array — policy flags are in attendance_policy_flag;
-        // deferred until AttendanceService is implemented
-        $attendance = array_map(static function (array $row): array {
-            $row['flags'] = [];
-            return $row;
-        }, $rows);
+        $total      = count($rows);
+        $incomplete = 0;
+        $totalOT    = 0;
+        foreach ($rows as $row) {
+            $incomplete += (int) $row['is_incomplete'];
+            $totalOT    += (int) $row['overtime_minutes'];
+        }
+        $present = $total - $incomplete;
 
         ViewRenderer::render('employee/attendance', [
-            'attendance' => $attendance,
-            'month'      => $month,
+            'rows'       => $rows,
+            'total'      => $total,
+            'present'    => $present,
+            'incomplete' => $incomplete,
+            'totalOT'    => $totalOT,
         ], 'My Attendance');
     }
 

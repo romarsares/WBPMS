@@ -117,6 +117,11 @@ $branches     ??= [];
             <td><?= $statusBadge ?></td>
             <td style="white-space:nowrap">
                 <a href="<?= $base ?>/hr/employees/<?= (int) $emp['id'] ?>/edit" class="btn btn-secondary btn-sm">Edit</a>
+                <?php if ($emp['status'] === 'archived'): ?>
+                <a href="<?= $base ?>/hr/employees/<?= (int) $emp['id'] ?>/rehire" class="btn btn-primary btn-sm">Rehire</a>
+                <?php else: ?>
+                <a href="<?= $base ?>/hr/employees/<?= (int) $emp['id'] ?>/archive" class="btn btn-secondary btn-sm">Archive</a>
+                <?php endif; ?>
             </td>
         </tr>
         <?php endforeach; ?>
