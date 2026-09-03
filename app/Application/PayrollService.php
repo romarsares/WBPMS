@@ -8,6 +8,9 @@ use DateTimeImmutable;
 use DateTimeZone;
 use PDO;
 use RuntimeException;
+use Wbpms\Domain\Payroll\HolidayPayCalculator;
+use Wbpms\Domain\Payroll\HolidayRecord;
+use Wbpms\Domain\Payroll\HolidayType;
 use Wbpms\Infrastructure\Database\Connection;
 
 /**
@@ -34,10 +37,12 @@ use Wbpms\Infrastructure\Database\Connection;
 final class PayrollService
 {
     private Connection $connection;
+    private HolidayPayCalculator $holidayCalc;
 
     public function __construct(Connection $connection)
     {
-        $this->connection = $connection;
+        $this->connection  = $connection;
+        $this->holidayCalc = new HolidayPayCalculator();
     }
 
     // ===================================================================
@@ -341,13 +346,78 @@ final class PayrollService
                 // (full days: worked_minutes >= standard_minutes - 30min tolerance)
                 $basicPay = round($daysCount * $dailyRate, 2);
 
-                // Overtime pay: overtime_minutes × (daily_rate / standard_minutes) × 1.25 (regular day)
+                // Regular-day overtime: overtime_minutes × (daily_rate / standard_minutes) × 1.25
+                // Holiday OT is re-attributed below; this will be adjusted for holiday rows.
                 $minuteRate  = $standardMinutes > 0 ? $dailyRate / $standardMinutes : 0;
                 $overtimePay = round($totalOvertime * $minuteRate * 1.25, 2);
 
-                $grossPay = $basicPay + $overtimePay;
+                // --- Holiday pay (REQ047, ADR-0001 §Holiday Pay) ---
+                // Fetch attendance rows that overlap an active holiday in this period.
+                // For each: compute holiday bundle, then apply an adjustment against the
+                // regular-day amounts already counted in $basicPay / $overtimePay.
+                $holidayDayAdj = 0.0;
+                $holidayOtAdj  = 0.0;
+                $holidayEarningRows = [];
 
-                // --- EEMR for contribution basis ---
+                $hStmt = $pdo->prepare(
+                    "SELECT a.attendance_id,
+                            a.hours_worked_minutes,
+                            a.overtime_minutes,
+                            hc.holiday_type,
+                            hc.description AS holiday_description
+                       FROM attendance a
+                       JOIN holiday_calendar hc
+                         ON hc.holiday_date = a.attendance_date
+                        AND hc.status = 'Active'
+                      WHERE a.employee_id = :emp_id
+                        AND a.attendance_date BETWEEN :start AND :end
+                        AND a.status IN ('Complete','Approved','ReviewRequired')"
+                );
+                $hStmt->execute([
+                    ':emp_id' => $employeeId,
+                    ':start'  => $periodStart,
+                    ':end'    => $periodEnd,
+                ]);
+                $holidayAttRows = $hStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                foreach ($holidayAttRows as $hRow) {
+                    $hType      = HolidayType::from($hRow['holiday_type']);
+                    $workedMins = (int) $hRow['hours_worked_minutes'];
+                    $hOtMins    = (int) $hRow['overtime_minutes'];
+                    $worked     = $workedMins > 0;
+
+                    $bundle = $this->holidayCalc->computeBundle(
+                        dailyRate:       $dailyRate,
+                        type:            $hType,
+                        worked:          $worked,
+                        isRestDay:       false, // rest-day detection requires schedule join; pending
+                        overtimeMinutes: $hOtMins,
+                        standardMinutes: $standardMinutes,
+                    );
+
+                    // The attendance aggregation already counted this date as a regular day.
+                    // Swap out the regular-day contribution for the holiday amount.
+                    $regularDayAmt = $worked ? $dailyRate : 0.0;
+                    $holidayDayAdj += round($bundle['day_pay'] - $regularDayAmt, 2);
+
+                    // Swap regular OT for holiday OT on this date
+                    $regularOtAmt  = round($hOtMins * $minuteRate * 1.25, 2);
+                    $holidayOtAdj += round($bundle['overtime_pay'] - $regularOtAmt, 2);
+
+                    if ($bundle['day_pay'] > 0.0 || $bundle['overtime_pay'] > 0.0) {
+                        $holidayEarningRows[] = [
+                            'type'        => $bundle['earning_type'],
+                            'description' => $hRow['holiday_description'],
+                            'qty'         => 1,
+                            'unit_rate'   => $dailyRate,
+                            'multiplier'  => $bundle['multiplier_used'],
+                            'amount'      => round($bundle['day_pay'] + $bundle['overtime_pay'], 2),
+                        ];
+                    }
+                }
+
+                $grossPay = round($basicPay + $overtimePay + $holidayDayAdj + $holidayOtAdj, 2);
+
                 // EEMR = (daily_rate × eemr_days_per_year) / 12
                 $eemr = round(($dailyRate * $eemrDaysPerYear) / 12, 2);
 
@@ -408,6 +478,15 @@ final class PayrollService
                 $this->insertEarning($pdo, $payrollId, 'Basic', 'Basic Pay', $daysCount, $dailyRate, 1.0, $basicPay, $now);
                 if ($overtimePay > 0) {
                     $this->insertEarning($pdo, $payrollId, 'Overtime', 'Overtime Pay', $totalOvertime, $minuteRate, 1.25, $overtimePay, $now);
+                }
+                // --- Holiday earnings rows (REQ047) ---
+                foreach ($holidayEarningRows as $hr) {
+                    $this->insertEarning(
+                        $pdo, $payrollId,
+                        $hr['type'], $hr['description'],
+                        $hr['qty'], $hr['unit_rate'], $hr['multiplier'], $hr['amount'],
+                        $now
+                    );
                 }
 
                 // --- Deduction rows ---
