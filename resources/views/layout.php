@@ -49,7 +49,7 @@ $nav = match ($roleName) {
         ['hr/benefits',      'Benefits & Deductions',  '＋', 'benefits'],
         ['hr/reports',       'Reports',                '▤', 'reports'],
         ['users',            'User Accounts',          '👤', 'users'],
-        ['hr/settings/positions', 'Settings',         '⚙', 'settings'],
+        ['hr/settings',      'Settings',               '⚙', 'settings'],
     ],
     default => [ // Employee
         ['employee/dashboard',  'Dashboard',                   '⌂', 'dashboard'],

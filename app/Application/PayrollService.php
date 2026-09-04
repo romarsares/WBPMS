@@ -17,7 +17,7 @@ use Wbpms\Infrastructure\Database\Connection;
  * PayrollService — orchestrates the full payroll lifecycle.
  *
  * Responsibilities (ADR-0001):
- *   - Period management (create Friday→Thursday periods).
+ *   - Period management (create Sunday→Friday periods).
  *   - Draft payroll run creation.
  *   - Computation: gross from attendance, deductions (late/undertime/contributions/cash-advance), net.
  *   - Submission to Owner (Draft/Computed → PendingOwnerApproval).
@@ -28,7 +28,7 @@ use Wbpms\Infrastructure\Database\Connection;
  * Money is always handled as integer centavos internally, stored as DECIMAL(12,2).
  *
  * ADR-0001 payroll cycle:
- *   period_start = Friday, period_end = Thursday, pay_date = Friday after period_end.
+ *   period_start = Sunday, period_end = Friday, pay_date = the period-ending Friday.
  *   EEMR = (daily_rate × eemr_days_per_year) / 12.
  *   Late deduction = late_minutes × late_rate_per_minute (default ₱1.00/min).
  *   Undertime deduction = undertime_minutes × (daily_rate / standard_minutes).
@@ -50,8 +50,8 @@ final class PayrollService
     // ===================================================================
 
     /**
-     * Create one Friday→Thursday payroll period.
-     * Validates that the supplied date is a Friday.
+     * Create one Sunday→Friday payroll period.
+     * Validates that the supplied date is a Sunday.
      */
     public function createPeriod(string $periodStart): int
     {
@@ -59,12 +59,12 @@ final class PayrollService
         if ($start === false) {
             throw new RuntimeException('Invalid period start date. Use YYYY-MM-DD format.');
         }
-        if ((int) $start->format('N') !== 5) { // 5 = Friday
-            throw new RuntimeException('Period start must be a Friday (ADR-0001).');
+        if ((int) $start->format('N') !== 7) { // 7 = Sunday
+            throw new RuntimeException('Period start must be a Sunday.');
         }
 
-        $end     = $start->modify('+6 days');  // Thursday
-        $payDate = $end->modify('+1 day');     // Friday
+        $end     = $start->modify('+5 days');  // Friday
+        $payDate = $end;                       // Salary is released Friday
 
         $pdo = $this->connection->pdo();
 
@@ -76,8 +76,10 @@ final class PayrollService
         }
 
         $stmt = $pdo->prepare(
-            "INSERT INTO payroll_period (period_start, period_end, pay_date, status, created_at, updated_at)
-             VALUES (:start, :end, :pay, 'Open', :now, :now)"
+            "INSERT INTO payroll_period
+                (period_start, period_end, pay_date, cutoff_pattern, status, created_at, updated_at)
+             VALUES
+                (:start, :end, :pay, 'SundayFriday', 'Open', :now, :now)"
         );
         $now = $this->utcNow();
         $stmt->execute([
@@ -93,9 +95,19 @@ final class PayrollService
     public function listPeriods(): array
     {
         return $this->connection->pdo()->query(
-            "SELECT payroll_period_id, period_start, period_end, pay_date, status, created_at
-               FROM payroll_period
-              ORDER BY period_start DESC"
+            "SELECT pp.payroll_period_id,
+                    pp.period_start,
+                    pp.period_end,
+                    pp.pay_date,
+                    pp.cutoff_pattern,
+                    pp.status,
+                    pp.created_at,
+                    COUNT(pr.payroll_run_id) AS run_count
+               FROM payroll_period pp
+               LEFT JOIN payroll_run pr ON pr.payroll_period_id = pp.payroll_period_id
+              GROUP BY pp.payroll_period_id, pp.period_start, pp.period_end, pp.pay_date,
+                       pp.cutoff_pattern, pp.status, pp.created_at
+              ORDER BY pp.period_start DESC"
         )->fetchAll(PDO::FETCH_ASSOC);
     }
 

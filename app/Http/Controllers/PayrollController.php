@@ -112,6 +112,18 @@ final class PayrollController
     }
 
     // -----------------------------------------------------------------------
+    // GET /hr/payroll/periods  (legacy — redirect to /hr/settings/periods)
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function redirectPeriods(array $params = []): void
+    {
+        $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        header('Location: ' . $base . '/hr/settings/periods', true, 301);
+        exit;
+    }
+
+    // -----------------------------------------------------------------------
     // GET /hr/payroll/create
     // -----------------------------------------------------------------------
 

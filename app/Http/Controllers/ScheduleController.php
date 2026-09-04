@@ -361,6 +361,22 @@ final class ScheduleController
     }
 
     // =========================================================================
+    // Legacy redirects
+    // =========================================================================
+
+    /**
+     * GET /hr/schedules/holidays  (legacy — redirect to /hr/settings/holidays)
+     *
+     * @param array<string, string> $params
+     */
+    public function redirectHolidays(array $params = []): void
+    {
+        $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        header('Location: ' . $base . '/hr/settings/holidays', true, 301);
+        exit;
+    }
+
+    // =========================================================================
     // Private helpers
     // =========================================================================
 

@@ -39,6 +39,9 @@ final class ViewRenderer
         $roleName = $identity['role_name'] ?? '';
         $userName = $identity['username']  ?? '';
 
+        // Active sidebar nav key — forwarded from the view's $data array when provided.
+        $activePage = isset($data['activePage']) ? (string) $data['activePage'] : '';
+
         // One-time flash messages stored in the session
         $flash      = null;
         $flashError = null;
@@ -55,7 +58,7 @@ final class ViewRenderer
         header('Content-Type: text/html; charset=utf-8');
 
         // Render the layout
-        self::captureLayout($title, $content, $roleName, $userName, $csrf, $flash, $flashError);
+        self::captureLayout($title, $content, $roleName, $userName, $csrf, $flash, $flashError, $activePage);
     }
 
     /**
@@ -125,7 +128,8 @@ final class ViewRenderer
         string  $userName,
         string  $csrf,
         ?string $flash,
-        ?string $flashError
+        ?string $flashError,
+        string  $activePage = ''
     ): void {
         $layoutPath = APP_ROOT . '/resources/views/layout.php';
 

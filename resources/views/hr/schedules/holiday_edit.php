@@ -25,7 +25,7 @@ $id = (int) $holiday['holiday_id'];
 <div class="card">
     <div class="card-body">
         <form method="POST" action="/hr/schedules/holidays/<?= $id ?>">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES) ?>">
+            <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf, ENT_QUOTES) ?>">
             <input type="hidden" name="_method" value="PUT">
 
             <div class="form-group <?= isset($errors['holiday_date']) ? 'has-error' : '' ?>">

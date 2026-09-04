@@ -21,13 +21,13 @@ use Wbpms\Http\Controllers\DashboardController;
 use Wbpms\Http\Controllers\EmployeeController;
 use Wbpms\Http\Controllers\EmployeePortalController;
 use Wbpms\Http\Controllers\HealthController;
-use Wbpms\Http\Controllers\PositionController;
 use Wbpms\Http\Controllers\OwnerController;
 use Wbpms\Http\Controllers\PayrollController;
 use Wbpms\Http\Controllers\ReportsController;
 use Wbpms\Http\Controllers\RequestsController;
 use Wbpms\Http\Controllers\SalaryController;
 use Wbpms\Http\Controllers\ScheduleController;
+use Wbpms\Http\Controllers\SettingsController;
 use Wbpms\Http\Controllers\UserController;
 
 // ---------------------------------------------------------------------------
@@ -119,11 +119,8 @@ $router->add('GET',  '/hr/schedules',               [ScheduleController::class, 
 $router->add('POST', '/hr/schedules',               [ScheduleController::class, 'store'],       ['HRHead']);
 $router->add('GET',  '/hr/schedules/assign',        [ScheduleController::class, 'assignForm'],  ['HRHead']);
 $router->add('POST', '/hr/schedules/assign',        [ScheduleController::class, 'assign'],      ['HRHead']);
-$router->add('GET',  '/hr/schedules/holidays',      [ScheduleController::class, 'holidayIndex'],['HRHead']);
-$router->add('POST', '/hr/schedules/holidays',      [ScheduleController::class, 'storeHoliday'],['HRHead']);
-$router->add('GET',  '/hr/schedules/holidays/{id}/edit',   [ScheduleController::class, 'editHoliday'],  ['HRHead']);
-$router->add('POST', '/hr/schedules/holidays/{id}',        [ScheduleController::class, 'updateHoliday'],['HRHead']);
-$router->add('POST', '/hr/schedules/holidays/{id}/delete', [ScheduleController::class, 'deleteHoliday'],['HRHead']);
+// Legacy: /hr/schedules/holidays* redirect to /hr/settings/holidays
+$router->add('GET',  '/hr/schedules/holidays',      [ScheduleController::class, 'redirectHolidays'], ['HRHead']);
 $router->add('GET',  '/hr/schedules/{id}/edit',     [ScheduleController::class, 'editForm'],    ['HRHead']);
 $router->add('PUT',  '/hr/schedules/{id}',          [ScheduleController::class, 'update'],      ['HRHead']);
 
@@ -174,8 +171,8 @@ $router->add('POST', '/hr/benefits/contributions/{id}/unlock',    [BenefitsContr
 // ---------------------------------------------------------------------------
 
 $router->add('GET',  '/hr/payroll',                  [PayrollController::class, 'index'],        ['HRHead']);
-$router->add('GET',  '/hr/payroll/periods',           [PayrollController::class, 'listPeriods'],   ['HRHead']);
-$router->add('POST', '/hr/payroll/periods',           [PayrollController::class, 'storePeriod'],   ['HRHead']);
+// Legacy: /hr/payroll/periods redirects to /hr/settings/periods
+$router->add('GET',  '/hr/payroll/periods',           [PayrollController::class, 'redirectPeriods'], ['HRHead']);
 $router->add('GET',  '/hr/payroll/create',            [PayrollController::class, 'create'],        ['HRHead']);
 $router->add('POST', '/hr/payroll',                  [PayrollController::class, 'store'],    ['HRHead']);
 $router->add('GET',  '/hr/payroll/{id}',             [PayrollController::class, 'show'],     ['HRHead']);
@@ -190,14 +187,28 @@ $router->add('GET',  '/hr/reports',        [ReportsController::class, 'index'], 
 $router->add('GET',  '/hr/reports/export', [ReportsController::class, 'export'],   ['HRHead', 'BusinessOwner']);
 
 // ---------------------------------------------------------------------------
-// HR Head — Settings  (Job Positions)
-// NOTE: /hr/settings/positions/{id}/toggle before /hr/settings/positions/{id}
+// HR Head — Settings  (Job Positions · Payroll Periods · Holidays)
+// NOTE: specific sub-routes must be registered before the {id} catch-all.
 // ---------------------------------------------------------------------------
 
-$router->add('GET',  '/hr/settings/positions',              [PositionController::class, 'index'],  ['HRHead']);
-$router->add('POST', '/hr/settings/positions',              [PositionController::class, 'store'],  ['HRHead']);
-$router->add('POST', '/hr/settings/positions/{id}/toggle',  [PositionController::class, 'toggle'], ['HRHead']);
-$router->add('POST', '/hr/settings/positions/{id}',         [PositionController::class, 'update'], ['HRHead']);
+$router->add('GET',  '/hr/settings',                              [SettingsController::class, 'index'],          ['HRHead']);
+
+// Job Positions
+$router->add('GET',  '/hr/settings/positions',                    [SettingsController::class, 'positions'],       ['HRHead']);
+$router->add('POST', '/hr/settings/positions',                    [SettingsController::class, 'storePosition'],   ['HRHead']);
+$router->add('POST', '/hr/settings/positions/{id}/toggle',        [SettingsController::class, 'togglePosition'],  ['HRHead']);
+$router->add('POST', '/hr/settings/positions/{id}',               [SettingsController::class, 'updatePosition'],  ['HRHead']);
+
+// Payroll Periods
+$router->add('GET',  '/hr/settings/periods',                      [SettingsController::class, 'periods'],         ['HRHead']);
+$router->add('POST', '/hr/settings/periods',                      [SettingsController::class, 'storePeriod'],     ['HRHead']);
+
+// Holidays
+$router->add('GET',  '/hr/settings/holidays',                     [SettingsController::class, 'holidays'],        ['HRHead']);
+$router->add('POST', '/hr/settings/holidays',                     [SettingsController::class, 'storeHoliday'],    ['HRHead']);
+$router->add('GET',  '/hr/settings/holidays/{id}/edit',           [SettingsController::class, 'editHoliday'],     ['HRHead']);
+$router->add('PUT',  '/hr/settings/holidays/{id}',                [SettingsController::class, 'updateHoliday'],   ['HRHead']);
+$router->add('POST', '/hr/settings/holidays/{id}/delete',         [SettingsController::class, 'deleteHoliday'],   ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // Employee self-service portal  (REQ074–REQ082)

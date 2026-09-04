@@ -230,20 +230,23 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     /**
-     * Insert a valid payroll_period (period_start on a Friday) and return its id.
+     * Insert a valid payroll_period and return its id.
      *
-     * Defaults to 2026-09-04 (Friday) → 2026-09-10 (Thursday), pay 2026-09-11.
+     * Defaults to 2026-09-06 (Sunday) → 2026-09-11 (Friday), paid Friday.
      */
     protected function insertPayrollPeriod(
-        string $start = '2026-09-04',
-        string $end   = '2026-09-10',
+        string $start = '2026-09-06',
+        string $end   = '2026-09-11',
         string $pay   = '2026-09-11'
     ): int {
+        $pattern = (new \DateTimeImmutable($start))->format('w') === '5'
+            ? 'LegacyFridayThursday'
+            : 'SundayFriday';
         $stmt = $this->pdo->prepare(
-            "INSERT INTO payroll_period (period_start, period_end, pay_date)
-             VALUES (:s, :e, :p)"
+            "INSERT INTO payroll_period (period_start, period_end, pay_date, cutoff_pattern)
+             VALUES (:s, :e, :p, :pattern)"
         );
-        $stmt->execute([':s' => $start, ':e' => $end, ':p' => $pay]);
+        $stmt->execute([':s' => $start, ':e' => $end, ':p' => $pay, ':pattern' => $pattern]);
         return (int) $this->pdo->lastInsertId();
     }
 

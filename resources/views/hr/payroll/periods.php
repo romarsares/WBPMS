@@ -25,7 +25,7 @@ $statusBadge = static function (string $s): string {
 <div class="page-head">
     <div>
         <h1>Payroll Periods</h1>
-        <p>Weekly pay windows (Friday → Thursday). <a href="<?= $base ?>/hr/payroll">← Back to Payroll</a></p>
+        <p>Weekly pay windows (Sunday → Friday). <a href="<?= $base ?>/hr/payroll">← Back to Payroll</a></p>
     </div>
 </div>
 
@@ -48,7 +48,7 @@ $statusBadge = static function (string $s): string {
 
             <div class="form-group">
                 <label for="period_start">
-                    Period Start (Friday) <span style="color:var(--bad)">*</span>
+                    Period Start (Sunday) <span style="color:var(--bad)">*</span>
                 </label>
                 <input type="date"
                        id="period_start"
@@ -56,7 +56,7 @@ $statusBadge = static function (string $s): string {
                        class="form-control <?= $errors !== [] ? 'is-invalid' : '' ?>"
                        value="<?= Formatter::escape($period_start) ?>"
                        required>
-                <span class="help">Must be a Friday. End date and pay date are calculated automatically.</span>
+                <span class="help">Must be a Sunday. The period ends and salary is released on Friday.</span>
             </div>
 
             <!-- Preview auto-calculated values via JS -->
@@ -178,14 +178,14 @@ $statusBadge = static function (string $s): string {
         var start = new Date(+parts[0], +parts[1] - 1, +parts[2]);
         if (isNaN(start)) { preview.style.display = 'none'; return; }
 
-        if (start.getDay() !== 5) { // 5 = Friday
+        if (start.getDay() !== 0) { // 0 = Sunday
             preview.style.display = 'none';
             return;
         }
 
-        var end = addDays(start, 6);
-        var pay = addDays(start, 7);
-        previewEnd.textContent = fmt(end) + ' (Thu)';
+        var end = addDays(start, 5);
+        var pay = end;
+        previewEnd.textContent = fmt(end) + ' (Fri)';
         previewPay.textContent = fmt(pay) + ' (Fri)';
         preview.style.display = 'block';
     });

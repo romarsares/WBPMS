@@ -261,12 +261,12 @@ final class SchemaInvariantsTest extends IntegrationTestCase
      * ADR-0002 §16 / chk_period_start_friday:
      * A payroll_period whose start is not a Friday must be rejected.
      */
-    public function testPayrollPeriodNonFridayStartIsRejected(): void
+    public function testPayrollPeriodNonSundayStartIsRejected(): void
     {
         // 2026-09-07 is a Monday
         $this->assertDbException(
             fn () => $this->insertPayrollPeriod('2026-09-07', '2026-09-13', '2026-09-14'),
-            'period_start is Monday, not Friday'
+            'period_start is Monday, not Sunday'
         );
     }
 
@@ -274,12 +274,12 @@ final class SchemaInvariantsTest extends IntegrationTestCase
      * ADR-0002 §16 / chk_period_end_thursday:
      * A payroll_period whose end is not a Thursday must be rejected.
      */
-    public function testPayrollPeriodNonThursdayEndIsRejected(): void
+    public function testPayrollPeriodNonFridayEndIsRejected(): void
     {
         // 2026-09-04 is Friday, 2026-09-11 is Friday — not Thursday.
         $this->assertDbException(
-            fn () => $this->insertPayrollPeriod('2026-09-04', '2026-09-11', '2026-09-12'),
-            'period_end is Friday, not Thursday'
+            fn () => $this->insertPayrollPeriod('2026-09-06', '2026-09-10', '2026-09-10'),
+            'period_end is Thursday, not Friday'
         );
     }
 
@@ -287,12 +287,12 @@ final class SchemaInvariantsTest extends IntegrationTestCase
      * ADR-0002 §16 / chk_period_seven_days:
      * A payroll_period that is not exactly 7 calendar days must be rejected.
      */
-    public function testPayrollPeriodNonSevenDaysIsRejected(): void
+    public function testPayrollPeriodNonSixDaysIsRejected(): void
     {
         // 2026-09-04 (Fri) to 2026-09-09 (Wed) = 5 days, not 6 (DATEDIFF = 5, not 6)
         $this->assertDbException(
-            fn () => $this->insertPayrollPeriod('2026-09-04', '2026-09-09', '2026-09-10'),
-            'period is 5 days, not 7 calendar days'
+            fn () => $this->insertPayrollPeriod('2026-09-06', '2026-09-09', '2026-09-09'),
+            'period is not 6 calendar days'
         );
     }
 
@@ -304,8 +304,8 @@ final class SchemaInvariantsTest extends IntegrationTestCase
     {
         // 2026-09-04 (Fri) → 2026-09-10 (Thu); correct pay = 2026-09-11 (Fri)
         $this->assertDbException(
-            fn () => $this->insertPayrollPeriod('2026-09-04', '2026-09-10', '2026-09-12'),
-            'pay_date is 2 days after period_end, should be 1 day'
+            fn () => $this->insertPayrollPeriod('2026-09-06', '2026-09-11', '2026-09-12'),
+            'pay_date is after the period-ending Friday'
         );
     }
 
@@ -315,8 +315,8 @@ final class SchemaInvariantsTest extends IntegrationTestCase
     public function testValidPayrollPeriodIsAccepted(): void
     {
         $this->assertDbSuccess(
-            fn () => $this->insertPayrollPeriod('2026-09-04', '2026-09-10', '2026-09-11'),
-            'valid Friday-start payroll period'
+            fn () => $this->insertPayrollPeriod('2026-09-06', '2026-09-11', '2026-09-11'),
+            'valid Sunday-start payroll period'
         );
     }
 

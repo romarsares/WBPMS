@@ -86,11 +86,9 @@ mirrors for development tooling and must not independently redefine rules.
 
 ### Weekly payroll and time rules
 
-- The recurring period is Friday through Thursday with Saturday as rest day,
-  producing six scheduled working days. Thursday closes attendance, Friday
-  morning is Owner review, and Friday afternoon is disbursement/payslip release.
-- The first Sunday-through-Thursday biometric week is retained only as
-  historical transition data.
+- The recurring payroll period is Sunday through Friday. Friday is both the
+  attendance cutoff and salary-release date. Basic pay is the daily rate times
+  accepted days worked, with overtime and deductions applied separately.
 - Default documented shifts are 07:00–16:00 and 08:00–17:00 with eight paid
   hours. The MVP uses no undocumented grace period.
 - A single punch is incomplete and cannot be automatically paid. More than

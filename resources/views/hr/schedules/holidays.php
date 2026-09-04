@@ -28,7 +28,7 @@ $input = $input ?? [];
     <div class="card-header"><strong>Add Holiday</strong></div>
     <div class="card-body">
         <form method="POST" action="/hr/schedules/holidays" class="form-inline-grid">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES) ?>">
+            <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf, ENT_QUOTES) ?>">
 
             <div class="form-group <?= isset($errors['holiday_date']) ? 'has-error' : '' ?>">
                 <label for="holiday_date">Date</label>
@@ -113,7 +113,7 @@ $input = $input ?? [];
                                           action="/hr/schedules/holidays/<?= (int) $h['holiday_id'] ?>/delete"
                                           style="display:inline;"
                                           onsubmit="return confirm('Deactivate this holiday?');">
-                                        <input type="hidden" name="csrf_token"
+                                        <input type="hidden" name="_csrf"
                                                value="<?= htmlspecialchars($csrf, ENT_QUOTES) ?>">
                                         <button type="submit" class="btn btn-sm btn-danger">Deactivate</button>
                                     </form>

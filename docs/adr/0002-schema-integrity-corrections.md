@@ -65,8 +65,7 @@ translate that evidence into the implementation schema.
 15. `payslip.payroll_id` is unique. Bank accounts are effective-dated and the
     service enforces one current active BDO account per employee.
 16. The recurring payroll calendar is protected by checks/service validation:
-    Friday start, Thursday end, seven calendar days, and pay date on the
-    immediately following Friday.
+    Sunday start, Friday end, six calendar dates, and pay date on that Friday.
 
 ## Consequences
 
@@ -94,4 +93,3 @@ Migration and integration tests must prove:
 - failed-login audit rows work with `user_id = NULL`;
 - an approved payroll cannot be edited or approved twice;
 - one period creates at most one disbursement batch.
-
