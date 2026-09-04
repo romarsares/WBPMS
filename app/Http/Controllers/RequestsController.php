@@ -4,17 +4,21 @@ declare(strict_types=1);
 
 namespace Wbpms\Http\Controllers;
 
+use PDO;
 use RuntimeException;
 use Wbpms\Application\RequestService;
 use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
+use Wbpms\Infrastructure\Persistence\EmployeeRepository;
 
 /**
  * RequestsController — HR-facing request queue management.
  *
  * Routes (all require HRHead role):
  *   GET  /hr/requests                    → index()   — list with filters
+ *   GET  /hr/requests/new                → create()  — blank submission form
+ *   POST /hr/requests                    → store()   — submit on behalf of employee
  *   GET  /hr/requests/{id}               → show()    — view detail
  *   POST /hr/requests/{id}/approve       → approve() — approve request
  *   POST /hr/requests/{id}/reject        → reject()  — reject with note
@@ -58,6 +62,84 @@ final class RequestsController
             'approved' => $approved,
             'rejected' => $rejected,
         ], 'Request Management');
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /hr/requests/new
+    // -----------------------------------------------------------------------
+
+    /**
+     * Render the blank form for HR to submit a request on behalf of an employee.
+     *
+     * @param array<string, string> $params
+     */
+    public function create(array $params = []): void
+    {
+        $connection = $this->makeConnection();
+        $service    = new RequestService($connection);
+        $repo       = new EmployeeRepository($connection);
+
+        ViewRenderer::render('hr/requests/form', [
+            'employees' => $this->activeEmployeeList($repo),
+            'types'     => $service->requestTypes(),
+            'errors'    => [],
+            'old'       => [],
+        ], 'New Request');
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /hr/requests
+    // -----------------------------------------------------------------------
+
+    /**
+     * Submit a new request on behalf of the selected employee.
+     *
+     * The HR Head picks the employee; RequestService::submit() validates all
+     * type-specific fields and enforces the sick-leave balance check (REQ078).
+     *
+     * @param array<string, string> $params
+     */
+    public function store(array $params = []): void
+    {
+        $connection = $this->makeConnection();
+        $service    = new RequestService($connection);
+        $repo       = new EmployeeRepository($connection);
+
+        $employeeId = (int) ($_POST['employee_id'] ?? 0);
+
+        $data = [
+            'request_type_id'  => (int)    ($_POST['request_type_id']  ?? 0),
+            'reason'           => trim((string) ($_POST['reason']           ?? '')),
+            'start_date'       => trim((string) ($_POST['start_date']       ?? '')),
+            'end_date'         => trim((string) ($_POST['end_date']         ?? '')),
+            'overtime_date'    => trim((string) ($_POST['overtime_date']    ?? '')),
+            'start_time'       => trim((string) ($_POST['start_time']       ?? '')),
+            'end_time'         => trim((string) ($_POST['end_time']         ?? '')),
+            'amount_requested' => trim((string) ($_POST['amount_requested'] ?? '')),
+        ];
+
+        if ($employeeId === 0) {
+            ViewRenderer::render('hr/requests/form', [
+                'employees' => $this->activeEmployeeList($repo),
+                'types'     => $service->requestTypes(),
+                'errors'    => ['employee_id' => 'Please select an employee.'],
+                'old'       => $_POST,
+            ], 'New Request');
+            return;
+        }
+
+        try {
+            $service->submit($employeeId, $data);
+            ViewRenderer::flash('Request submitted successfully.');
+            $this->redirect('/hr/requests');
+        } catch (RuntimeException $e) {
+            ViewRenderer::render('hr/requests/form', [
+                'employees' => $this->activeEmployeeList($repo),
+                'types'     => $service->requestTypes(),
+                'errors'    => ['_general' => $e->getMessage()],
+                'old'       => $_POST,
+            ], 'New Request');
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -150,7 +232,22 @@ final class RequestsController
 
     private function makeService(): RequestService
     {
-        return new RequestService(new Connection(require APP_ROOT . '/config/database.php'));
+        return new RequestService($this->makeConnection());
+    }
+
+    private function makeConnection(): Connection
+    {
+        return new Connection(require APP_ROOT . '/config/database.php');
+    }
+
+    /**
+     * Return a flat list of active employees for the employee picker.
+     *
+     * @return list<array{id:int,employee_number:string,last_name:string,first_name:string,branch_name:string}>
+     */
+    private function activeEmployeeList(EmployeeRepository $repo): array
+    {
+        return $repo->findAll(['status' => 'active']);
     }
 
     private function redirect(string $path): void

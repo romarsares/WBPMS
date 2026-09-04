@@ -38,8 +38,9 @@ $csrf     ??= '';
 
 $isEdit  = $employee !== null;
 $title   = $isEdit ? 'Edit Employee' : 'Add Employee';
-$action  = $isEdit ? '/hr/employees/' . (int) $employee['id'] : '/hr/employees';
-$method  = $isEdit ? 'POST' : 'POST'; // both POST; use _method override for PUT if desired
+$action  = $isEdit
+    ? $base . '/hr/employees/' . (int) $employee['id']
+    : $base . '/hr/employees';
 
 // Populate with existing values (edit) or empty/posted defaults (create)
 $v = static fn(string $key, string $fallback = ''): string =>

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Wbpms\Http\Controllers;
 
 use PDO;
+use RuntimeException;
 use Wbpms\Application\EmployeePortal\EmployeeScope;
+use Wbpms\Application\RequestService;
 use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
@@ -171,57 +173,68 @@ final class EmployeePortalController
     /**
      * POST /employee/requests
      *
+     * Delegates entirely to RequestService::submit() which validates all
+     * type-specific fields, enforces the sick-leave balance check (REQ078),
+     * and writes the header + detail rows in a single transaction.
+     *
+     * Field-name bridge (form → RequestService):
+     *   leave:         start_date, end_date          (form sends same names after fix)
+     *   overtime:      overtime_date, start_time, end_time
+     *   cash_advance:  amount_requested
+     *
      * @param array<string, string> $params
      */
     public function storeRequest(array $params = []): void
     {
         $employeeId = $this->requireEmployeeId();
-        $pdo        = $this->makeConnection()->pdo();
+        $connection = $this->makeConnection();
+        $service    = new RequestService($connection);
 
-        $typeId = (int) ($_POST['request_type_id'] ?? 0);
-        // The form field is 'reason' (matches request.reason column)
-        $reason = trim((string) ($_POST['reason'] ?? ''));
-        $errors = [];
+        // Build the data array expected by RequestService::submit().
+        // Form field names already match after the form fix (task 4).
+        $data = [
+            'request_type_id'  => (int) ($_POST['request_type_id']  ?? 0),
+            'reason'           => trim((string) ($_POST['reason']           ?? '')),
+            // Leave
+            'start_date'       => trim((string) ($_POST['start_date']       ?? '')),
+            'end_date'         => trim((string) ($_POST['end_date']         ?? '')),
+            // Overtime
+            'overtime_date'    => trim((string) ($_POST['overtime_date']    ?? '')),
+            'start_time'       => trim((string) ($_POST['start_time']       ?? '')),
+            'end_time'         => trim((string) ($_POST['end_time']         ?? '')),
+            // Cash advance
+            'amount_requested' => trim((string) ($_POST['amount_requested'] ?? '')),
+        ];
 
-        if ($typeId === 0) {
-            $errors['request_type_id'] = 'Request type is required.';
-        }
-        if ($reason === '') {
-            $errors['reason'] = 'Reason is required.';
-        }
-
-        if ($errors !== []) {
+        try {
+            $service->submit($employeeId, $data);
+            ViewRenderer::flash('Request submitted successfully.');
+            $this->redirect('/employee/requests');
+        } catch (RuntimeException $e) {
+            // Re-render the form with the error and repopulate fields
             $codeMap      = ['Leave' => 'leave', 'Overtime' => 'overtime', 'CashAdvance' => 'cash_advance'];
-            $stmt         = $pdo->query(
-                "SELECT request_type_id AS id, type_name AS name FROM request_type WHERE status='Active'"
+            $stmt         = $connection->pdo()->query(
+                "SELECT request_type_id AS id, type_name AS name FROM request_type WHERE status = 'Active' ORDER BY type_name"
             );
-            $rows         = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $rows         = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
             $requestTypes = array_map(
                 static fn(array $t): array => $t + ['code' => $codeMap[$t['name']] ?? strtolower($t['name'])],
                 $rows
             );
 
+            // Compute live balance so the warning shows correctly on re-render
+            try {
+                $balance = $service->leaveBalance($employeeId);
+            } catch (RuntimeException) {
+                $balance = 4.0;
+            }
+
             ViewRenderer::render('employee/requests/form', [
                 'requestTypes'     => $requestTypes,
-                'sickLeaveBalance' => 4,
-                'errors'           => $errors,
+                'sickLeaveBalance' => (int) $balance,
+                'errors'           => ['_general' => $e->getMessage()],
             ], 'Submit Request');
-            return;
         }
-
-        // Insert using actual column names (request.reason, not request.remarks)
-        $stmt = $pdo->prepare(
-            "INSERT INTO request (employee_id, request_type_id, reason, status, submitted_at)
-             VALUES (:emp_id, :type_id, :reason, 'Pending', NOW())"
-        );
-        $stmt->execute([
-            ':emp_id'  => $employeeId,
-            ':type_id' => $typeId,
-            ':reason'  => $reason,
-        ]);
-
-        ViewRenderer::flash('Request submitted successfully.');
-        $this->redirect('/employee/requests');
     }
 
     /**
@@ -398,6 +411,31 @@ final class EmployeePortalController
         echo '<p style="font-size:10px;margin-top:20px;color:#666">This is a system-generated payslip. — Light Diamond Enterprises</p>';
         echo '<button onclick="window.print()" style="padding:6px 16px;cursor:pointer">🖨 Print</button>';
         echo '</body></html>';
+    }
+
+    /**
+     * POST /employee/requests/{id}/cancel
+     *
+     * Employee cancels their own Pending request (REQ080).
+     * Delegates to RequestService::cancel() which enforces ownership
+     * and status guards.
+     *
+     * @param array<string, string> $params
+     */
+    public function cancelRequest(array $params = []): void
+    {
+        $employeeId = $this->requireEmployeeId();
+        $requestId  = (int) ($params['id'] ?? 0);
+
+        try {
+            $service = new RequestService($this->makeConnection());
+            $service->cancel($requestId, $employeeId);
+            ViewRenderer::flash('Request cancelled.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/employee/requests');
     }
 
     // -----------------------------------------------------------------------

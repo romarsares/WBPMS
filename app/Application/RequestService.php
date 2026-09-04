@@ -247,9 +247,10 @@ final class RequestService
             $params[':type_id'] = (int) $filters['type_id'];
         }
         if (!empty($filters['search'])) {
-            $where[]           = "(CONCAT(e.last_name,' ',e.first_name) LIKE :search
-                                   OR e.employee_number LIKE :search)";
-            $params[':search'] = '%' . $filters['search'] . '%';
+            $where[]              = "(CONCAT(e.last_name,' ',e.first_name) LIKE :search_name
+                                   OR e.employee_number LIKE :search_num)";
+            $params[':search_name'] = '%' . $filters['search'] . '%';
+            $params[':search_num']  = '%' . $filters['search'] . '%';
         }
 
         $whereSql = 'WHERE ' . implode(' AND ', $where);

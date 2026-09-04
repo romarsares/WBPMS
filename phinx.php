@@ -37,11 +37,7 @@ return [
         'testing' => [
             'adapter' => 'mysql',
             'host'    => getenv('TEST_DB_HOST')     ?: '127.0.0.1',
-
             'name'    => getenv('TEST_DB_NAME')     ?: 'wbpms_test',
-
-            'name'    => getenv('TEST_DB_NAME')     ?: 'wbpms',
-
             'user'    => getenv('TEST_DB_USER')     ?: 'root',
             'pass'    => getenv('TEST_DB_PASSWORD') ?: '',
             'port'    => (int) (getenv('TEST_DB_PORT') ?: 3306),

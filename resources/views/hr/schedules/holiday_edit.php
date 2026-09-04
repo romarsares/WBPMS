@@ -11,7 +11,7 @@ $id = (int) $holiday['holiday_id'];
 
 <div class="page-header">
     <h1>Edit Holiday</h1>
-    <a href="/hr/schedules/holidays" class="btn btn-secondary">← Holiday Calendar</a>
+    <a href="<?= $base ?>/hr/schedules/holidays" class="btn btn-secondary">← Holiday Calendar</a>
 </div>
 
 <?php if (!empty($errors)): ?>
@@ -24,7 +24,7 @@ $id = (int) $holiday['holiday_id'];
 
 <div class="card">
     <div class="card-body">
-        <form method="POST" action="/hr/schedules/holidays/<?= $id ?>">
+        <form method="POST" action="<?= $base ?>/hr/schedules/holidays/<?= $id ?>">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf, ENT_QUOTES) ?>">
             <input type="hidden" name="_method" value="PUT">
 
@@ -68,7 +68,7 @@ $id = (int) $holiday['holiday_id'];
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Save Changes</button>
-                <a href="/hr/schedules/holidays" class="btn btn-secondary">Cancel</a>
+                <a href="<?= $base ?>/hr/schedules/holidays" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>

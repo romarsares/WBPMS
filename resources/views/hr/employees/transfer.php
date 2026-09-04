@@ -15,7 +15,7 @@ $current = htmlspecialchars($employee['branch_name'] ?? '—', ENT_QUOTES);
 
 <div class="page-header">
     <h1>Transfer Employee</h1>
-    <a href="/hr/employees/<?= $empId ?>/edit" class="btn btn-secondary">← Back to Employee</a>
+    <a href="<?= $base ?>/hr/employees/<?= $empId ?>/edit" class="btn btn-secondary">← Back to Employee</a>
 </div>
 
 <?php if (!empty($errors)): ?>
@@ -36,7 +36,7 @@ $current = htmlspecialchars($employee['branch_name'] ?? '—', ENT_QUOTES);
     <div class="card-body">
         <p><strong>Current Branch:</strong> <?= $current ?></p>
 
-        <form method="POST" action="/hr/employees/<?= $empId ?>/transfer">
+        <form method="POST" action="<?= $base ?>/hr/employees/<?= $empId ?>/transfer">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES) ?>">
 
             <div class="form-group <?= isset($errors['branch_id']) ? 'has-error' : '' ?>">
@@ -71,7 +71,7 @@ $current = htmlspecialchars($employee['branch_name'] ?? '—', ENT_QUOTES);
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Confirm Transfer</button>
-                <a href="/hr/employees/<?= $empId ?>/edit" class="btn btn-secondary">Cancel</a>
+                <a href="<?= $base ?>/hr/employees/<?= $empId ?>/edit" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>

@@ -138,6 +138,8 @@ $router->add('POST', '/hr/attendance/import', [AttendanceController::class, 'upl
 // ---------------------------------------------------------------------------
 
 $router->add('GET',  '/hr/requests',              [RequestsController::class, 'index'],   ['HRHead']);
+$router->add('GET',  '/hr/requests/new',          [RequestsController::class, 'create'],  ['HRHead']);
+$router->add('POST', '/hr/requests',              [RequestsController::class, 'store'],   ['HRHead']);
 $router->add('GET',  '/hr/requests/{id}',         [RequestsController::class, 'show'],    ['HRHead']);
 $router->add('POST', '/hr/requests/{id}/approve', [RequestsController::class, 'approve'], ['HRHead']);
 $router->add('POST', '/hr/requests/{id}/reject',  [RequestsController::class, 'reject'],  ['HRHead']);
@@ -221,6 +223,7 @@ $router->add('GET',  '/employee/attendance',      [EmployeePortalController::cla
 $router->add('GET',  '/employee/requests',        [EmployeePortalController::class, 'requests'],      ['Employee']);
 $router->add('GET',  '/employee/requests/new',    [EmployeePortalController::class, 'requestForm'],   ['Employee']);
 $router->add('POST', '/employee/requests',        [EmployeePortalController::class, 'storeRequest'],  ['Employee']);
+$router->add('POST', '/employee/requests/{id}/cancel', [EmployeePortalController::class, 'cancelRequest'], ['Employee']);
 $router->add('GET',  '/employee/payslips',            [EmployeePortalController::class, 'payslips'],      ['Employee']);
 $router->add('GET',  '/employee/payslips/{id}',       [EmployeePortalController::class, 'payslipDetail'], ['Employee']);
 $router->add('GET',  '/employee/payslips/{id}/print', [EmployeePortalController::class, 'payslipPrint'],  ['Employee']);

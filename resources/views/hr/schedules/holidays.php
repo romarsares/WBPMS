@@ -12,7 +12,7 @@ $input = $input ?? [];
 
 <div class="page-header">
     <h1>Holiday Calendar</h1>
-    <a href="/hr/schedules" class="btn btn-secondary">← Schedules</a>
+    <a href="<?= $base ?>/hr/schedules" class="btn btn-secondary">← Schedules</a>
 </div>
 
 <?php if (!empty($errors)): ?>
@@ -27,7 +27,7 @@ $input = $input ?? [];
 <div class="card" style="margin-bottom:1.5rem;">
     <div class="card-header"><strong>Add Holiday</strong></div>
     <div class="card-body">
-        <form method="POST" action="/hr/schedules/holidays" class="form-inline-grid">
+        <form method="POST" action="<?= $base ?>/hr/schedules/holidays" class="form-inline-grid">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf, ENT_QUOTES) ?>">
 
             <div class="form-group <?= isset($errors['holiday_date']) ? 'has-error' : '' ?>">
@@ -106,11 +106,11 @@ $input = $input ?? [];
                                 </span>
                             </td>
                             <td class="actions">
-                                <a href="/hr/schedules/holidays/<?= (int) $h['holiday_id'] ?>/edit"
+                                <a href="<?= $base ?>/hr/schedules/holidays/<?= (int) $h['holiday_id'] ?>/edit"
                                    class="btn btn-sm btn-secondary">Edit</a>
                                 <?php if ($h['status'] === 'Active'): ?>
                                     <form method="POST"
-                                          action="/hr/schedules/holidays/<?= (int) $h['holiday_id'] ?>/delete"
+                                          action="<?= $base ?>/hr/schedules/holidays/<?= (int) $h['holiday_id'] ?>/delete"
                                           style="display:inline;"
                                           onsubmit="return confirm('Deactivate this holiday?');">
                                         <input type="hidden" name="_csrf"

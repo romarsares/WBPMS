@@ -68,7 +68,7 @@ http_response_code(404);
        Check the address and try again.</p>
     <div class="actions">
         <a href="javascript:history.back()" class="btn-secondary">Go back</a>
-        <a href="/" class="btn-primary">Home</a>
+        <a href="<?= rtrim((string)($_ENV['APP_BASE_URL'] ?? ''), '/') ?>/login" class="btn-primary">Home</a>
     </div>
 </div>
 </body>
