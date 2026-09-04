@@ -169,7 +169,7 @@ final class ScheduleController
         ]);
 
         ViewRenderer::flash('Work schedule updated.');
-        $this->redirect('/hr/schedules');
+        $this->redirect('/hr/schedules/' . $id . '/edit');
     }
 
     // =========================================================================

@@ -125,7 +125,7 @@ $router->add('GET',  '/hr/schedules/holidays/{id}/edit',   [ScheduleController::
 $router->add('POST', '/hr/schedules/holidays/{id}',        [ScheduleController::class, 'updateHoliday'],['HRHead']);
 $router->add('POST', '/hr/schedules/holidays/{id}/delete', [ScheduleController::class, 'deleteHoliday'],['HRHead']);
 $router->add('GET',  '/hr/schedules/{id}/edit',     [ScheduleController::class, 'editForm'],    ['HRHead']);
-$router->add('POST', '/hr/schedules/{id}',          [ScheduleController::class, 'update'],      ['HRHead']);
+$router->add('PUT',  '/hr/schedules/{id}',          [ScheduleController::class, 'update'],      ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Attendance import  (REQ018–REQ024)
