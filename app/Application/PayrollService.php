@@ -79,14 +79,15 @@ final class PayrollService
             "INSERT INTO payroll_period
                 (period_start, period_end, pay_date, cutoff_pattern, status, created_at, updated_at)
              VALUES
-                (:start, :end, :pay, 'SundayFriday', 'Open', :now, :now)"
+                (:start, :end, :pay, 'SundayFriday', 'Open', :created_at, :updated_at)"
         );
         $now = $this->utcNow();
         $stmt->execute([
-            ':start' => $start->format('Y-m-d'),
-            ':end'   => $end->format('Y-m-d'),
-            ':pay'   => $payDate->format('Y-m-d'),
-            ':now'   => $now,
+            ':start'      => $start->format('Y-m-d'),
+            ':end'        => $end->format('Y-m-d'),
+            ':pay'        => $payDate->format('Y-m-d'),
+            ':created_at' => $now,
+            ':updated_at' => $now,
         ]);
         return (int) $pdo->lastInsertId();
     }
@@ -161,14 +162,15 @@ final class PayrollService
                  lock_version, created_at, updated_at)
              VALUES
                 (:period_id, :branch_id, :policy_id, 'Draft',
-                 0, :now, :now)"
+                 0, :created_at, :updated_at)"
         );
         try {
             $stmt->execute([
-                ':period_id' => $periodId,
-                ':branch_id' => $branchId,
-                ':policy_id' => $policyId,
-                ':now'       => $now,
+                ':period_id'  => $periodId,
+                ':branch_id'  => $branchId,
+                ':policy_id'  => $policyId,
+                ':created_at' => $now,
+                ':updated_at' => $now,
             ]);
         } catch (\PDOException $e) {
             if (str_contains($e->getMessage(), 'Duplicate') || str_contains($e->getMessage(), '1062')) {
@@ -280,6 +282,7 @@ final class PayrollService
         $periodEnd        = $run['period_end'];
 
         // Eligible employees: branch assignment effective on period_start
+        // Note: PDO named params must be unique per statement — :ps1…:ps6 all bind $periodStart.
         $stmt = $pdo->prepare(
             "SELECT e.employee_id, e.employee_number,
                     eba.branch_assignment_id,
@@ -289,24 +292,29 @@ final class PayrollService
                JOIN employee e ON e.employee_id = eba.employee_id
                JOIN salary s
                  ON s.employee_id   = e.employee_id
-                AND s.effective_from <= :period_start
-                AND (s.effective_to IS NULL OR s.effective_to > :period_start)
+                AND s.effective_from <= :ps1
+                AND (s.effective_to IS NULL OR s.effective_to > :ps2)
                 AND s.status = 'Active'
                LEFT JOIN employee_schedule_assignment esa
                  ON esa.employee_id = e.employee_id
-                AND esa.effective_from <= :period_start
-                AND (esa.effective_to IS NULL OR esa.effective_to > :period_start)
+                AND esa.effective_from <= :ps3
+                AND (esa.effective_to IS NULL OR esa.effective_to > :ps4)
                 AND esa.status = 'Active'
                LEFT JOIN work_schedule ws
                  ON ws.schedule_id = esa.schedule_id
               WHERE eba.branch_id     = (SELECT branch_id FROM payroll_run WHERE payroll_run_id = :run_id)
-                AND eba.effective_from <= :period_start
-                AND (eba.effective_to IS NULL OR eba.effective_to > :period_start)
+                AND eba.effective_from <= :ps5
+                AND (eba.effective_to IS NULL OR eba.effective_to > :ps6)
                 AND e.status = 'Active'"
         );
         $stmt->execute([
-            ':period_start' => $periodStart,
-            ':run_id'       => $runId,
+            ':ps1'    => $periodStart,
+            ':ps2'    => $periodStart,
+            ':ps3'    => $periodStart,
+            ':ps4'    => $periodStart,
+            ':ps5'    => $periodStart,
+            ':ps6'    => $periodStart,
+            ':run_id' => $runId,
         ]);
         $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -555,6 +563,7 @@ final class PayrollService
             }
 
             // Update run totals and status
+            $computedNow = $this->utcNow();
             $pdo->prepare(
                 "UPDATE payroll_run SET
                     status       = 'Computed',
@@ -562,16 +571,17 @@ final class PayrollService
                     total_deductions = :ded,
                     net_pay      = :net,
                     computed_by  = :by,
-                    computed_at  = :now,
-                    updated_at   = :now
+                    computed_at  = :computed_at,
+                    updated_at   = :updated_at
                   WHERE payroll_run_id = :id"
             )->execute([
-                ':gross' => round($runGross, 2),
-                ':ded'   => round($runDed, 2),
-                ':net'   => round($runNet, 2),
-                ':by'    => $computedByUserId,
-                ':now'   => $this->utcNow(),
-                ':id'    => $runId,
+                ':gross'       => round($runGross, 2),
+                ':ded'         => round($runDed, 2),
+                ':net'         => round($runNet, 2),
+                ':by'          => $computedByUserId,
+                ':computed_at' => $computedNow,
+                ':updated_at'  => $computedNow,
+                ':id'          => $runId,
             ]);
         });
     }
@@ -594,17 +604,19 @@ final class PayrollService
             throw new RuntimeException('Only Computed or Returned runs can be submitted for approval.');
         }
 
+        $submittedNow = $this->utcNow();
         $pdo->prepare(
             "UPDATE payroll_run SET
                 status       = 'PendingOwnerApproval',
                 submitted_by = :by,
-                submitted_at = :now,
-                updated_at   = :now
+                submitted_at = :submitted_at,
+                updated_at   = :updated_at
               WHERE payroll_run_id = :id"
         )->execute([
-            ':by'  => $submittedByUserId,
-            ':now' => $this->utcNow(),
-            ':id'  => $runId,
+            ':by'           => $submittedByUserId,
+            ':submitted_at' => $submittedNow,
+            ':updated_at'   => $submittedNow,
+            ':id'           => $runId,
         ]);
     }
 
@@ -625,10 +637,10 @@ final class PayrollService
                 "UPDATE payroll_run SET
                     status      = 'Approved',
                     reviewed_by = :by,
-                    reviewed_at = :now,
-                    updated_at  = :now
+                    reviewed_at = :reviewed_at,
+                    updated_at  = :updated_at
                   WHERE payroll_run_id = :id"
-            )->execute([':by' => $reviewedByUserId, ':now' => $now, ':id' => $runId]);
+            )->execute([':by' => $reviewedByUserId, ':reviewed_at' => $now, ':updated_at' => $now, ':id' => $runId]);
 
             // 2. Generate one payslip row per employee payroll row (REQ048)
             // Skip employees that already have a payslip for this run
@@ -646,15 +658,16 @@ final class PayrollService
                 "INSERT INTO payslip
                     (payroll_id, issue_date, generated_by, generated_at, created_at)
                  VALUES
-                    (:pid, :issue, :by, :now, :now)"
+                    (:pid, :issue, :by, :generated_at, :created_at)"
             );
             $issueDate = (new DateTimeImmutable($now))->format('Y-m-d');
             foreach ($payrollIds as $pid) {
                 $insert->execute([
-                    ':pid'   => $pid,
-                    ':issue' => $issueDate,
-                    ':by'    => $reviewedByUserId,
-                    ':now'   => $now,
+                    ':pid'          => $pid,
+                    ':issue'        => $issueDate,
+                    ':by'           => $reviewedByUserId,
+                    ':generated_at' => $now,
+                    ':created_at'   => $now,
                 ]);
             }
         });
@@ -683,10 +696,10 @@ final class PayrollService
                 status        = 'Returned',
                 return_reason = :reason,
                 reviewed_by   = :by,
-                reviewed_at   = :now,
-                updated_at    = :now
+                reviewed_at   = :reviewed_at,
+                updated_at    = :updated_at
               WHERE payroll_run_id = :id"
-        )->execute([':reason' => $reason, ':by' => $reviewedByUserId, ':now' => $now, ':id' => $runId]);
+        )->execute([':reason' => $reason, ':by' => $reviewedByUserId, ':reviewed_at' => $now, ':updated_at' => $now, ':id' => $runId]);
     }
 
     // ===================================================================

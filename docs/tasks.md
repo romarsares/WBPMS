@@ -112,7 +112,11 @@
   - _Requirements: 9_
 
 - [x] 10. Payroll Processing module
-  - [x] 10.1 `PayrollService.createPeriod` — Friday-start validation, Thursday end, pay_date = next Friday
+  - [x] 10.1 `PayrollService.createPeriod` — Friday-start validation, Thursday end, pay_date = next Friday;
+        fixed `SQLSTATE[HY093]` (duplicate named PDO parameter) across all affected statements:
+        `:now` → distinct `:created_at`/`:updated_at`/`:computed_at`/`:submitted_at`/`:reviewed_at`/
+        `:generated_at` bindings in all INSERTs and UPDATEs; `computeRun` eligible-employee SELECT
+        `:period_start` (×6 uses) → `:ps1`…`:ps6`
   - [x] 10.2 `PayrollService.createRun` — period + branch, resolves active payroll policy
   - [x] 10.3 `PayrollService.computeRun` — eligibility by branch assignment, basic pay, overtime (×1.25),
         late deduction (₱1/min), undertime deduction, SSS/PhilHealth/Pag-IBIG via approved policy,

@@ -88,7 +88,7 @@ final class OwnerController
         $pdo = $this->makeConnection()->pdo();
 
         $stmt = $pdo->prepare(
-            "SELECT pr.payroll_run_id AS id,
+            "SELECT pr.payroll_run_id,
                     b.branch_name,
                     CONCAT(pp.period_start, ' – ', pp.period_end) AS period_label,
                     pr.status,
