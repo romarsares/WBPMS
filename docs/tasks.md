@@ -36,7 +36,7 @@
   - [x] 4.2 `EmployeeRepository` implements `EmployeeSetupGateway` — createEmployee, assignBranch,
         assignSchedule, enrollBiometric
   - [x] 4.3 Views: `hr/employees/index.php`, `hr/employees/form.php`, `hr/employees/edit.php`
-  - [ ] 4.4 `transferEmployee` transaction (close old assignment, open new non-overlapping one)
+  - [x] 4.4 `transferEmployee` transaction (close old assignment, open new non-overlapping one)
   - [ ] 4.5 Integration test: create → filter → transfer → historical lookup → archive
   - [ ] 4.6 Employee lifecycle archive, rehire, and document capability
     - [x] 4.6.1 Add `employee_employment_episode` and `employee_lifecycle_event`
@@ -65,7 +65,7 @@
   - [x] 5.1 `ScheduleController` — index, store (REQ025–REQ031)
   - [x] 5.2 `ScheduleRepository` — findAll, create
   - [x] 5.3 View: `hr/schedules/index.php`
-  - [ ] 5.4 Holiday calendar CRUD
+  - [x] 5.4 Holiday calendar CRUD
   - [ ] 5.5 Overlap-rejection unit test
   - _Requirements: 5_
 
@@ -91,15 +91,15 @@
   - [x] 7.1 `RequestsController` — index, show, approve, reject, archive (REQ032–REQ046)
   - [x] 7.2 `EmployeePortalController.storeRequest` — submit with type + reason validation (REQ076–REQ080)
   - [x] 7.3 Views: `employee/requests/index.php`, `employee/requests/form.php`
-  - [ ] 7.4 `RequestService` with leave entitlement ledger + insufficient-balance block (REQ078)
-  - [ ] 7.5 Cash advance obligation creation on approval
+  - [x] 7.4 `RequestService` with leave entitlement ledger + insufficient-balance block (REQ078)
+  - [x] 7.5 Cash advance obligation creation on approval
   - [ ] 7.6 Integration test: submit → balance rejection → approve → archive
   - _Requirements: 7, 12_
 
 - [x] 8. Manage Salary module
   - [x] 8.1 `SalaryController` — index, create, store, edit, update, archive (REQ053–REQ057)
   - [x] 8.2 View: `salary/index.php`
-  - [ ] 8.3 `SalaryService` with effective-date history preservation
+  - [x] 8.3 `SalaryService` with effective-date history preservation
   - [ ] 8.4 Unit test: rate update does not mutate history rows
   - _Requirements: 8_
 
@@ -108,7 +108,7 @@
   - [x] 9.2 View: `benefits/index.php`
   - [x] 9.3 Contribution calculations wired into `PayrollService` (SSS bracket lookup, PhilHealth rate,
         Pag-IBIG fixed/rate model, EEMR formula) — see task 10
-  - [ ] 9.4 Golden tests: ₱460 daily-rate example, last-Friday behavior, rounding, unsupported-policy rejection
+  - [x] 9.4 Golden tests: ₱460 daily-rate example, last-Friday behavior, rounding, unsupported-policy rejection
   - _Requirements: 9_
 
 - [x] 10. Payroll Processing module
@@ -187,18 +187,15 @@
 
 | Gap | Blocked by |
 |---|---|
-| `transferEmployee` transaction (branch handover) | Task 4.4 |
 | Employee lifecycle archive/rehire + employee documents | Task 4.6 |
-| Holiday calendar CRUD | Task 5.4 |
 | Manual attendance adjustment UI (REQ023) | Task 6.8 |
 | Parser edge-case tests | Task 6.9 |
-| `RequestService` with leave entitlement ledger (REQ078) | Task 7.4 |
-| Cash advance obligation on approval | Task 7.5 |
-| `SalaryService` with history preservation | Task 8.3 |
-| Contribution golden tests | Task 9.4 |
+| Request integration test: submit → balance rejection → approve → archive | Task 7.6 |
+| Salary history unit test: rate update does not mutate history rows | Task 8.4 |
 | Payroll immutability guard on all mutations | Task 10.11 |
 | Payroll golden tests + performance | Task 10.12 |
 | PDF/CSV export + BDO deposit-slip list (REQ073) | Task 11.4 |
+| Attendance-alert widget (Incomplete status) | Task 12.5 |
 | Audit log wiring for all modules | Task 14.2 |
 | RBAC + performance + cross-browser regression | Tasks 14.3–14.5 |
 | End-to-end walkthrough | Task 15.1–15.2 |

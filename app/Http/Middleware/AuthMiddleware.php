@@ -167,6 +167,9 @@ final class AuthMiddleware
      *   and 12-hour absolute timeout), browser requests are redirected to /login
      *   with a one-time flash so the user sees a friendly message. AJAX/API
      *   requests (Accept: application/json) receive a 401 JSON envelope.
+     * - If the identity exists but requires a mandatory password change and the
+     *   current route is not /change-password or /logout, the browser is
+     *   redirected to /change-password regardless of the requested route.
      * - If the identity exists but the role is not permitted, a 403 is returned.
      *   Browser users see a 403 redirect to /login (role mismatch is abnormal
      *   for a correctly built UI, so a plain redirect is acceptable).
@@ -213,6 +216,25 @@ final class AuthMiddleware
             $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
             header('Location: ' . $base . '/login', true, 302);
             exit;
+        }
+
+        // Requirement 13, AC5: mandatory first-login password change gate.
+        // Enforce on every protected route except /change-password and /logout
+        // so that a user who bookmarks their dashboard cannot bypass the forced
+        // password change by navigating directly to the page.
+        if ($identity['requires_password_change']) {
+            $requestPath  = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?? '';
+            $scriptName   = $_SERVER['SCRIPT_NAME'] ?? '';
+            $base         = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
+            if ($base !== '' && $base !== '/' && str_starts_with($requestPath, $base)) {
+                $requestPath = substr($requestPath, strlen($base));
+            }
+            $allowedPaths = ['/change-password', '/logout'];
+            if (!in_array(rtrim($requestPath, '/') ?: '/', $allowedPaths, true)) {
+                $appBase = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+                header('Location: ' . $appBase . '/change-password', true, 302);
+                exit;
+            }
         }
 
         if (!empty($allowedRoles) && !in_array($identity['role_name'], $allowedRoles, true)) {
