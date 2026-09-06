@@ -40,12 +40,6 @@ $router->add('GET', '/health', [HealthController::class, 'index'], []);
 // Authentication
 $router->add('GET',  '/login',         [AuthController::class, 'showLogin'],    []);
 $router->add('POST', '/login',         [AuthController::class, 'login'],        []);
-$router->add('GET',  '/forgot',        [AuthController::class, 'showForgot'],   []);
-$router->add('POST', '/forgot',        [AuthController::class, 'sendOtp'],      []);
-$router->add('GET',  '/reset-otp',     [AuthController::class, 'showOtpForm'],  []);
-$router->add('POST', '/reset-otp',     [AuthController::class, 'verifyOtp'],    []);
-$router->add('GET',  '/reset-password',[AuthController::class, 'showResetForm'],[]);
-$router->add('POST', '/reset-password',[AuthController::class, 'resetPassword'],[]);
 
 // ---------------------------------------------------------------------------
 // Shared authenticated routes

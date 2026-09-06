@@ -7,7 +7,7 @@ use Phinx\Migration\AbstractMigration;
 /**
  * Migration 001: Identity, Access, and Audit tables.
  *
- * Creates: role, users, password_reset_challenge, sessions, audit_logs
+ * Creates: role, users, sessions, audit_logs
  *
  * ADR-0002 §9: MySQL-persisted sessions are part of the schema contract.
  * ADR-0002 §10: Audit events may have no authenticated user_id.
@@ -101,52 +101,6 @@ final class CreateIdentityAccessTables extends AbstractMigration
             ->create();
 
         // employee FK will be added in migration 002 after the employee table exists.
-
-        // -------------------------------------------------------------------
-        // password_reset_challenge
-        // -------------------------------------------------------------------
-        $prc = $this->table('password_reset_challenge', [
-            'id'          => false,
-            'primary_key' => ['challenge_id'],
-            'engine'      => 'InnoDB',
-            'encoding'    => 'utf8mb4',
-            'collation'   => 'utf8mb4_unicode_ci',
-            'comment'     => 'Hashed, expiring, single-use OTP challenges for password recovery',
-        ]);
-        $prc
-            ->addColumn('challenge_id', 'biginteger', [
-                'signed'   => false,
-                'identity' => true,
-                'null'     => false,
-            ])
-            ->addColumn('user_id', 'biginteger', [
-                'signed' => false,
-                'null'   => false,
-            ])
-            ->addColumn('otp_hash', 'string', [
-                'limit'   => 255,
-                'null'    => false,
-                'comment' => 'password_hash() of the one-time passcode',
-            ])
-            ->addColumn('expires_at', 'datetime', ['null' => false])
-            ->addColumn('attempts_remaining', 'integer', [
-                'signed'  => false,
-                'limit'   => \Phinx\Db\Adapter\MysqlAdapter::INT_TINY,
-                'null'    => false,
-                'comment' => 'Decremented on each failed attempt',
-            ])
-            ->addColumn('consumed_at', 'datetime', [
-                'null'    => true,
-                'default' => null,
-                'comment' => 'Set when the OTP is successfully used',
-            ])
-            ->addColumn('created_at', 'datetime', ['null' => false, 'default' => 'CURRENT_TIMESTAMP'])
-            ->addIndex(['user_id', 'expires_at'], ['name' => 'idx_prc_user_expires'])
-            ->addForeignKey('user_id', 'users', 'user_id', [
-                'delete' => 'CASCADE',
-                'update' => 'CASCADE',
-            ])
-            ->create();
 
         // -------------------------------------------------------------------
         // sessions
@@ -264,7 +218,6 @@ final class CreateIdentityAccessTables extends AbstractMigration
     {
         $this->table('audit_logs')->drop()->save();
         $this->table('sessions')->drop()->save();
-        $this->table('password_reset_challenge')->drop()->save();
         $this->table('users')->drop()->save();
         $this->table('role')->drop()->save();
     }

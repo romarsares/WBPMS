@@ -1,0 +1,14 @@
+# Railway / Nixpacks build configuration for WBPMS
+# PHP server-rendered application — public/ is the web root.
+
+[phases.setup]
+nixPkgs = ["php83", "php83Extensions.pdo", "php83Extensions.pdo_mysql", "php83Extensions.mbstring", "php83Extensions.zip", "php83Extensions.gd", "php83Extensions.xml", "php83Extensions.curl", "composer"]
+
+[phases.install]
+cmds = ["composer install --no-dev --optimize-autoloader --no-interaction"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "php -S 0.0.0.0:$PORT -t public/ ../router.php"
