@@ -6,6 +6,7 @@ namespace Wbpms\Http\Controllers;
 
 use PDO;
 use RuntimeException;
+use Wbpms\Application\PayrollAdjustmentService;
 use Wbpms\Application\PayrollService;
 use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\View\ViewRenderer;
@@ -189,6 +190,10 @@ final class PayrollController
         try {
             $run     = $service->findRunOrFail($id);
             $details = $service->runDetails($id);
+            $earningSummary = $service->runEarningSummary($id);
+            $earnings = $service->runEarnings($id);
+            $deductionSummary = $service->runDeductionSummary($id);
+            $deductions = $service->runDeductions($id);
         } catch (RuntimeException) {
             http_response_code(404);
             ViewRenderer::render('errors/404', [], '404 Not Found');
@@ -198,8 +203,75 @@ final class PayrollController
         ViewRenderer::render('hr/payroll/detail', [
             'run'     => $run,
             'details' => $details,
+            'earningSummary' => $earningSummary,
+            'earnings' => $earnings,
+            'deductionSummary' => $deductionSummary,
+            'deductions' => $deductions,
             'errors'  => [],
         ], 'Payroll Run Detail');
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /hr/payroll/{id}/employees/{payrollId}/adjust
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function adjustForm(array $params = []): void
+    {
+        $runId = (int) ($params['id'] ?? 0);
+        $payrollId = (int) ($params['payrollId'] ?? 0);
+        try {
+            $payroll = $this->adjustmentService()->findForAdjustment($runId, $payrollId);
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+            $this->redirect('/hr/payroll/' . $runId);
+            return;
+        }
+
+        ViewRenderer::render('hr/payroll/adjust', [
+            'runId' => $runId,
+            'payroll' => $payroll,
+            'errors' => [],
+            'old' => [],
+        ], 'Adjust Payroll');
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /hr/payroll/{id}/employees/{payrollId}/adjust
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function adjust(array $params = []): void
+    {
+        $runId = (int) ($params['id'] ?? 0);
+        $payrollId = (int) ($params['payrollId'] ?? 0);
+        $input = [
+            'adjustment_kind' => trim((string) ($_POST['adjustment_kind'] ?? '')),
+            'amount' => trim((string) ($_POST['amount'] ?? '')),
+            'reason' => trim((string) ($_POST['reason'] ?? '')),
+        ];
+
+        try {
+            $identity = AuthMiddleware::identity();
+            $this->adjustmentService()->adjust($runId, $payrollId, $input, (int) ($identity['user_id'] ?? 0));
+            ViewRenderer::flash('Manual payroll adjustment saved and payroll totals recalculated.');
+            $this->redirect('/hr/payroll/' . $runId);
+            return;
+        } catch (RuntimeException $e) {
+            try {
+                $payroll = $this->adjustmentService()->findForAdjustment($runId, $payrollId);
+            } catch (RuntimeException) {
+                ViewRenderer::flashError('Payroll employee record not found.');
+                $this->redirect('/hr/payroll/' . $runId);
+                return;
+            }
+            ViewRenderer::render('hr/payroll/adjust', [
+                'runId' => $runId,
+                'payroll' => $payroll,
+                'errors' => [$e->getMessage()],
+                'old' => $input,
+            ], 'Adjust Payroll');
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -249,6 +321,11 @@ final class PayrollController
     private function makeService(): PayrollService
     {
         return new PayrollService($this->makeConnection());
+    }
+
+    private function adjustmentService(): PayrollAdjustmentService
+    {
+        return new PayrollAdjustmentService($this->makeConnection());
     }
 
     private function makeConnection(): Connection

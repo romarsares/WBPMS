@@ -11,6 +11,7 @@ use RuntimeException;
 use Wbpms\Domain\Payroll\HolidayPayCalculator;
 use Wbpms\Domain\Payroll\HolidayRecord;
 use Wbpms\Domain\Payroll\HolidayType;
+use Wbpms\Domain\Payroll\ApprovedOvertimeCalculator;
 use Wbpms\Infrastructure\Database\Connection;
 
 /**
@@ -32,17 +33,19 @@ use Wbpms\Infrastructure\Database\Connection;
  *   EEMR = (daily_rate × eemr_days_per_year) / 12.
  *   Late deduction = late_minutes × late_rate_per_minute (default ₱1.00/min).
  *   Undertime deduction = undertime_minutes × (daily_rate / standard_minutes).
- *   Overtime earning = overtime_minutes × (daily_rate / standard_minutes) × multiplier.
+ *   Overtime earning = approved, worked overtime_minutes × (daily_rate / standard_minutes) × multiplier.
  */
 final class PayrollService
 {
     private Connection $connection;
     private HolidayPayCalculator $holidayCalc;
+    private ApprovedOvertimeCalculator $approvedOvertimeCalc;
 
     public function __construct(Connection $connection)
     {
         $this->connection  = $connection;
         $this->holidayCalc = new HolidayPayCalculator();
+        $this->approvedOvertimeCalc = new ApprovedOvertimeCalculator();
     }
 
     // ===================================================================
@@ -92,10 +95,44 @@ final class PayrollService
         return (int) $pdo->lastInsertId();
     }
 
+    /**
+     * Generate every Sunday–Friday cutoff that overlaps a calendar month.
+     * A cutoff may begin in the preceding month or end in the following one.
+     *
+     * @return array{created:int,existing:int}
+     */
+    public function createPeriodsForMonth(string $month): array
+    {
+        if (!preg_match('/^\d{4}-(?:0[1-9]|1[0-2])$/', $month)) {
+            throw new RuntimeException('Select a valid payroll month.');
+        }
+
+        $timezone = new DateTimeZone('Asia/Manila');
+        $firstDay = new DateTimeImmutable($month . '-01', $timezone);
+        $lastDay = $firstDay->modify('last day of this month');
+        $firstSunday = $firstDay->modify('-' . (int) $firstDay->format('w') . ' days');
+        $created = 0;
+        $existing = 0;
+
+        for ($start = $firstSunday; $start <= $lastDay; $start = $start->modify('+7 days')) {
+            try {
+                $this->createPeriod($start->format('Y-m-d'));
+                $created++;
+            } catch (RuntimeException $e) {
+                if (!str_contains($e->getMessage(), 'already exists')) {
+                    throw $e;
+                }
+                $existing++;
+            }
+        }
+
+        return ['created' => $created, 'existing' => $existing];
+    }
+
     /** @return list<array<string,mixed>> */
     public function listPeriods(): array
     {
-        return $this->connection->pdo()->query(
+        $rows = $this->connection->pdo()->query(
             "SELECT pp.payroll_period_id,
                     pp.period_start,
                     pp.period_end,
@@ -110,6 +147,10 @@ final class PayrollService
                        pp.cutoff_pattern, pp.status, pp.created_at
               ORDER BY pp.period_start DESC"
         )->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as &$row) {
+            $row['is_month_end_contribution_cutoff'] = $this->isMonthlyContributionCutoff((string) $row['pay_date']);
+        }
+        return $rows;
     }
 
     /** @return list<array<string,mixed>> Periods formatted for select dropdowns. */
@@ -202,7 +243,8 @@ final class PayrollService
                     b.branch_name,
                     CONCAT(pp.period_start, ' – ', pp.period_end) AS period_label,
                     pp.period_start,
-                    pp.period_end
+                    pp.period_end,
+                    pp.pay_date
                FROM payroll_run pr
                JOIN branch b         ON b.branch_id          = pr.branch_id
                JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
@@ -240,6 +282,109 @@ final class PayrollService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Summarise the deductions posted to a payroll run for the HR review page.
+     *
+     * @return list<array{deduction_type:string,record_count:int,total_amount:float}>
+     */
+    public function runDeductionSummary(int $runId): array
+    {
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT d.deduction_type,
+                    COUNT(*) AS record_count,
+                    SUM(d.amount) AS total_amount
+               FROM deduction d
+               JOIN payroll p ON p.payroll_id = d.payroll_id
+              WHERE p.payroll_run_id = :id
+              GROUP BY d.deduction_type
+              ORDER BY total_amount DESC, d.deduction_type"
+        );
+        $stmt->execute([':id' => $runId]);
+
+        return array_map(static fn (array $row): array => [
+            'deduction_type' => (string) $row['deduction_type'],
+            'record_count' => (int) $row['record_count'],
+            'total_amount' => (float) $row['total_amount'],
+        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /**
+     * Summarise basic pay, overtime, holiday pay, and other posted earnings.
+     *
+     * @return list<array{earning_type:string,record_count:int,total_amount:float}>
+     */
+    public function runEarningSummary(int $runId): array
+    {
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT pe.earning_type,
+                    COUNT(*) AS record_count,
+                    SUM(pe.amount) AS total_amount
+               FROM payroll_earnings pe
+               JOIN payroll p ON p.payroll_id = pe.payroll_id
+              WHERE p.payroll_run_id = :id
+              GROUP BY pe.earning_type
+              ORDER BY total_amount DESC, pe.earning_type"
+        );
+        $stmt->execute([':id' => $runId]);
+
+        return array_map(static fn (array $row): array => [
+            'earning_type' => (string) $row['earning_type'],
+            'record_count' => (int) $row['record_count'],
+            'total_amount' => (float) $row['total_amount'],
+        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /**
+     * @return list<array{payroll_id:int,earning_type:string,description:string,quantity:float,unit_rate:float,multiplier:float,amount:float}>
+     */
+    public function runEarnings(int $runId): array
+    {
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT pe.payroll_id, pe.earning_type, pe.description,
+                    pe.quantity, pe.unit_rate, pe.multiplier, pe.amount
+               FROM payroll_earnings pe
+               JOIN payroll p ON p.payroll_id = pe.payroll_id
+              WHERE p.payroll_run_id = :id
+              ORDER BY pe.payroll_id, pe.earning_type, pe.earning_id"
+        );
+        $stmt->execute([':id' => $runId]);
+
+        return array_map(static fn (array $row): array => [
+            'payroll_id' => (int) $row['payroll_id'],
+            'earning_type' => (string) $row['earning_type'],
+            'description' => (string) $row['description'],
+            'quantity' => (float) $row['quantity'],
+            'unit_rate' => (float) $row['unit_rate'],
+            'multiplier' => (float) $row['multiplier'],
+            'amount' => (float) $row['amount'],
+        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /**
+     * @return list<array{payroll_id:int,deduction_type:string,description:string,quantity:float,unit_rate:float,amount:float}>
+     */
+    public function runDeductions(int $runId): array
+    {
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT d.payroll_id, d.deduction_type, d.description,
+                    d.quantity, d.unit_rate, d.amount
+               FROM deduction d
+               JOIN payroll p ON p.payroll_id = d.payroll_id
+              WHERE p.payroll_run_id = :id
+              ORDER BY d.payroll_id, d.deduction_type, d.deduction_id"
+        );
+        $stmt->execute([':id' => $runId]);
+
+        return array_map(static fn (array $row): array => [
+            'payroll_id' => (int) $row['payroll_id'],
+            'deduction_type' => (string) $row['deduction_type'],
+            'description' => (string) $row['description'],
+            'quantity' => (float) $row['quantity'],
+            'unit_rate' => (float) $row['unit_rate'],
+            'amount' => (float) $row['amount'],
+        ], $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
     // ===================================================================
     // Payroll Computation (Wire #2 + Wire #3)
     // ===================================================================
@@ -250,7 +395,7 @@ final class PayrollService
      *
      * Flow per employee:
      *   1. Fetch effective daily_rate for period_start.
-     *   2. Sum attendance days worked / late / undertime / overtime.
+     *   2. Sum attendance days worked / late / undertime; pay OT only where an approved request exists.
      *   3. Basic pay = days_worked_equivalent × daily_rate.
      *   4. Overtime earning (regular hours overtime, not holiday).
      *   5. Government contributions (SSS, PhilHealth, Pag-IBIG).
@@ -268,6 +413,19 @@ final class PayrollService
             throw new RuntimeException('Approved payroll runs are immutable.');
         }
 
+        $adjustmentCheck = $pdo->prepare(
+            "SELECT COUNT(*)
+               FROM payroll_adjustment
+              WHERE payroll_run_id = :run_id"
+        );
+        $adjustmentCheck->execute([':run_id' => $runId]);
+        if ((int) $adjustmentCheck->fetchColumn() > 0) {
+            throw new RuntimeException(
+                'This payroll run contains manual adjustments and cannot be recomputed. '
+                . 'Review the adjusted amounts before submitting it for approval.'
+            );
+        }
+
         $policy        = $this->resolveRunPolicy($pdo, $runId);
         $contribPolicy = $this->resolveContribPolicy($pdo);
 
@@ -280,6 +438,8 @@ final class PayrollService
         $eemrDaysPerYear  = (int)   ($policy['eemr_days_per_year']   ?? 313);
         $periodStart      = $run['period_start'];
         $periodEnd        = $run['period_end'];
+        $payDate          = $run['pay_date'];
+        $applyContributions = $this->isMonthlyContributionCutoff((string) $payDate);
 
         // Eligible employees: branch assignment effective on period_start
         // Note: PDO named params must be unique per statement — :ps1…:ps6 all bind $periodStart.
@@ -321,7 +481,8 @@ final class PayrollService
         $this->connection->transaction(function () use (
             $pdo, $runId, $employees, $periodStart, $periodEnd,
             $contribPolicy, $sssBrackets, $philRate, $pagibigRate,
-            $lateRatePerMin, $eemrDaysPerYear, $computedByUserId
+            $lateRatePerMin, $eemrDaysPerYear, $computedByUserId,
+            $payDate, $applyContributions
         ): void {
             // Clear prior rows for this run
             $pdo->prepare("DELETE FROM contribution_record WHERE payroll_id IN (SELECT payroll_id FROM payroll WHERE payroll_run_id = :id)")->execute([':id' => $runId]);
@@ -347,8 +508,7 @@ final class PayrollService
                         COUNT(*) AS days_count,
                         SUM(hours_worked_minutes) AS total_worked,
                         SUM(late_minutes)         AS total_late,
-                        SUM(undertime_minutes)    AS total_undertime,
-                        SUM(overtime_minutes)     AS total_overtime
+                        SUM(undertime_minutes)    AS total_undertime
                        FROM attendance
                       WHERE employee_id = :emp_id
                         AND attendance_date BETWEEN :start AND :end
@@ -360,13 +520,19 @@ final class PayrollService
                 $daysCount       = (int)   ($att['days_count']    ?? 0);
                 $totalLate       = (int)   ($att['total_late']     ?? 0);
                 $totalUndertime  = (int)   ($att['total_undertime'] ?? 0);
-                $totalOvertime   = (int)   ($att['total_overtime']  ?? 0);
+                $approvedOtByDate = $this->approvedOvertimeRequestsByDate(
+                    $pdo, $employeeId, $periodStart, $periodEnd
+                );
+                $paidOtByDate = $this->payableOvertimeByDate(
+                    $pdo, $employeeId, $periodStart, $periodEnd, $approvedOtByDate
+                );
+                $totalOvertime = array_sum($paidOtByDate);
 
                 // Basic pay = days present × daily_rate
                 // (full days: worked_minutes >= standard_minutes - 30min tolerance)
                 $basicPay = round($daysCount * $dailyRate, 2);
 
-                // Regular-day overtime: overtime_minutes × (daily_rate / standard_minutes) × 1.25
+                // Overtime is paid only when attendance and an approved OT request agree.
                 // Holiday OT is re-attributed below; this will be adjusted for holiday rows.
                 $minuteRate  = $standardMinutes > 0 ? $dailyRate / $standardMinutes : 0;
                 $overtimePay = round($totalOvertime * $minuteRate * 1.25, 2);
@@ -381,8 +547,8 @@ final class PayrollService
 
                 $hStmt = $pdo->prepare(
                     "SELECT a.attendance_id,
+                            a.attendance_date,
                             a.hours_worked_minutes,
-                            a.overtime_minutes,
                             hc.holiday_type,
                             hc.description AS holiday_description
                        FROM attendance a
@@ -391,7 +557,7 @@ final class PayrollService
                         AND hc.status = 'Active'
                       WHERE a.employee_id = :emp_id
                         AND a.attendance_date BETWEEN :start AND :end
-                        AND a.status IN ('Complete','Approved','ReviewRequired')"
+                        AND a.status IN ('Complete','Approved')"
                 );
                 $hStmt->execute([
                     ':emp_id' => $employeeId,
@@ -403,7 +569,7 @@ final class PayrollService
                 foreach ($holidayAttRows as $hRow) {
                     $hType      = HolidayType::from($hRow['holiday_type']);
                     $workedMins = (int) $hRow['hours_worked_minutes'];
-                    $hOtMins    = (int) $hRow['overtime_minutes'];
+                    $hOtMins    = $paidOtByDate[(string) $hRow['attendance_date']] ?? 0;
                     $worked     = $workedMins > 0;
 
                     $bundle = $this->holidayCalc->computeBundle(
@@ -424,14 +590,32 @@ final class PayrollService
                     $regularOtAmt  = round($hOtMins * $minuteRate * 1.25, 2);
                     $holidayOtAdj += round($bundle['overtime_pay'] - $regularOtAmt, 2);
 
-                    if ($bundle['day_pay'] > 0.0 || $bundle['overtime_pay'] > 0.0) {
+                    // Basic Pay already holds the normal daily amount for a worked
+                    // holiday, and regular OT already holds its normal premium.
+                    // Store only the extra holiday premium so itemized earnings sum
+                    // exactly to gross pay and do not appear to double-pay the day.
+                    $holidayDayPremium = round($bundle['day_pay'] - $regularDayAmt, 2);
+                    $holidayOtPremium  = round($bundle['overtime_pay'] - $regularOtAmt, 2);
+                    if ($holidayDayPremium > 0.0) {
                         $holidayEarningRows[] = [
                             'type'        => $bundle['earning_type'],
-                            'description' => $hRow['holiday_description'],
+                            'description' => $hRow['holiday_description'] . ' premium above Basic Pay',
                             'qty'         => 1,
                             'unit_rate'   => $dailyRate,
-                            'multiplier'  => $bundle['multiplier_used'],
-                            'amount'      => round($bundle['day_pay'] + $bundle['overtime_pay'], 2),
+                            'multiplier'  => $worked
+                                ? max(0.0, $bundle['multiplier_used'] - 1.0)
+                                : $bundle['multiplier_used'],
+                            'amount'      => $holidayDayPremium,
+                        ];
+                    }
+                    if ($holidayOtPremium > 0.0 && $hOtMins > 0 && $minuteRate > 0.0) {
+                        $holidayEarningRows[] = [
+                            'type'        => $bundle['earning_type'],
+                            'description' => $hRow['holiday_description'] . ' OT premium above regular OT',
+                            'qty'         => $hOtMins,
+                            'unit_rate'   => $minuteRate,
+                            'multiplier'  => round(($bundle['overtime_pay'] / ($hOtMins * $minuteRate)) - 1.25, 4),
+                            'amount'      => $holidayOtPremium,
                         ];
                     }
                 }
@@ -442,12 +626,12 @@ final class PayrollService
                 $eemr = round(($dailyRate * $eemrDaysPerYear) / 12, 2);
 
                 // --- Contributions (Wire #3) ---
-                $sssEmployee  = $this->computeSss($eemr, $sssBrackets);
-                $sssEmployer  = $this->computeSssEmployer($eemr, $sssBrackets);
-                $philEmployee = $this->computePhilhealth($eemr, $philRate, true);
-                $philEmployer = $this->computePhilhealth($eemr, $philRate, false);
-                $pagEmployee  = $this->computePagibig($eemr, $pagibigRate, true);
-                $pagEmployer  = $this->computePagibig($eemr, $pagibigRate, false);
+                $sssEmployee  = $applyContributions ? $this->computeSss($eemr, $sssBrackets) : 0.0;
+                $sssEmployer  = $applyContributions ? $this->computeSssEmployer($eemr, $sssBrackets) : 0.0;
+                $philEmployee = $applyContributions ? $this->computePhilhealth($eemr, $philRate, true) : 0.0;
+                $philEmployer = $applyContributions ? $this->computePhilhealth($eemr, $philRate, false) : 0.0;
+                $pagEmployee  = $applyContributions ? $this->computePagibig($eemr, $pagibigRate, true) : 0.0;
+                $pagEmployer  = $applyContributions ? $this->computePagibig($eemr, $pagibigRate, false) : 0.0;
 
                 // --- Late deduction ---
                 $lateDed = round($totalLate * $lateRatePerMin, 2);
@@ -497,7 +681,7 @@ final class PayrollService
                 // --- Earnings rows ---
                 $this->insertEarning($pdo, $payrollId, 'Basic', 'Basic Pay', $daysCount, $dailyRate, 1.0, $basicPay, $now);
                 if ($overtimePay > 0) {
-                    $this->insertEarning($pdo, $payrollId, 'Overtime', 'Overtime Pay', $totalOvertime, $minuteRate, 1.25, $overtimePay, $now);
+                    $this->insertEarning($pdo, $payrollId, 'Overtime', 'Approved overtime pay', $totalOvertime, $minuteRate, 1.25, $overtimePay, $now);
                 }
                 // --- Holiday earnings rows (REQ047) ---
                 foreach ($holidayEarningRows as $hr) {
@@ -543,7 +727,7 @@ final class PayrollService
                 }
 
                 // --- Government contribution deduction rows + contribution_record ---
-                $deductionDate = (new DateTimeImmutable($this->utcNow()))->format('Y-m-d');
+                $deductionDate = $payDate;
                 foreach ([
                     ['SSS',       $sssEmployee,  $sssEmployer],
                     ['PhilHealth', $philEmployee, $philEmployer],
@@ -678,9 +862,9 @@ final class PayrollService
 
             $insert = $pdo->prepare(
                 "INSERT INTO payslip
-                    (payroll_id, issue_date, generated_by, generated_at, created_at)
+                    (payroll_id, issue_date, generated_by, generated_at)
                  VALUES
-                    (:pid, :issue, :by, :generated_at, :created_at)"
+                    (:pid, :issue, :by, :generated_at)"
             );
             $issueDate = (new DateTimeImmutable($now))->format('Y-m-d');
             foreach ($payrollIds as $pid) {
@@ -689,7 +873,6 @@ final class PayrollService
                     ':issue'        => $issueDate,
                     ':by'           => $reviewedByUserId,
                     ':generated_at' => $now,
-                    ':created_at'   => $now,
                 ]);
             }
         });
@@ -952,6 +1135,77 @@ final class PayrollService
         return min($repayment, $balance);
     }
 
+    /**
+     * @return array<string,list<array{start_time:string,end_time:string}>> Approved OT request windows, keyed by date.
+     */
+    private function approvedOvertimeRequestsByDate(PDO $pdo, int $employeeId, string $periodStart, string $periodEnd): array
+    {
+        $stmt = $pdo->prepare(
+            "SELECT ord.overtime_date, ord.start_time, ord.end_time
+               FROM request r
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+               JOIN overtime_request_detail ord ON ord.request_id = r.request_id
+              WHERE r.employee_id = :emp_id
+                AND rt.type_name = 'Overtime'
+                AND r.status = 'Approved'
+                AND ord.overtime_date BETWEEN :start AND :end
+              ORDER BY ord.overtime_date, ord.start_time"
+        );
+        $stmt->execute([':emp_id' => $employeeId, ':start' => $periodStart, ':end' => $periodEnd]);
+
+        $approved = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $approved[(string) $row['overtime_date']][] = [
+                'start_time' => (string) $row['start_time'],
+                'end_time' => (string) $row['end_time'],
+            ];
+        }
+        return $approved;
+    }
+
+    /**
+     * Match approved requests with actual attendance. ReviewRequired attendance is
+     * deliberately excluded from OT pay until HR resolves the biometric exception.
+     *
+     * @param array<string,list<array{start_time:string,end_time:string}>> $approvedOtByDate
+     * @return array<string,int> Payable OT minutes, keyed by attendance date.
+     */
+    private function payableOvertimeByDate(
+        PDO $pdo,
+        int $employeeId,
+        string $periodStart,
+        string $periodEnd,
+        array $approvedOtByDate,
+    ): array {
+        if ($approvedOtByDate === []) {
+            return [];
+        }
+
+        $stmt = $pdo->prepare(
+            "SELECT attendance_date, time_out, overtime_minutes
+               FROM attendance
+              WHERE employee_id = :emp_id
+                AND attendance_date BETWEEN :start AND :end
+                AND status IN ('Complete', 'Approved')
+                AND overtime_minutes > 0"
+        );
+        $stmt->execute([':emp_id' => $employeeId, ':start' => $periodStart, ':end' => $periodEnd]);
+
+        $payable = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $date = (string) $row['attendance_date'];
+            $minutes = $this->approvedOvertimeCalc->payableMinutes(
+                (int) $row['overtime_minutes'],
+                $row['time_out'] !== null ? (string) $row['time_out'] : null,
+                $approvedOtByDate[$date] ?? [],
+            );
+            if ($minutes > 0) {
+                $payable[$date] = $minutes;
+            }
+        }
+        return $payable;
+    }
+
     // ===================================================================
     // Private — DB helpers
     // ===================================================================
@@ -1122,6 +1376,16 @@ final class PayrollService
             ':now'     => $now,
         ]);
         return (int) $pdo->lastInsertId();
+    }
+
+    /** True only for the Friday payday that is last in its calendar month. */
+    private function isMonthlyContributionCutoff(string $payDate): bool
+    {
+        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $payDate, new DateTimeZone('Asia/Manila'));
+        if ($date === false || (int) $date->format('N') !== 5) {
+            return false;
+        }
+        return $date->format('Y-m-d') === $date->modify('last friday of this month')->format('Y-m-d');
     }
 
     private function utcNow(): string

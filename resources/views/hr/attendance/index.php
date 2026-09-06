@@ -181,7 +181,7 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
 <!-- =====================================================================
      Attendance table
      ===================================================================== -->
-<div class="card" style="padding:0;overflow:hidden">
+<div class="card" style="padding:0;overflow-x:auto">
     <?php if ($rows === []): ?>
     <p style="padding:2rem;text-align:center;color:#6b7280">
         No attendance records found for this period.
@@ -193,9 +193,9 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
     <table class="data-table">
         <thead>
             <tr>
+                <th>Date</th>
                 <th>Employee</th>
                 <th>Branch</th>
-                <th>Date</th>
                 <th>Time In</th>
                 <th>Time Out</th>
                 <th style="text-align:right">Worked (min)</th>
@@ -203,17 +203,18 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
                 <th style="text-align:right">UT (min)</th>
                 <th style="text-align:right">OT (min)</th>
                 <th>Status</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
         <?php foreach ($rows as $r): ?>
         <tr<?= $r['is_incomplete'] ? ' style="background:#fffbeb"' : '' ?>>
+            <td style="white-space:nowrap"><?= Formatter::date($r['attendance_date']) ?></td>
             <td>
                 <strong><?= Formatter::escape($r['employee_name']) ?></strong><br>
                 <small style="color:#6b7280"><?= Formatter::escape($r['employee_number']) ?></small>
             </td>
             <td><?= Formatter::escape((string) ($r['branch_name'] ?? '—')) ?></td>
-            <td style="white-space:nowrap"><?= Formatter::date($r['attendance_date']) ?></td>
             <td><?= Formatter::escape((string) ($r['time_in']  ?? '—')) ?></td>
             <td><?= Formatter::escape((string) ($r['time_out'] ?? '—')) ?></td>
             <td style="text-align:right"><?= (int) $r['worked_minutes'] ?></td>
@@ -239,6 +240,10 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
                 <span style="background:<?= $c ?>;color:#fff;padding:2px 7px;border-radius:9999px;font-size:.7rem;white-space:nowrap">
                     <?= Formatter::escape((string) ($r['status'] ?? '')) ?>
                 </span>
+            </td>
+            <td style="text-align:right">
+                <a href="<?= $base ?>/hr/attendance/<?= (int) $r['attendance_id'] ?>/adjust"
+                   class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.8rem">Adjust</a>
             </td>
         </tr>
         <?php endforeach; ?>

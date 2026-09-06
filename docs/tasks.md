@@ -82,7 +82,9 @@
         late/undertime/overtime calculation against effective `WorkSchedule`
   - [x] 6.6 `AttendanceController` — index (list), import (form + batch history), upload (full flow)
   - [x] 6.7 Views: `hr/attendance/index.php`, `hr/attendance/import.php`, `hr/attendance/summary.php`
-  - [ ] 6.8 Manual adjustment UI with audit evidence (REQ023)
+  - [x] 6.8 Manual adjustment UI with audit evidence (REQ023): HR-only time and
+        overtime correction form, required reason, append-only adjustment/audit records,
+        schedule-based recalculation, and approved-payroll mutation guard
   - [ ] 6.9 Parser tests: leading-zero enrollment, bad extension/signature, formula, resource limits,
         duplicate file/punch, unmatched enrollment, out-of-coverage, rollback
   - _Requirements: 6_

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wbpms\Http\Controllers;
 
 use PDO;
+use Wbpms\Application\PayrollService;
 use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
 
@@ -114,7 +115,8 @@ final class OwnerController
 
         // Employee payroll rows for this run ($details matches view contract)
         $stmt = $pdo->prepare(
-            "SELECT CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+            "SELECT p.payroll_id,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
                     e.employee_number,
                     p.gross_pay,
                     p.total_deductions,
@@ -127,10 +129,22 @@ final class OwnerController
         $stmt->execute([':id' => $id]);
         $details = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Owner review has the same read-only itemization as HR, so approval
+        // is based on the actual earnings and deductions rather than totals alone.
+        $payrollService = new PayrollService($this->makeConnection());
+        $earningSummary = $payrollService->runEarningSummary($id);
+        $earnings = $payrollService->runEarnings($id);
+        $deductionSummary = $payrollService->runDeductionSummary($id);
+        $deductions = $payrollService->runDeductions($id);
+
         ViewRenderer::render('owner/payroll/review', [
-            'run'     => $run,
-            'details' => $details,
-            'errors'  => [],
+            'run'              => $run,
+            'details'          => $details,
+            'earningSummary'   => $earningSummary,
+            'earnings'         => $earnings,
+            'deductionSummary' => $deductionSummary,
+            'deductions'       => $deductions,
+            'errors'           => [],
         ], 'Review Payroll');
     }
 
