@@ -702,6 +702,28 @@ final class PayrollService
                 }
                 if ($caDed > 0) {
                     $this->insertDeduction($pdo, $payrollId, 'CashAdvance', 'Cash advance repayment', 1, $caDed, $caDed, $now);
+
+                    // Decrement the remaining balance on the active obligation row.
+                    // If the repayment clears the balance entirely, mark it Settled
+                    // so it is excluded from future runs.
+                    $pdo->prepare(
+                        "UPDATE cash_advance_history
+                            SET remaining_balance = GREATEST(0, remaining_balance - :deducted),
+                                status = CASE
+                                    WHEN GREATEST(0, remaining_balance - :deducted2) = 0
+                                    THEN 'Settled'
+                                    ELSE status
+                                END,
+                                updated_at = NOW()
+                          WHERE employee_id = :emp_id
+                            AND status = 'Active'
+                          ORDER BY approved_at DESC
+                          LIMIT 1"
+                    )->execute([
+                        ':deducted'  => $caDed,
+                        ':deducted2' => $caDed,
+                        ':emp_id'    => $employeeId,
+                    ]);
                 }
 
                 // --- Government contribution deduction rows + contribution_record ---

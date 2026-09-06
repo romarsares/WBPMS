@@ -356,7 +356,7 @@ final class EmployeePortalController
             $this->scope->assertOwnRecord($employeeId, $data['employee_id']);
         } catch (\DomainException) {
             http_response_code(403);
-            echo 'Forbidden.';
+            ViewRenderer::render('errors/403', [], 'Forbidden');
             return;
         }
 
