@@ -34,7 +34,7 @@ $errors       ??= [];
 $editRow      ??= null;
 $input        ??= [];
 $periods      ??= [];
-$period_start ??= '';
+$payroll_month ??= date('Y-m');
 $holidays     ??= [];
 
 $e = static fn(string $key): string => isset($errors[$key])
@@ -264,14 +264,14 @@ openEditModal(
 <?php if ($tab === 'periods'): ?>
 
 <p class="muted" style="margin:0 0 1.25rem">
-    Weekly pay windows run Sunday through Friday. Salary is released on the period-ending Friday.
+    Generate all weekly Sunday–Friday cutoffs for a month. A cutoff that crosses a month boundary is included. Government contributions are deducted only on the final Friday payday of each month.
 </p>
 
 <div style="display:grid;grid-template-columns:1fr 2fr;gap:1.5rem;align-items:start">
 
     <!-- Add form -->
     <div class="card">
-        <h3 style="margin:0 0 1.1rem;font-size:15px">Add New Period</h3>
+        <h3 style="margin:0 0 1.1rem;font-size:15px">Generate Monthly Periods</h3>
 
         <?php if (!empty($errors)): ?>
         <div class="alert error" role="alert" style="margin-bottom:1rem">
@@ -285,12 +285,12 @@ openEditModal(
             <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
             <div class="form-group">
                 <label for="period_start">
-                    Period Start (Sunday) <span style="color:var(--bad)">*</span>
+                    Payroll Month <span style="color:var(--bad)">*</span>
                 </label>
-                <input type="date" id="period_start" name="period_start"
+                <input type="month" id="period_start" name="payroll_month"
                        class="form-control <?= !empty($errors) ? 'is-invalid' : '' ?>"
-                       value="<?= Formatter::escape($period_start) ?>" required>
-                <span class="help">Must be a Sunday. The period ends and salary is released on Friday.</span>
+                       value="<?= Formatter::escape($payroll_month) ?>" required>
+                <span class="help">Creates every cutoff that overlaps the selected month. Existing periods are kept.</span>
             </div>
 
             <!-- JS preview of derived dates -->
@@ -303,7 +303,7 @@ openEditModal(
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-primary btn-full">Create Period</button>
+            <button type="submit" class="btn btn-primary btn-full">Generate Periods</button>
         </form>
     </div>
 
@@ -334,6 +334,7 @@ openEditModal(
                     <th>Period Start</th>
                     <th>Period End</th>
                     <th>Pay Date</th>
+                    <th>Contribution Cycle</th>
                     <th style="text-align:center">Runs</th>
                     <th>Status</th>
                 </tr>
@@ -357,6 +358,13 @@ openEditModal(
                 </td>
                 <td style="color:var(--ok-text);font-weight:600">
                     <?= Formatter::date($p['pay_date']) ?>
+                </td>
+                <td>
+                    <?php if (!empty($p['is_month_end_contribution_cutoff'])): ?>
+                        <span class="badge warn">Monthly deductions</span>
+                    <?php else: ?>
+                        <span class="muted">No statutory deduction</span>
+                    <?php endif; ?>
                 </td>
                 <td style="text-align:center">
                     <?php if ((int) $p['run_count'] > 0): ?>

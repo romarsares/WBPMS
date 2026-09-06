@@ -6,6 +6,7 @@ namespace Wbpms\Http\View;
 
 use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\Middleware\CsrfMiddleware;
+use Wbpms\Infrastructure\Database\Connection;
 
 /**
  * ViewRenderer — renders a view file into the shared layout.
@@ -38,6 +39,7 @@ final class ViewRenderer
         $identity = (PHP_SAPI !== 'cli') ? AuthMiddleware::identity() : null;
         $roleName = $identity['role_name'] ?? '';
         $userName = $identity['username']  ?? '';
+        $notifCount = self::notificationCount($roleName);
 
         // Active sidebar nav key — forwarded from the view's $data array when provided.
         $activePage = isset($data['activePage']) ? (string) $data['activePage'] : '';
@@ -58,7 +60,10 @@ final class ViewRenderer
         header('Content-Type: text/html; charset=utf-8');
 
         // Render the layout
-        self::captureLayout($title, $content, $roleName, $userName, $csrf, $flash, $flashError, $activePage);
+        self::captureLayout(
+            $title, $content, $roleName, $userName, $csrf,
+            $flash, $flashError, $activePage, $notifCount
+        );
     }
 
     /**
@@ -129,7 +134,8 @@ final class ViewRenderer
         string  $csrf,
         ?string $flash,
         ?string $flashError,
-        string  $activePage = ''
+        string  $activePage = '',
+        int     $notifCount = 0,
     ): void {
         $layoutPath = APP_ROOT . '/resources/views/layout.php';
 
@@ -140,5 +146,23 @@ final class ViewRenderer
         }
 
         require $layoutPath;
+    }
+
+    /** Return the current in-app alert count appropriate for the signed-in role. */
+    private static function notificationCount(string $roleName): int
+    {
+        if ($roleName !== 'BusinessOwner') {
+            return 0;
+        }
+
+        try {
+            $pdo = (new Connection(require APP_ROOT . '/config/database.php'))->pdo();
+            return (int) $pdo->query(
+                "SELECT COUNT(*) FROM payroll_run WHERE status = 'PendingOwnerApproval'"
+            )->fetchColumn();
+        } catch (\Throwable) {
+            // A notification must never prevent the page from rendering.
+            return 0;
+        }
     }
 }

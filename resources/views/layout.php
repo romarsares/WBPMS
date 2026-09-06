@@ -154,8 +154,9 @@ $nav = match ($roleName) {
             <div id="notifPanel" class="notif-panel" hidden role="status" aria-live="polite">
                 <b>Notifications</b>
                 <?php if ($roleName === 'BusinessOwner'): ?>
-                    <p><strong>Requests Pending Approval</strong><br>
-                        <?= (int) $notifCount ?> request(s) waiting for your final approval.</p>
+                    <p><strong>Payroll Runs Pending Approval</strong><br>
+                        <?= (int) $notifCount ?> payroll run(s) waiting for your final approval.<br>
+                        <a href="<?= $base ?>/owner/payroll">Review pending payroll</a></p>
                 <?php elseif ($roleName === 'HRHead'): ?>
                     <p><strong>Attendance Alerts</strong><br>
                         <?= (int) $notifCount ?> attendance record(s) with missing punch data.</p>

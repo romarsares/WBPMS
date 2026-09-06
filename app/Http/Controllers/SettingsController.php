@@ -157,12 +157,16 @@ final class SettingsController
     /** POST /hr/settings/periods */
     public function storePeriod(array $params = []): void
     {
-        $periodStart = trim((string) ($_POST['period_start'] ?? ''));
+        $month = trim((string) ($_POST['payroll_month'] ?? ''));
         $service     = $this->payrollService();
 
         try {
-            $service->createPeriod($periodStart);
-            ViewRenderer::flash('Payroll period created.');
+            $result = $service->createPeriodsForMonth($month);
+            ViewRenderer::flash(sprintf(
+                'Payroll periods generated: %d created, %d already existed.',
+                $result['created'],
+                $result['existing']
+            ));
             $this->redirect('/hr/settings/periods');
         } catch (RuntimeException $e) {
             ViewRenderer::render('hr/settings/index', [
@@ -170,7 +174,7 @@ final class SettingsController
                 'tab'          => 'periods',
                 'periods'      => $service->listPeriods(),
                 'errors'       => [$e->getMessage()],
-                'period_start' => $periodStart,
+                'payroll_month' => $month,
             ], 'Settings');
         }
     }

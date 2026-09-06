@@ -255,6 +255,20 @@ final class HolidayPayCalculatorTest extends TestCase
         $this->assertSame('RegularHoliday', $bundle['earning_type']);
     }
 
+    public function testWorkedRegularHolidayPremiumAboveBasicPayIsOneDailyRate(): void
+    {
+        $dailyRate = 500.00;
+        $bundle = $this->calc->computeBundle(
+            dailyRate: $dailyRate,
+            type: HolidayType::Regular,
+            worked: true,
+        );
+
+        // Basic Pay already contains the ordinary daily rate. The itemized
+        // holiday earning must therefore contain only the extra holiday premium.
+        self::assertSame(500.00, round($bundle['day_pay'] - $dailyRate, 2));
+    }
+
     public function testBundleWorkedRegularHolidayWithOT(): void
     {
         // dayPay = 920.00; OT 60min → 149.50; total = 1,069.50

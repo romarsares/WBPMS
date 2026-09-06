@@ -1,10 +1,14 @@
 ﻿<?php
 /**
  * View: owner/payroll/review  (GET /owner/payroll/{id}/review)
- * Variables: $run (from PayrollService::findRunOrFail()), $details, $errors
+ * Variables: $run, $details, $earningSummary, $earnings, $deductionSummary, $deductions, $errors
  */
 $errors  ??= [];
 $details ??= [];
+$earningSummary ??= [];
+$earnings ??= [];
+$deductionSummary ??= [];
+$deductions ??= [];
 $runId   = (int)$run['payroll_run_id'];
 $isPending = $run['status'] === 'PendingOwnerApproval';
 $grossTotal = array_sum(array_column($details, 'gross_pay'));
@@ -16,6 +20,14 @@ $statusColors = [
     'Returned'             => '#ef4444',
 ];
 $sc = $statusColors[$run['status']] ?? '#6b7280';
+$earningsByPayroll = [];
+foreach ($earnings as $earning) {
+    $earningsByPayroll[(int) $earning['payroll_id']][] = $earning;
+}
+$deductionsByPayroll = [];
+foreach ($deductions as $deduction) {
+    $deductionsByPayroll[(int) $deduction['payroll_id']][] = $deduction;
+}
 ?>
 <div class="page-head">
     <div>
@@ -34,20 +46,64 @@ $sc = $statusColors[$run['status']] ?? '#6b7280';
     <div><div style="font-size:.7rem;color:#6b7280;text-transform:uppercase">Submitted</div><div style="font-weight:600"><?= htmlspecialchars((string)($run['submitted_at'] ?? '—')) ?></div></div>
 </div>
 
+<?php if ($earningSummary !== []): ?>
+<div class="card" style="padding:0;overflow-x:auto;margin-bottom:1.25rem">
+    <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--line)">
+        <h2 style="margin:0;font-size:1.05rem">Earnings Breakdown</h2>
+        <p style="margin:.25rem 0 0;color:#6b7280;font-size:.875rem">Read-only review of basic pay, approved overtime, holiday premiums, and adjustments.</p>
+    </div>
+    <table class="data-table">
+        <thead><tr><th>Earning Type</th><th style="text-align:right">Employees / Records</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>
+        <?php foreach ($earningSummary as $summary): ?>
+            <tr>
+                <td><?= htmlspecialchars($summary['earning_type']) ?></td>
+                <td style="text-align:right"><?= (int) $summary['record_count'] ?></td>
+                <td style="text-align:right;color:#047857;font-weight:600">₱<?= number_format((float) $summary['total_amount'], 2) ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php endif; ?>
+
+<?php if ($deductionSummary !== []): ?>
+<div class="card" style="padding:0;overflow-x:auto;margin-bottom:1.25rem">
+    <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--line)">
+        <h2 style="margin:0;font-size:1.05rem">Deductions Breakdown</h2>
+        <p style="margin:.25rem 0 0;color:#6b7280;font-size:.875rem">Read-only review of statutory, attendance, cash-advance, and manual deductions.</p>
+    </div>
+    <table class="data-table">
+        <thead><tr><th>Deduction Type</th><th style="text-align:right">Employees / Records</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>
+        <?php foreach ($deductionSummary as $summary): ?>
+            <tr>
+                <td><?= htmlspecialchars($summary['deduction_type']) ?></td>
+                <td style="text-align:right"><?= (int) $summary['record_count'] ?></td>
+                <td style="text-align:right;color:#ef4444;font-weight:600">₱<?= number_format((float) $summary['total_amount'], 2) ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php endif; ?>
+
 <!-- Employee breakdown -->
 <div class="card" style="padding:0;overflow:hidden;margin-bottom:1.5rem">
     <table class="data-table">
         <thead>
             <tr>
                 <th>Employee</th>
+                <th>Earning Details</th>
                 <th style="text-align:right">Gross Pay</th>
                 <th style="text-align:right">Total Deductions</th>
+                <th>Deduction Details</th>
                 <th style="text-align:right;font-weight:700">Net Pay</th>
             </tr>
         </thead>
         <tbody>
         <?php if ($details === []): ?>
-            <tr><td colspan="4" style="text-align:center;color:#6b7280;padding:2rem">No employee records found.</td></tr>
+            <tr><td colspan="6" style="text-align:center;color:#6b7280;padding:2rem">No employee records found.</td></tr>
         <?php else: ?>
             <?php foreach ($details as $d): ?>
             <tr>
@@ -55,8 +111,38 @@ $sc = $statusColors[$run['status']] ?? '#6b7280';
                     <strong><?= htmlspecialchars($d['employee_name']) ?></strong><br>
                     <small style="color:#6b7280"><?= htmlspecialchars($d['employee_number']) ?></small>
                 </td>
+                <td>
+                    <?php $employeeEarnings = $earningsByPayroll[(int) $d['payroll_id']] ?? []; ?>
+                    <?php if ($employeeEarnings === []): ?>
+                        <span style="color:#6b7280">—</span>
+                    <?php else: ?>
+                        <details>
+                            <summary style="cursor:pointer;color:#047857">View <?= count($employeeEarnings) ?> item<?= count($employeeEarnings) === 1 ? '' : 's' ?></summary>
+                            <ul style="margin:.5rem 0 0;padding-left:1rem;font-size:.82rem;min-width:180px">
+                            <?php foreach ($employeeEarnings as $item): ?>
+                                <li><?= htmlspecialchars($item['earning_type']) ?> — <strong>₱<?= number_format((float) $item['amount'], 2) ?></strong><br><small style="color:#6b7280"><?= htmlspecialchars($item['description']) ?></small></li>
+                            <?php endforeach; ?>
+                            </ul>
+                        </details>
+                    <?php endif; ?>
+                </td>
                 <td style="text-align:right">₱<?= number_format((float)$d['gross_pay'], 2) ?></td>
                 <td style="text-align:right;color:#ef4444">₱<?= number_format((float)$d['total_deductions'], 2) ?></td>
+                <td>
+                    <?php $employeeDeductions = $deductionsByPayroll[(int) $d['payroll_id']] ?? []; ?>
+                    <?php if ($employeeDeductions === []): ?>
+                        <span style="color:#6b7280">—</span>
+                    <?php else: ?>
+                        <details>
+                            <summary style="cursor:pointer;color:#b91c1c">View <?= count($employeeDeductions) ?> item<?= count($employeeDeductions) === 1 ? '' : 's' ?></summary>
+                            <ul style="margin:.5rem 0 0;padding-left:1rem;font-size:.82rem;min-width:180px">
+                            <?php foreach ($employeeDeductions as $item): ?>
+                                <li><?= htmlspecialchars($item['deduction_type']) ?> — <strong>₱<?= number_format((float) $item['amount'], 2) ?></strong><br><small style="color:#6b7280"><?= htmlspecialchars($item['description']) ?></small></li>
+                            <?php endforeach; ?>
+                            </ul>
+                        </details>
+                    <?php endif; ?>
+                </td>
                 <td style="text-align:right;font-weight:700">₱<?= number_format((float)$d['net_pay'], 2) ?></td>
             </tr>
             <?php endforeach; ?>
@@ -64,9 +150,10 @@ $sc = $statusColors[$run['status']] ?? '#6b7280';
         </tbody>
         <tfoot>
             <tr style="background:#f9fafb;font-weight:700">
-                <td style="padding:.6rem .85rem">Total</td>
+                <td colspan="2" style="padding:.6rem .85rem">Total</td>
                 <td style="text-align:right;padding:.6rem .85rem">₱<?= number_format($grossTotal, 2) ?></td>
                 <td style="text-align:right;padding:.6rem .85rem;color:#ef4444">₱<?= number_format($dedTotal, 2) ?></td>
+                <td></td>
                 <td style="text-align:right;padding:.6rem .85rem">₱<?= number_format($netTotal, 2) ?></td>
             </tr>
         </tfoot>

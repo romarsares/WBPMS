@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Wbpms\Http\Controllers;
 
 use DateTimeZone;
+use RuntimeException;
+use Wbpms\Application\AttendanceAdjustmentService;
 use Wbpms\Application\Attendance\AttendanceImportService;
 use Wbpms\Application\Attendance\DuplicateAttendanceFileException;
 use Wbpms\Domain\Attendance\Parsing\AttendanceParseException;
@@ -24,6 +26,8 @@ use Wbpms\Infrastructure\Persistence\PdoAttendanceImportGateway;
  *   GET  /hr/attendance         → index()  — attendance list / timesheet view
  *   GET  /hr/attendance/import  → import() — upload form with recent batches
  *   POST /hr/attendance/import  → upload() — process XLS upload end-to-end
+ *   GET  /hr/attendance/{id}/adjust  → adjustment form
+ *   POST /hr/attendance/{id}/adjust → persist an audited correction
  *
  * REQ018–REQ024 (import) and the HR attendance list view.
  *
@@ -136,8 +140,13 @@ final class AttendanceController
         $bind   = [':from' => $dateFrom, ':to' => $dateTo];
 
         if ($search !== '') {
-            $where[]          = "(e.last_name LIKE :s OR e.first_name LIKE :s OR e.employee_number LIKE :s)";
-            $bind[':s']       = '%' . $search . '%';
+            $where[] = "(e.last_name LIKE :search_last_name
+                          OR e.first_name LIKE :search_first_name
+                          OR e.employee_number LIKE :search_employee_number)";
+            $searchPattern = '%' . $search . '%';
+            $bind[':search_last_name']       = $searchPattern;
+            $bind[':search_first_name']      = $searchPattern;
+            $bind[':search_employee_number'] = $searchPattern;
         }
         if ($branchId !== null) {
             $where[]           = 'eba.branch_id = :branch_id';
@@ -408,6 +417,66 @@ final class AttendanceController
     }
 
     // -----------------------------------------------------------------------
+    // GET /hr/attendance/{id}/adjust
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function adjustForm(array $params = []): void
+    {
+        $attendanceId = (int) ($params['id'] ?? 0);
+        try {
+            $attendance = $this->adjustmentService()->findForAdjustment($attendanceId);
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+            $this->redirect('/hr/attendance');
+            return;
+        }
+
+        ViewRenderer::render('hr/attendance/adjust', [
+            'attendance' => $attendance,
+            'errors' => [],
+            'old' => [],
+        ], 'Adjust Attendance');
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /hr/attendance/{id}/adjust
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function adjust(array $params = []): void
+    {
+        $attendanceId = (int) ($params['id'] ?? 0);
+        $input = [
+            'time_in' => trim((string) ($_POST['time_in'] ?? '')),
+            'time_out' => trim((string) ($_POST['time_out'] ?? '')),
+            'manual_overtime_minutes' => trim((string) ($_POST['manual_overtime_minutes'] ?? '')),
+            'reason' => trim((string) ($_POST['reason'] ?? '')),
+        ];
+
+        try {
+            $identity = AuthMiddleware::identity();
+            $this->adjustmentService()->adjust($attendanceId, $input, (int) ($identity['user_id'] ?? 0));
+            ViewRenderer::flash('Attendance adjustment saved. Recompute any unapproved payroll run for this period before submitting it.');
+            $this->redirect('/hr/attendance');
+            return;
+        } catch (RuntimeException $e) {
+            try {
+                $attendance = $this->adjustmentService()->findForAdjustment($attendanceId);
+            } catch (RuntimeException) {
+                ViewRenderer::flashError('Attendance record not found.');
+                $this->redirect('/hr/attendance');
+                return;
+            }
+            ViewRenderer::render('hr/attendance/adjust', [
+                'attendance' => $attendance,
+                'errors' => [$e->getMessage()],
+                'old' => $input,
+            ], 'Adjust Attendance');
+        }
+    }
+
+    // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
 
@@ -449,6 +518,11 @@ final class AttendanceController
     private function makeConnection(): Connection
     {
         return new Connection(require APP_ROOT . '/config/database.php');
+    }
+
+    private function adjustmentService(): AttendanceAdjustmentService
+    {
+        return new AttendanceAdjustmentService($this->makeConnection());
     }
 
     private function redirect(string $path): void

@@ -131,6 +131,8 @@ $router->add('PUT',  '/hr/schedules/{id}',          [ScheduleController::class, 
 $router->add('GET',  '/hr/attendance',        [AttendanceController::class, 'index'],  ['HRHead']);
 $router->add('GET',  '/hr/attendance/import', [AttendanceController::class, 'import'], ['HRHead']);
 $router->add('POST', '/hr/attendance/import', [AttendanceController::class, 'upload'], ['HRHead']);
+$router->add('GET',  '/hr/attendance/{id}/adjust', [AttendanceController::class, 'adjustForm'], ['HRHead']);
+$router->add('POST', '/hr/attendance/{id}/adjust', [AttendanceController::class, 'adjust'],     ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Request Management  (REQ032–REQ046)
@@ -178,6 +180,8 @@ $router->add('GET',  '/hr/payroll/periods',           [PayrollController::class,
 $router->add('GET',  '/hr/payroll/create',            [PayrollController::class, 'create'],        ['HRHead']);
 $router->add('POST', '/hr/payroll',                  [PayrollController::class, 'store'],    ['HRHead']);
 $router->add('GET',  '/hr/payroll/{id}',             [PayrollController::class, 'show'],     ['HRHead']);
+$router->add('GET',  '/hr/payroll/{id}/employees/{payrollId}/adjust', [PayrollController::class, 'adjustForm'], ['HRHead']);
+$router->add('POST', '/hr/payroll/{id}/employees/{payrollId}/adjust', [PayrollController::class, 'adjust'],     ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/compute',     [PayrollController::class, 'compute'],  ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/submit',      [PayrollController::class, 'submit'],   ['HRHead']);
 
