@@ -320,7 +320,7 @@ final class PayrollService
 
         $this->connection->transaction(function () use (
             $pdo, $runId, $employees, $periodStart, $periodEnd,
-            $policy, $contribPolicy, $sssBrackets, $philRate, $pagibigRate,
+            $contribPolicy, $sssBrackets, $philRate, $pagibigRate,
             $lateRatePerMin, $eemrDaysPerYear, $computedByUserId
         ): void {
             // Clear prior rows for this run
@@ -804,7 +804,7 @@ final class PayrollService
      * Total basic pay = SUM of payroll_earnings.amount WHERE earning_type = 'Basic'
      * across all Approved payroll runs in the year.
      *
-     * @return list<array{employee_id:int,employee_name:string,basic_total:float,thirteenth_month:float}>
+     * @return list<array{employee_id:int,employee_name:string,employee_number:string,basic_total:float,thirteenth_month:float}>
      */
     public function compute13thMonth(int $year): array
     {

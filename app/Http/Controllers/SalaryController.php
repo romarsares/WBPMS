@@ -208,7 +208,7 @@ final class SalaryController
     // Private helpers
     // -----------------------------------------------------------------------
 
-    /** @return array<string,string> */
+    /** @return array{employee_id: string, daily_rate: string, effective_from: string} */
     private function extractPostFields(): array
     {
         return [
