@@ -95,7 +95,7 @@ final class SalaryService
      * Create a new salary record for an employee.
      *
      * @param array{
-     *   employee_id:   int,
+     *   employee_id:   int|string,
      *   daily_rate:    string,
      *   effective_from: string,
      * } $data

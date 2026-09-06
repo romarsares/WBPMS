@@ -4,8 +4,12 @@ parameters:
         - app
     excludePaths:
         - app/Infrastructure/Reports
-    checkMissingIterableValueType: false
+    bootstrapFiles:
+        - phpstan-bootstrap.php
     treatPhpDocTypesAsCertain: false
     ignoreErrors:
         # Session handler write() and destroy() signatures differ in PHP 8
         - '#Wbpms\\Infrastructure\\Session\\DatabaseSessionHandler#'
+        # Legacy repositories have untyped result collections. Track these
+        # separately while keeping the deprecated PHPStan option disabled.
+        - identifier: missingType.iterableValue
