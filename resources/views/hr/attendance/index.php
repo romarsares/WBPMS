@@ -99,19 +99,52 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
                     <span style="font-size:.85rem;color:#6b7280">No payroll periods defined yet.</span>
                     <input type="hidden" name="period_id" value="">
                 <?php else: ?>
-                <select name="period_id"
-                        id="periodSelect"
-                        style="padding:.4rem .6rem;border:1px solid var(--line);border-radius:4px;font-size:.9rem;min-width:260px">
-                    <option value="">— All cut-offs —</option>
-                    <?php foreach ($periods as $p): ?>
-                    <option value="<?= (int) $p['payroll_period_id'] ?>"
-                        <?= (int) $p['payroll_period_id'] === $periodId ? 'selected' : '' ?>>
-                        <?= Formatter::date($p['period_start']) ?> – <?= Formatter::date($p['period_end']) ?>
-                        (pay <?= Formatter::date($p['pay_date']) ?>)
-                        <?= $p['status'] !== 'Open' ? ' [' . Formatter::escape($p['status']) . ']' : '' ?>
-                    </option>
-                    <?php endforeach; ?>
-                </select>
+                <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                    <select id="cutoffMonthFilter"
+                            style="padding:.4rem .6rem;border:1px solid var(--line);border-radius:4px;font-size:.9rem;min-width:140px">
+                        <option value="">— Month —</option>
+                        <?php
+                        // Build unique year-month list from available periods
+                        $cutoffMonths = [];
+                        foreach ($periods as $p) {
+                            $ym = substr($p['period_start'], 0, 7); // YYYY-MM
+                            $cutoffMonths[$ym] = true;
+                        }
+                        ksort($cutoffMonths);
+                        $selectedYm = $periodId
+                            ? (function() use ($periods, $periodId) {
+                                foreach ($periods as $p) {
+                                    if ((int)$p['payroll_period_id'] === $periodId) {
+                                        return substr($p['period_start'], 0, 7);
+                                    }
+                                }
+                                return '';
+                            })()
+                            : '';
+                        foreach (array_keys($cutoffMonths) as $ym):
+                            $label = (new DateTimeImmutable($ym . '-01'))->format('F Y');
+                        ?>
+                        <option value="<?= Formatter::escape($ym) ?>"<?= $ym === $selectedYm ? ' selected' : '' ?>>
+                            <?= Formatter::escape($label) ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+
+                    <select name="period_id"
+                            id="periodSelect"
+                            style="padding:.4rem .6rem;border:1px solid var(--line);border-radius:4px;font-size:.9rem;min-width:260px">
+                        <option value="">— Select cut-off —</option>
+                        <?php foreach ($periods as $p): ?>
+                        <option value="<?= (int) $p['payroll_period_id'] ?>"
+                                data-ym="<?= Formatter::escape(substr($p['period_start'], 0, 7)) ?>"
+                            <?= (int) $p['payroll_period_id'] === $periodId ? 'selected' : '' ?>>
+                            <?= Formatter::date($p['period_start']) ?> – <?= Formatter::date($p['period_end']) ?>
+                            (pay <?= Formatter::date($p['pay_date']) ?>)
+                            <?= $p['status'] !== 'Open' ? ' [' . Formatter::escape($p['status']) . ']' : '' ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 <?php endif; ?>
             </div>
 
@@ -425,4 +458,31 @@ function setTab(tab) {
     if (tab === 'month')  { var s = document.getElementById('periodSelect'); if (s) s.value = ''; }
     if (tab === 'cutoff') { var m = document.getElementById('monthPicker');  if (m) m.value = ''; }
 }
+
+// Month → cut-off cascade filter
+(function () {
+    var monthSel  = document.getElementById('cutoffMonthFilter');
+    var periodSel = document.getElementById('periodSelect');
+    if (!monthSel || !periodSel) return;
+
+    function filterPeriods() {
+        var ym = monthSel.value;
+        var opts = periodSel.querySelectorAll('option[data-ym]');
+        var currentVal = periodSel.value;
+        var currentStillVisible = false;
+
+        opts.forEach(function (opt) {
+            var show = (ym === '' || opt.dataset.ym === ym);
+            opt.style.display = show ? '' : 'none';
+            if (show && opt.value === currentVal) currentStillVisible = true;
+        });
+
+        // If the selected period is now hidden, reset to the prompt
+        if (!currentStillVisible) periodSel.value = '';
+    }
+
+    monthSel.addEventListener('change', filterPeriods);
+    // Run on load to apply the pre-selected state
+    filterPeriods();
+}());
 </script>

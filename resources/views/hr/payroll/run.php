@@ -27,10 +27,31 @@ $errors ??= [];
             <label for="payroll_period_id" style="display:block;font-weight:500;margin-bottom:.25rem">
                 Payroll Period <span style="color:#ef4444">*</span>
             </label>
+
+            <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.4rem">
+                <select id="runMonthFilter" class="form-control" style="max-width:180px">
+                    <option value="">— Select Month —</option>
+                    <?php
+                    $runMonths = [];
+                    foreach ($periods as $p) {
+                        $ym = substr($p['period_start'], 0, 7);
+                        $runMonths[$ym] = true;
+                    }
+                    ksort($runMonths);
+                    foreach (array_keys($runMonths) as $ym):
+                        $label = (new DateTimeImmutable($ym . '-01'))->format('F Y');
+                    ?>
+                    <option value="<?= htmlspecialchars($ym) ?>"><?= htmlspecialchars($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <span style="font-size:.8rem;color:#6b7280">then select a cut-off below</span>
+            </div>
+
             <select id="payroll_period_id" name="payroll_period_id" class="form-control" required>
                 <option value="">— Select Period —</option>
                 <?php foreach ($periods as $p): ?>
-                <option value="<?= (int)$p['payroll_period_id'] ?>">
+                <option value="<?= (int)$p['payroll_period_id'] ?>"
+                        data-ym="<?= htmlspecialchars(substr($p['period_start'], 0, 7)) ?>">
                     <?= htmlspecialchars($p['label']) ?>
                     <?php if ($p['status'] !== 'Open'): ?>
                     (<?= htmlspecialchars($p['status']) ?>)
@@ -59,3 +80,28 @@ $errors ??= [];
         </div>
     </form>
 </div>
+
+<script>
+(function () {
+    var monthSel  = document.getElementById('runMonthFilter');
+    var periodSel = document.getElementById('payroll_period_id');
+    if (!monthSel || !periodSel) return;
+
+    function filterPeriods() {
+        var ym = monthSel.value;
+        var opts = periodSel.querySelectorAll('option[data-ym]');
+        var currentVal = periodSel.value;
+        var currentStillVisible = false;
+
+        opts.forEach(function (opt) {
+            var show = (ym === '' || opt.dataset.ym === ym);
+            opt.style.display = show ? '' : 'none';
+            if (show && opt.value === currentVal) currentStillVisible = true;
+        });
+
+        if (!currentStillVisible) periodSel.value = '';
+    }
+
+    monthSel.addEventListener('change', filterPeriods);
+}());
+</script>
