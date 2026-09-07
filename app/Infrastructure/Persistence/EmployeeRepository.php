@@ -290,6 +290,7 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                 e.philhealth_number,
                 e.pagibig_number,
                 e.tin_number,
+                e.sss_number,
                 e.contract_review_date,
                 COALESCE(b.branch_id, 0)   AS branch_id,
                 COALESCE(b.branch_name,'—') AS branch_name,
@@ -518,6 +519,7 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                 e.philhealth_number,
                 e.pagibig_number,
                 e.tin_number,
+                e.sss_number,
                 e.contract_review_date,
                 e.created_at,
                 -- Current branch
