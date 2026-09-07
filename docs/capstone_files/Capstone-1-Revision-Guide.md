@@ -434,3 +434,414 @@ Use this to track your progress:
 - [ ] Update Users normalization sample data (pages 305–307)
 - [ ] Redraw Logical Database Model — Figure 163 (page 328) *(requires draw.io)*
 - [ ] Redraw Physical Database Model — Figure 164 (page 329) *(requires draw.io)*
+
+
+---
+
+# Implementation Change Log
+## Post-Submission System Updates (September 2026)
+
+**Prepared by:** Development Team  
+**Date:** September 7, 2026  
+**Purpose:** Documents every system-level change made after the original
+Capstone 1 Final Submission. Each entry identifies what changed in the
+codebase, which capstone section is affected, and what the revised text
+should say. Use this alongside the Priority 1–4 revisions above.
+
+---
+
+## Module 6 — Attendance Management
+
+### ATTN-001 — Payroll Period Pattern Changed to Sunday–Friday
+
+**Capstone sections affected:**
+Pages 3–4 (Project Context), requirements documentation, any diagram showing
+the payroll calendar.
+
+**What changed:**
+The original system used a Friday-to-Thursday (6-day) payroll period enforced
+by database CHECK constraints. A new `cutoff_pattern` column was added to
+`payroll_period` (migration `20260904000010`) to support both patterns:
+
+| Pattern | Start day | End day | Length | Pay date |
+|---|---|---|---|---|
+| `LegacyFridayThursday` | Friday | Thursday | 6 days | Friday after end |
+| `SundayFriday` (new default) | Sunday | Friday | 5 days | Same as end (Friday) |
+
+Existing periods retain the `LegacyFridayThursday` label. All new periods
+use `SundayFriday`. The database enforces each pattern's rules with a single
+composite CHECK constraint.
+
+**What to update in the capstone:**
+> The standard payroll period runs from Sunday to Friday. Saturday is the
+> rest day. Salary is released every Friday, which is also the last day of
+> the period. The system validates this structure in the database and enforces
+> it on all new payroll periods.
+
+---
+
+### ATTN-002 — Attendance Import Supports Weekly Incremental Uploads
+
+**Capstone sections affected:**
+Pages 7, 11, 13 (anywhere attendance upload is described), the system workflow
+diagrams.
+
+**What changed:**
+The original design assumed HR uploads one complete monthly XLS file at
+the end of the month. The actual operational workflow is weekly: the HR Head
+exports the biometric device's `.xls` file at the end of each payroll week
+(when the file contains all data accumulated so far) and uploads it. This
+means:
+
+- Each weekly upload re-includes all days from earlier in the same month.
+- Punches already in the database (from a prior upload) are silently skipped
+  as duplicates — `isDuplicatePunch()` checks `biometric_punch` by
+  `(device_id, device_employee_code, source_local_at)`.
+- Days already fully captured are silently skipped in `saveGeneratedAttendance`.
+- An **Incomplete** attendance row from the prior week's upload (missing a
+  time-out) is **updated in-place** when the new upload supplies both punches.
+  This handles the "boundary day" case where the last day of the prior period
+  only had a time-in when the previous file was uploaded.
+
+**What to update in the capstone:**
+> The HR Head exports the biometric device's monthly attendance log as an
+> `.xls` file and uploads it through the system at the end of each payroll
+> week. The system parses the file, skips punches already recorded from prior
+> uploads of the same month, and adds only the new days' attendance. If a
+> prior import left an incomplete day record (only time-in captured), and the
+> new upload provides both time-in and time-out for that day, the system
+> automatically completes the record.
+
+---
+
+### ATTN-003 — Attendance Import Batch Lifecycle Extended
+
+**Capstone sections affected:**
+Data Dictionary (pages 330–341), ERD (pages 328–329), any description of
+the attendance upload workflow.
+
+**What changed:**
+Migration `20260907000015` extended `attendance_import_batch.status` from
+`Processing | Completed | Rejected` to:
+
+```
+Processing | Draft | Approved | Completed | Rejected | Cancelled
+```
+
+New columns added to `attendance_import_batch`:
+`approved_by`, `approved_at`, `cancelled_by`, `cancelled_at`,
+`cancellation_reason`
+
+`attendance.status` was also extended to include `Cancelled`.
+
+**Lifecycle flow:**
+1. `Processing` — created when HR uploads the file
+2. `Draft` — import completed, awaiting HR review; **not visible to payroll**
+3. `Approved` — HR has reviewed and approved; **payroll uses these rows**
+4. `Cancelled` — HR cancelled the import; rows excluded from payroll
+5. `Completed` / `Rejected` — legacy terminal states
+
+**Cancellation behavior:**
+When a batch is cancelled via `POST /hr/attendance/import/{id}/cancel`:
+- The system checks that the batch is not already used by payroll
+- Sets `attendance.status = 'Cancelled'` for all rows in that batch
+- Deletes all `biometric_punch` rows belonging to that batch, so the same
+  XLS file can be cleanly re-uploaded after cancellation without duplicate
+  punch errors
+
+**Re-upload after cancellation:**
+When a cancelled file's SHA-256 checksum is re-uploaded, `createImportBatch`
+deletes the stale `biometric_punch`, `attendance`, and `attendance_import_batch`
+rows (in that FK-safe cascade order) before creating a fresh batch.
+
+**What to add to the Data Dictionary for `attendance_import_batch`:**
+
+| Column | Type | Description |
+|---|---|---|
+| `approved_by` | `BIGINT UNSIGNED NULL` | FK → users; HR user who approved |
+| `approved_at` | `DATETIME NULL` | When the batch was approved |
+| `cancelled_by` | `BIGINT UNSIGNED NULL` | FK → users; HR user who cancelled |
+| `cancelled_at` | `DATETIME NULL` | When the batch was cancelled |
+| `cancellation_reason` | `VARCHAR(255) NULL` | Reason for cancellation |
+
+---
+
+### ATTN-004 — Attendance Filter Uses Month-First Cascade
+
+**Capstone sections affected:**
+UI screenshots (pages 92–288 if the attendance filter is shown), system
+description.
+
+**What changed:**
+The attendance index (`/hr/attendance`) has two filter modes: "By Month" and
+"By Cut-off Period." In the cut-off mode, a **Month selector** now appears
+before the period dropdown. Selecting a month filters the period dropdown via
+JavaScript to show only the payroll weeks that start in that month. This
+prevents HR from accidentally selecting a period from the wrong month when
+there are many periods in the dropdown.
+
+---
+
+## Module 8 — Payroll Management
+
+### PAYR-001 — Payroll Run Can Be Cancelled and Replaced
+
+**Capstone sections affected:**
+Pages 8 (Purpose), requirements for payroll workflow, state diagrams if any
+show payroll run lifecycle, Data Dictionary for `payroll_run`.
+
+**What changed:**
+Migration `20260907000014` added a `Cancelled` status to `payroll_run` and
+introduced the `active_run_marker` mechanism:
+
+| Column | Type | Purpose |
+|---|---|---|
+| `status` | ENUM (now includes `Cancelled`) | Run lifecycle state |
+| `active_run_marker` | `TINYINT UNSIGNED NULL DEFAULT 1` | Set to 1 for active runs, NULL on cancellation |
+| `cancellation_reason` | `VARCHAR(1000) NULL` | Required when cancelling |
+| `cancelled_by` | `BIGINT UNSIGNED NULL` | FK → users |
+| `cancelled_at` | `DATETIME NULL` | Cancellation timestamp |
+
+The unique index `uq_active_run_period_branch (payroll_period_id, branch_id, active_run_marker)`
+replaces the old `uq_run_period_branch`. Because MySQL treats NULL values as
+distinct in unique indexes, cancelled runs (`marker=NULL`) do not block new
+runs for the same period and branch.
+
+**Cancellation cascade:**
+When a payroll run is cancelled, its child records are deleted in this order:
+`contribution_record` → `deduction` → `payroll_earnings` → `payslip` → `payroll`.
+The `payroll_run` row itself is kept for history but excluded from all active
+payroll operations.
+
+**What to add to the capstone payroll workflow description:**
+> An unapproved payroll run (Draft, Computed, or Returned) may be cancelled
+> by the HR Head with a required reason. Cancelling the run removes its
+> computed payroll records and releases the period/branch slot so a corrected
+> run can be created. Approved payroll runs are immutable and cannot be
+> cancelled.
+
+**Updated `payroll_run.status` ENUM to document:**
+`Draft | Computed | PendingOwnerApproval | Approved | Returned | Cancelled`
+
+---
+
+### PAYR-002 — Payroll Computation Eligibility Requires a Salary Record
+
+**Capstone sections affected:**
+Pages 8, 11, any description of which employees appear in a payroll run.
+
+**What changed:**
+The payroll eligibility query (`PayrollService::computeRun`) uses an INNER
+JOIN on the `salary` table. An employee will only appear in a payroll run if
+they have an **active salary record** (`salary.status = 'Active'`) with
+`effective_from ≤ period_start`.
+
+This means:
+- Employees with attendance records but no salary record configured in the
+  system will **not appear** in the computed payroll.
+- HR must set up a daily rate in **Manage Salary** for each employee before
+  their first payroll run.
+
+**What to add to the capstone:**
+> Before computing payroll, the HR Head must ensure that each employee has
+> an active salary record with a daily rate effective from on or before the
+> payroll period start date. Employees without a salary record are
+> automatically excluded from the payroll computation even if they have
+> attendance records.
+
+---
+
+### PAYR-003 — Duplicate Payroll Guard Added
+
+**Capstone sections affected:**
+Payroll computation description.
+
+**What changed:**
+`PayrollService::assertEmployeesAreNotAlreadyPaidInAnotherRun()` was
+implemented as a guard that runs before the payroll transaction opens.
+It checks whether any employee in the current run already has a payroll row
+in a **different, non-cancelled run** for the same `payroll_period_id`.
+
+If a conflict is found, computation is blocked with:
+> "One or more employees in this run have already been paid under a different
+> active payroll run for the same period. Cancel or resolve that run before
+> computing this one."
+
+This prevents the `uq_payroll_period_employee` unique constraint violation
+that would otherwise surface as a raw database error.
+
+---
+
+### PAYR-004 — Payroll Period Form Uses Month-First Cascade
+
+**Capstone sections affected:**
+UI screenshots for the "New Payroll Run" form, system description.
+
+**What changed:**
+The "New Payroll Run" form (`/hr/payroll/create`) now shows a **Month**
+dropdown before the payroll period dropdown. Selecting a month filters the
+payroll period options to only show cut-offs whose `period_start` falls in
+that month. This prevents selecting the wrong week when many periods exist.
+
+---
+
+### PAYR-005 — Government Contributions Deducted on Last Friday of Month Only
+
+**Capstone sections affected:**
+Pages 8, 11, payroll calculation description.
+
+**What changed (confirmed implemented):**
+`PayrollService::isMonthlyContributionCutoff()` checks whether the
+`pay_date` of a payroll run is the **last Friday of its calendar month**
+(Asia/Manila timezone). SSS, PhilHealth, and Pag-IBIG employee deductions
+are only computed for that one run per month. All other weekly runs for the
+same month compute payroll without government contribution deductions.
+
+**EEMR basis:**
+Government contributions use the employee's Estimated Equivalent Monthly
+Rate calculated as `(daily_rate × 313) ÷ 12`. This is not the variable
+weekly earnings — it is the stable monthly basis per the Final Defense
+Reviewer guidance.
+
+---
+
+## Schema Changes Reference — Updated Table Additions
+
+### Updated `payroll_run` Data Dictionary Entry
+
+Add these columns (not in original capstone):
+
+| Column | Type | Description |
+|---|---|---|
+| `active_run_marker` | `TINYINT UNSIGNED NULL` | 1 = active, NULL = cancelled; enforces one active run per period/branch |
+| `cancellation_reason` | `VARCHAR(1000) NULL` | Required reason when cancelling |
+| `cancelled_by` | `BIGINT UNSIGNED NULL` | FK → users; who cancelled |
+| `cancelled_at` | `DATETIME NULL` | When cancelled |
+
+Update `status` ENUM to:
+`'Draft' | 'Computed' | 'PendingOwnerApproval' | 'Approved' | 'Returned' | 'Cancelled'`
+
+---
+
+### New Table: `payroll_adjustment` (migration 20260906000012)
+
+Not in original capstone. Add to Table 85 (Final Relation) and ERD.
+
+| Column | Type | Description |
+|---|---|---|
+| `adjustment_id` | `BIGINT UNSIGNED` PK | Auto-increment |
+| `payroll_run_id` | `BIGINT UNSIGNED` FK | The run being adjusted |
+| `payroll_id` | `BIGINT UNSIGNED` FK | The employee payroll row |
+| `earning_id` | `BIGINT UNSIGNED NULL` FK | Target earning line, if earning adjustment |
+| `deduction_id` | `BIGINT UNSIGNED NULL` FK | Target deduction line, if deduction adjustment |
+| `adjustment_type` | `ENUM('earning','deduction')` | Type of adjustment |
+| `amount_before` | `DECIMAL(12,2)` | Original amount |
+| `amount_after` | `DECIMAL(12,2)` | Adjusted amount |
+| `reason` | `VARCHAR(500)` | HR explanation |
+| `adjusted_by` | `BIGINT UNSIGNED NULL` FK | HR user who made the change |
+| `adjusted_at` | `DATETIME` | When the adjustment was made |
+
+> Note: A payroll run with manual adjustments cannot be recomputed. HR must
+> review the adjusted amounts before submitting for approval.
+
+---
+
+### New Table: `employee_document` (migration 20260907000013)
+
+Not in original capstone. Add to Table 85 (Final Relation) and ERD.
+
+| Column | Type | Description |
+|---|---|---|
+| `document_id` | `BIGINT UNSIGNED` PK | Auto-increment |
+| `employee_id` | `BIGINT UNSIGNED` FK | Owner employee |
+| `document_type` | ENUM | `IDPhoto \| EmploymentContract \| GovernmentID \| TaxForm \| BankProof \| SeparationDocument \| RehireDocument \| Other` |
+| `original_filename` | `VARCHAR(255)` | Client-side filename (evidence) |
+| `stored_path` | `VARCHAR(500)` | Server path relative to APP_ROOT (never public) |
+| `sha256` | `CHAR(64)` | File checksum |
+| `mime_type` | `VARCHAR(100)` | Validated MIME type |
+| `file_size_bytes` | `BIGINT UNSIGNED` | File size |
+| `status` | `ENUM('Current','Superseded','Archived')` | Document lifecycle |
+| `replaces_document_id` | `BIGINT UNSIGNED NULL` FK | Self-reference for version chain |
+| `verified_by` | `BIGINT UNSIGNED NULL` FK | HR user who verified |
+| `verified_at` | `DATETIME NULL` | Verification timestamp |
+| `uploaded_by` | `BIGINT UNSIGNED NULL` FK | HR user who uploaded |
+| `notes` | `VARCHAR(500) NULL` | Optional notes |
+
+---
+
+### New Tables: `employee_employment_episode` and `employee_lifecycle_event` (migration 20260903000009)
+
+Not in original capstone. Add to Table 85 and ERD.
+
+**`employee_employment_episode`** — tracks continuous employment windows:
+- `episode_id`, `employee_id` FK, `start_date`, `end_date NULL`, `start_reason ENUM('Hire','Rehire')`
+
+**`employee_lifecycle_event`** — append-only audit of archive/rehire actions:
+- `event_id`, `employee_id` FK, `event_type ENUM('Archive','Rehire')`, `event_date`, `reason`, `performed_by` FK → users
+
+---
+
+### New Table: `job_position` (migration 20260901000007)
+
+Not in original capstone.
+
+- `position_id`, `position_title VARCHAR(100) UNIQUE`, `status ENUM('Active','Inactive')`
+- Provides a managed dropdown for the employee form. `employee.position` remains a VARCHAR
+  snapshot for historical immutability.
+
+---
+
+### Updated `work_schedule` Table (migration 20260902000007)
+
+The original `work_schedule` was per-employee (had `employee_id` FK). It was
+refactored to become a **reusable schedule template** — `employee_id` was
+removed and `schedule_name VARCHAR(100) UNIQUE` was added.
+
+New columns added: `grace_minutes`, `overtime_allowed`, `break_start_time`,
+`break_end_time`, `notes`.
+
+A new table `employee_schedule_assignment` was created to replace the direct
+FK (effective-dated, UQ on `(employee_id, effective_from)`).
+
+**Update the capstone Data Dictionary for `work_schedule`:**
+- Remove `employee_id` FK
+- Add `schedule_name VARCHAR(100) UNIQUE`
+- Note that employee-to-schedule mapping is now in `employee_schedule_assignment`
+
+---
+
+### Updated `users` Table (migration 20260903000008)
+
+Add column: `requires_password_change BOOLEAN NOT NULL DEFAULT FALSE`
+
+Set to `TRUE` for auto-provisioned employee accounts. The system forces a
+password change on first login before any other module is accessible.
+
+---
+
+### Updated `employee` Table (migration 20260907000014 — add_sss_number)
+
+Add column: `sss_number VARCHAR(30) NULL` — SSS ID number, alongside the
+existing `philhealth_number`, `pagibig_number`, and `tin_number`.
+
+---
+
+## Updated Quick Checklist (Additions)
+
+Add these items to the checklist from Priority 1–4:
+
+- [ ] Update payroll period description — change to Sunday–Friday with Friday pay date (pages 3–4, 8)
+- [ ] Update attendance upload workflow — add weekly incremental upload + boundary-day completion (pages 7, 11, 13)
+- [ ] Update `attendance_import_batch` Data Dictionary — add 5 new columns + expanded status ENUM (page 335)
+- [ ] Update `attendance.status` ENUM — add `Cancelled` value (page 335)
+- [ ] Update payroll workflow — add Cancelled state, active_run_marker, replacement run flow (pages 8, 11)
+- [ ] Update `payroll_run` Data Dictionary — add 4 new columns + expanded status ENUM (page 336)
+- [ ] Add note that employees without a salary record are excluded from payroll computation (page 8, 11)
+- [ ] Add `payroll_adjustment` to Table 85, ERD, and Data Dictionary (page 327–329)
+- [ ] Add `employee_document` to Table 85, ERD, and Data Dictionary (page 327–329)
+- [ ] Add `employee_employment_episode` and `employee_lifecycle_event` to Table 85 and ERD (page 327–329)
+- [ ] Add `job_position` to Table 85 and ERD (page 327–329)
+- [ ] Update `work_schedule` — remove `employee_id`, add `schedule_name`; add `employee_schedule_assignment` (page 327–329)
+- [ ] Add `requires_password_change` to `users` Data Dictionary (page 330)
+- [ ] Add `sss_number` to `employee` Data Dictionary (page 330)
+- [ ] Add note about SSS, PhilHealth, Pag-IBIG deducted only on last Friday of month (payroll calculation section)
