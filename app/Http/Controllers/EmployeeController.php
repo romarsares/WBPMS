@@ -519,13 +519,17 @@ final class EmployeeController
             'status'            => ucfirst(strtolower($data['status'] ?? 'active')),
         ]);
 
-        // Update daily rate if provided (insert new effective-dated salary row)
-        if ($data['daily_rate'] !== '' && (float) $data['daily_rate'] > 0) {
+        // Salary is effective-dated. Do not create a new row merely because an
+        // employee profile was saved with the unchanged current rate; doing so
+        // can create an invalid zero-length same-day salary period.
+        if ($data['daily_rate'] !== ''
+            && (float) $data['daily_rate'] > 0
+            && abs((float) $data['daily_rate'] - (float) $row['daily_rate']) > 0.00001) {
             $repo->updateSalary($id, (float) $data['daily_rate']);
         }
 
         ViewRenderer::flash('Employee updated successfully.');
-        $this->redirect('/hr/employees');
+        $this->redirect('/hr/employees/' . $id . '/edit');
     }
 
     // -----------------------------------------------------------------------

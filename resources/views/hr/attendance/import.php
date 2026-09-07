@@ -13,6 +13,7 @@ use Wbpms\Http\View\Formatter;
 $errors  ??= [];
 $batches ??= [];
 $devices ??= [];
+$preview ??= null;
 $base    ??= '';
 
 // Repopulate POST values if the form was re-rendered with errors
@@ -47,6 +48,46 @@ $months = [
 
     <!-- ── Upload form ─────────────────────────────────────────── -->
     <div class="card">
+        <?php if ($preview !== null): ?>
+        <h3 style="margin:0 0 1rem;font-size:16px">Review Parsed Workbook</h3>
+        <div class="alert info" style="font-size:13px;margin-bottom:1rem">
+            This is a preview only. No attendance, punches, or import batch has been saved yet.
+        </div>
+        <dl style="display:grid;grid-template-columns:auto 1fr;gap:7px 12px;font-size:13px;margin:0 0 1rem">
+            <dt class="muted">File</dt><dd style="margin:0"><?= Formatter::escape((string) $preview['fileName']) ?></dd>
+            <dt class="muted">Period</dt><dd style="margin:0"><?= Formatter::escape(($months[(int) $preview['sourceMonth']] ?? '?') . ' ' . (int) $preview['sourceYear']) ?></dd>
+            <dt class="muted">Punches parsed</dt><dd style="margin:0"><?= (int) $preview['total'] ?></dd>
+            <dt class="muted">Enrollment codes</dt><dd style="margin:0"><?= (int) $preview['employeeCount'] ?></dd>
+            <dt class="muted">Date range</dt><dd style="margin:0"><?= Formatter::escape((string) ($preview['dateFrom'] ?? '—')) ?> to <?= Formatter::escape((string) ($preview['dateTo'] ?? '—')) ?></dd>
+        </dl>
+        <div class="table-wrap" style="max-height:330px;overflow:auto;margin-bottom:1rem">
+            <table style="font-size:12px;width:100%;border-collapse:collapse">
+                <thead><tr>
+                    <th style="text-align:left;padding:7px;border-bottom:1px solid var(--line)">Workbook row</th>
+                    <th style="text-align:left;padding:7px;border-bottom:1px solid var(--line)">Punch time</th>
+                    <th style="text-align:left;padding:7px;border-bottom:1px solid var(--line)">Enroll ID</th>
+                    <th style="text-align:left;padding:7px;border-bottom:1px solid var(--line)">Name</th>
+                </tr></thead>
+                <tbody><?php foreach ($preview['sample'] as $punch): ?>
+                    <tr>
+                        <td style="padding:7px;border-bottom:1px solid var(--line)"><?= (int) $punch['row'] ?></td>
+                        <td style="padding:7px;border-bottom:1px solid var(--line);white-space:nowrap"><?= Formatter::escape($punch['dateTime']) ?></td>
+                        <td style="padding:7px;border-bottom:1px solid var(--line)"><?= Formatter::escape($punch['enrollment']) ?></td>
+                        <td style="padding:7px;border-bottom:1px solid var(--line)"><?= Formatter::escape($punch['name']) ?></td>
+                    </tr>
+                <?php endforeach; ?></tbody>
+            </table>
+        </div>
+        <?php if ((int) $preview['total'] > count($preview['sample'])): ?>
+            <p class="muted" style="font-size:12px">Showing the first <?= count($preview['sample']) ?> parsed punches.</p>
+        <?php endif; ?>
+        <form method="POST" action="<?= $base ?>/hr/attendance/import/confirm" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
+            <input type="hidden" name="preview_token" value="<?= Formatter::escape((string) $preview['token']) ?>">
+            <button type="submit" class="btn btn-primary">Save as Draft</button>
+            <a class="btn btn-secondary" href="<?= $base ?>/hr/attendance/import">Cancel / choose another file</a>
+        </form>
+        <?php else: ?>
         <h3 style="margin:0 0 1.2rem;font-size:16px">Upload Workbook</h3>
 
         <form method="POST"
@@ -115,20 +156,23 @@ $months = [
             </div>
 
             <div class="alert info" style="font-size:13px;margin-bottom:1rem">
-                The system validates the file signature, checks for duplicate imports by
-                SHA-256 checksum, matches enrollment codes to employees, and generates
-                daily timesheets in one atomic transaction.
+                The system validates and parses the workbook first. You can inspect the
+                parsed punches before confirming the one atomic import transaction.
             </div>
 
             <button type="submit" class="btn btn-primary">
                 ↑ Upload &amp; Import
             </button>
         </form>
+        <?php endif; ?>
     </div>
 
     <!-- ── Recent import batches ───────────────────────────────── -->
     <div class="card">
         <h3 style="margin:0 0 1.2rem;font-size:16px">Recent Imports</h3>
+        <p class="muted" style="font-size:12px;margin-top:-.7rem">
+            Draft imports are not used by payroll. Approve after review; cancellation is available only before payroll uses the batch.
+        </p>
 
         <?php if ($batches === []): ?>
             <p class="muted">No imports yet.</p>
@@ -145,13 +189,14 @@ $months = [
                     <th style="text-align:right;padding:8px 10px;border-bottom:1px solid var(--line)">Unmatched</th>
                     <th style="text-align:right;padding:8px 10px;border-bottom:1px solid var(--line)">Dupes</th>
                     <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Status</th>
+                    <th style="padding:8px 10px;border-bottom:1px solid var(--line)">Workflow</th>
                 </tr>
             </thead>
             <tbody>
             <?php foreach ($batches as $b):
                 $statusClass = match((string)($b['status'] ?? '')) {
-                    'Completed'  => 'badge-green',
-                    'Rejected'   => 'badge-red',
+                    'Approved', 'Completed' => 'badge-green',
+                    'Rejected', 'Cancelled' => 'badge-red',
                     default      => 'badge-yellow',
                 };
                 $period = sprintf('%s %s',
@@ -188,6 +233,24 @@ $months = [
                     <span class="badge <?= $statusClass ?>">
                         <?= Formatter::escape((string)($b['status'] ?? '')) ?>
                     </span>
+                </td>
+                <td style="padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap">
+                    <?php $batchStatus = (string) ($b['status'] ?? ''); ?>
+                    <?php if ($batchStatus === 'Draft'): ?>
+                    <form method="POST" action="<?= $base ?>/hr/attendance/import/<?= (int) $b['import_batch_id'] ?>/approve" style="display:inline">
+                        <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
+                        <button type="submit" class="btn btn-primary" style="font-size:12px;padding:4px 7px">Approve</button>
+                    </form>
+                    <?php endif; ?>
+                    <?php if (in_array($batchStatus, ['Draft', 'Approved', 'Completed'], true)): ?>
+                    <form method="POST" action="<?= $base ?>/hr/attendance/import/<?= (int) $b['import_batch_id'] ?>/cancel" style="display:inline" onsubmit="return confirm('Cancel this import? This is only allowed before payroll uses its attendance.');">
+                        <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
+                        <button type="submit" class="btn btn-secondary" style="font-size:12px;padding:4px 7px">Cancel</button>
+                    </form>
+                    <?php endif; ?>
+                    <?php if (!in_array($batchStatus, ['Draft', 'Approved', 'Completed'], true)): ?>
+                    <span class="muted">—</span>
+                    <?php endif; ?>
                 </td>
             </tr>
             <?php endforeach; ?>

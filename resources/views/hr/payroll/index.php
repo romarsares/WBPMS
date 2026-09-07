@@ -11,6 +11,7 @@ $statusBadge = static function (string $s): string {
         'PendingOwnerApproval' => '#f59e0b',
         'Approved'             => '#10b981',
         'Returned'             => '#ef4444',
+        'Cancelled'            => '#6b7280',
     ];
     $c = $map[$s] ?? '#6b7280';
     $label = $s === 'PendingOwnerApproval' ? 'Pending Approval' : $s;
@@ -71,6 +72,13 @@ $statusBadge = static function (string $s): string {
         <tr style="background:#fef2f2">
             <td colspan="8" style="padding:.3rem .85rem;font-size:.8rem;color:#991b1b">
                 <strong>Return reason:</strong> <?= htmlspecialchars((string)$r['return_reason']) ?>
+            </td>
+        </tr>
+        <?php endif; ?>
+        <?php if ($r['status'] === 'Cancelled' && !empty($r['cancellation_reason'])): ?>
+        <tr style="background:#f9fafb">
+            <td colspan="8" style="padding:.3rem .85rem;font-size:.8rem;color:#4b5563">
+                <strong>Cancellation reason:</strong> <?= htmlspecialchars((string)$r['cancellation_reason']) ?>
             </td>
         </tr>
         <?php endif; ?>

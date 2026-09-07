@@ -47,6 +47,7 @@ final class PayrollController
                     pr.submitted_at,
                     pr.reviewed_at,
                     pr.return_reason,
+                    pr.cancellation_reason,
                     COUNT(p.payroll_id)           AS employee_count,
                     COALESCE(SUM(p.gross_pay), 0) AS gross_total,
                     COALESCE(SUM(p.net_pay), 0)   AS net_total
@@ -56,7 +57,7 @@ final class PayrollController
                LEFT JOIN payroll p    ON p.payroll_run_id     = pr.payroll_run_id
               GROUP BY pr.payroll_run_id, pp.period_start, pp.period_end, pp.pay_date,
                        b.branch_name, pr.status, pr.created_at, pr.submitted_at,
-                       pr.reviewed_at, pr.return_reason
+                       pr.reviewed_at, pr.return_reason, pr.cancellation_reason
               ORDER BY pr.created_at DESC
               LIMIT 100"
         )->fetchAll();
@@ -312,6 +313,27 @@ final class PayrollController
         }
 
         $this->redirect('/hr/payroll');
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /hr/payroll/{id}/cancel
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function cancel(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $identity = AuthMiddleware::identity();
+        $reason   = trim((string) ($_POST['cancellation_reason'] ?? ''));
+
+        try {
+            $this->makeService()->cancelRun($id, (int) ($identity['user_id'] ?? 0), $reason);
+            ViewRenderer::flash('Payroll run cancelled. Its history was retained and you can now create a corrected run for this period and branch.');
+            $this->redirect('/hr/payroll');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+            $this->redirect('/hr/payroll/' . $id);
+        }
     }
 
     // -----------------------------------------------------------------------

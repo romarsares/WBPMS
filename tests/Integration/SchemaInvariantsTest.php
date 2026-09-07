@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Wbpms\Tests\Integration;
 
 use PDOException;
+use Wbpms\Application\PayrollService;
+use Wbpms\Infrastructure\Database\Connection;
 
 /**
  * SchemaInvariantsTest
@@ -340,6 +342,39 @@ final class SchemaInvariantsTest extends IntegrationTestCase
             fn () => $this->insertPayrollRun($period, $branch, $policy),
             'duplicate payroll run for period+branch'
         );
+    }
+
+    /** A cancelled run is retained but releases the pair for a corrected run. */
+    public function testCancelledPayrollRunAllowsReplacementAndWritesAuditEvent(): void
+    {
+        $period = $this->insertPayrollPeriod('2026-09-04', '2026-09-10', '2026-09-11');
+        $branch = $this->insertBranch();
+        $policy = $this->insertPayrollPolicy();
+        $actor  = $this->insertUser($this->insertRole());
+        $runId  = $this->insertPayrollRun($period, $branch, $policy);
+
+        $service = new PayrollService(new Connection([], $this->pdo));
+        $service->cancelRun($runId, $actor, 'Incorrect branch selected.');
+
+        $run = $this->pdo->query(
+            "SELECT status, active_run_marker, cancellation_reason FROM payroll_run WHERE payroll_run_id = {$runId}"
+        )->fetch();
+        $this->assertSame('Cancelled', $run['status']);
+        $this->assertNull($run['active_run_marker']);
+        $this->assertSame('Incorrect branch selected.', $run['cancellation_reason']);
+
+        $replacementId = $this->insertPayrollRun($period, $branch, $policy);
+        $this->assertGreaterThan($runId, $replacementId);
+
+        $audit = $this->pdo->prepare(
+            "SELECT event_type, action_performed FROM audit_logs
+              WHERE record_id = :run_id AND table_affected = 'payroll_run'"
+        );
+        $audit->execute([':run_id' => $runId]);
+        $this->assertSame([
+            'event_type' => 'payroll_cancelled',
+            'action_performed' => 'cancel_payroll_run',
+        ], $audit->fetch());
     }
 
     // ===================================================================

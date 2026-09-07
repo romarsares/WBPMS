@@ -110,7 +110,7 @@ $router->add('POST', '/hr/employees/{id}/documents/{docId}/verify',       [Emplo
 $router->add('POST', '/hr/employees/{id}/documents/{docId}/archive',      [EmployeeController::class, 'archiveDocument'], ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}',           [EmployeeController::class, 'show'],          ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}/edit',      [EmployeeController::class, 'editForm'],      ['HRHead']);
-$router->add('POST', '/hr/employees/{id}',           [EmployeeController::class, 'update'],        ['HRHead']);
+$router->add('PUT',  '/hr/employees/{id}',           [EmployeeController::class, 'update'],        ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Work schedule management  (REQ025–REQ031)
@@ -132,6 +132,9 @@ $router->add('PUT',  '/hr/schedules/{id}',          [ScheduleController::class, 
 $router->add('GET',  '/hr/attendance',        [AttendanceController::class, 'index'],  ['HRHead']);
 $router->add('GET',  '/hr/attendance/import', [AttendanceController::class, 'import'], ['HRHead']);
 $router->add('POST', '/hr/attendance/import', [AttendanceController::class, 'upload'], ['HRHead']);
+$router->add('POST', '/hr/attendance/import/confirm', [AttendanceController::class, 'confirmImport'], ['HRHead']);
+$router->add('POST', '/hr/attendance/import/{id}/approve', [AttendanceController::class, 'approveImport'], ['HRHead']);
+$router->add('POST', '/hr/attendance/import/{id}/cancel', [AttendanceController::class, 'cancelImport'], ['HRHead']);
 $router->add('GET',  '/hr/attendance/{id}/adjust', [AttendanceController::class, 'adjustForm'], ['HRHead']);
 $router->add('POST', '/hr/attendance/{id}/adjust', [AttendanceController::class, 'adjust'],     ['HRHead']);
 
@@ -185,6 +188,7 @@ $router->add('GET',  '/hr/payroll/{id}/employees/{payrollId}/adjust', [PayrollCo
 $router->add('POST', '/hr/payroll/{id}/employees/{payrollId}/adjust', [PayrollController::class, 'adjust'],     ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/compute',     [PayrollController::class, 'compute'],  ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/submit',      [PayrollController::class, 'submit'],   ['HRHead']);
+$router->add('POST', '/hr/payroll/{id}/cancel',      [PayrollController::class, 'cancel'],   ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Reports  (REQ065–REQ073)

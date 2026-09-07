@@ -215,7 +215,8 @@ $err = static fn(string $key): string => isset($errors[$key])
             <div class="form-group">
                 <label for="branch_id">Branch <span style="color:#dc2626">*</span></label>
                 <select id="branch_id" name="branch_id"
-                    class="<?= isset($errors['branch_id']) ? 'is-invalid' : '' ?>" required>
+                    class="<?= isset($errors['branch_id']) ? 'is-invalid' : '' ?>"
+                    <?= $isEdit ? 'disabled' : 'required' ?>>
                     <option value="">— select —</option>
                     <?php foreach ($branches as $branch): ?>
                     <option value="<?= (int) $branch['id'] ?>"
@@ -225,6 +226,9 @@ $err = static fn(string $key): string => isset($errors[$key])
                     <?php endforeach; ?>
                 </select>
                 <?= $err('branch_id') ?>
+                <?php if ($isEdit): ?>
+                <small class="muted">To change branches, use <strong>Transfer Branch</strong> below so the effective date and history are recorded safely.</small>
+                <?php endif; ?>
             </div>
             <div class="form-group">
                 <label for="schedule_id">Work schedule <span style="color:#dc2626">*</span></label>
