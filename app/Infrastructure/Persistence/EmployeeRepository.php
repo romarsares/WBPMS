@@ -47,14 +47,14 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                 first_name, middle_initial, last_name,
                 email, contact_number, birthdate, hire_date,
                 position, status,
-                philhealth_number, pagibig_number, tin_number,
+                sss_number, philhealth_number, pagibig_number, tin_number,
                 contract_review_date
             ) VALUES (
                 :employee_number, :employee_type,
                 :first_name, :middle_initial, :last_name,
                 :email, :contact_number, :birthdate, :hire_date,
                 :position, :status,
-                :philhealth_number, :pagibig_number, :tin_number,
+                :sss_number, :philhealth_number, :pagibig_number, :tin_number,
                 :contract_review_date
             )
         SQL;
@@ -72,6 +72,7 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
             ':hire_date'           => $attributes['hire_date'],
             ':position'            => $attributes['position'],
             ':status'              => $attributes['status']           ?? 'Active',
+            ':sss_number'          => $attributes['sss_number']        ?? null,
             ':philhealth_number'   => $attributes['philhealth_number'] ?? null,
             ':pagibig_number'      => $attributes['pagibig_number']   ?? null,
             ':tin_number'          => $attributes['tin_number']       ?? null,
@@ -332,8 +333,8 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
         $allowed = [
             'employee_type', 'first_name', 'middle_initial', 'last_name',
             'email', 'contact_number', 'birthdate', 'hire_date', 'position',
-            'status', 'philhealth_number', 'pagibig_number', 'tin_number',
-            'contract_review_date',
+            'status', 'sss_number', 'philhealth_number', 'pagibig_number',
+            'tin_number', 'contract_review_date',
         ];
 
         $setClauses = [];

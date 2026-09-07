@@ -104,10 +104,10 @@ and nullable respectively.
   NN`; `email VARCHAR(254) NULL UQ`; `contact_number VARCHAR(30) NULL`;
   `birthdate DATE NULL`; `hire_date DATE NN`; `id_picture VARCHAR(500) NULL`;
   `address_id BIGINT UNSIGNED NULL FK address`; `status
-  ENUM('Active','Inactive','Separated','Archived') NN`; `philhealth_number
-  VARCHAR(30) NULL`; `pagibig_number VARCHAR(30) NULL`; `tin_number VARCHAR(30)
-  NULL`; `position VARCHAR(100) NN`; `contract_review_date DATE NULL`;
-  timestamps.
+  ENUM('Active','Inactive','Separated','Archived') NN`; `sss_number
+  VARCHAR(30) NULL`; `philhealth_number VARCHAR(30) NULL`; `pagibig_number
+  VARCHAR(30) NULL`; `tin_number VARCHAR(30) NULL`; `position VARCHAR(100) NN`;
+  `contract_review_date DATE NULL`; timestamps.
 - `employment_contract_review`: `review_id BIGINT UNSIGNED PK`; `employee_id
   BIGINT UNSIGNED NN FK employee`; `review_due_date DATE NN`; `outcome
   ENUM('Regularized','Renewed','Separated') NN`; `effective_date DATE NN`;
