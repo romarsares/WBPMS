@@ -138,6 +138,7 @@ final class EmployeeController
                     'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
                     'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
                     'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
+                    'sss_number'        => $data['sss_number']        !== '' ? $data['sss_number']        : null,
                 ]);
 
                 $repo->assignInitialBranch(
@@ -516,6 +517,7 @@ final class EmployeeController
             'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
             'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
             'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
+            'sss_number'        => $data['sss_number']        !== '' ? $data['sss_number']        : null,
             'status'            => ucfirst(strtolower($data['status'] ?? 'active')),
         ]);
 
@@ -553,6 +555,7 @@ final class EmployeeController
      *   philhealth_number: string,
      *   pagibig_number: string,
      *   tin_number: string,
+     *   sss_number: string,
      *   status: string
      * }
      */
@@ -578,6 +581,7 @@ final class EmployeeController
             'philhealth_number'    => trim((string) ($_POST['philhealth_number']    ?? '')),
             'pagibig_number'       => trim((string) ($_POST['pagibig_number']       ?? '')),
             'tin_number'           => trim((string) ($_POST['tin_number']           ?? '')),
+            'sss_number'           => trim((string) ($_POST['sss_number']           ?? '')),
             'status'               => trim((string) ($_POST['status']               ?? 'active')),
         ];
     }

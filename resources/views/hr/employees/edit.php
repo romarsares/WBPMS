@@ -194,6 +194,11 @@ $err = static fn(string $key): string => isset($errors[$key])
         <h2>Government IDs</h2>
         <div class="form-row-3">
             <div class="form-group">
+                <label for="sss_number">SSS number</label>
+                <input type="text" id="sss_number" name="sss_number"
+                    value="<?= $v('sss_number') ?>" placeholder="optional">
+            </div>
+            <div class="form-group">
                 <label for="philhealth_number">PhilHealth number</label>
                 <input type="text" id="philhealth_number" name="philhealth_number"
                     value="<?= $v('philhealth_number') ?>" placeholder="optional">
@@ -203,6 +208,8 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="text" id="pagibig_number" name="pagibig_number"
                     value="<?= $v('pagibig_number') ?>" placeholder="optional">
             </div>
+        </div>
+        <div class="form-row">
             <div class="form-group">
                 <label for="tin_number">TIN</label>
                 <input type="text" id="tin_number" name="tin_number"
