@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wbpms\Http\Controllers;
 
 use PDO;
+use Wbpms\Application\EmployeeDocumentService;
 use Wbpms\Application\EmployeeLifecycleService;
 use Wbpms\Application\UserService;
 use Wbpms\Http\Middleware\AuthMiddleware;
@@ -204,14 +205,41 @@ final class EmployeeController
     }
 
     /**
-     * GET /hr/employees/{id}  (view/detail — redirects to edit)
+     * GET /hr/employees/{id}  — read-only detail view
      *
      * @param array<string, string> $params
      */
     public function show(array $params = []): void
     {
-        $id = (int) ($params['id'] ?? 0);
-        $this->redirect('/hr/employees/' . $id . '/edit');
+        $id  = (int) ($params['id'] ?? 0);
+        $con = $this->makeConnection();
+        $repo = new EmployeeRepository($con);
+
+        $employee = $repo->findDetail($id);
+
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $branchHistory  = $repo->branchHistory($id);
+        $salaryHistory  = $repo->salaryHistory($id);
+
+        // Document count (current only)
+        $docCount = (new \Wbpms\Application\EmployeeDocumentService($con))
+            ->listForEmployee($id);
+        $currentDocCount = count(array_filter(
+            $docCount,
+            static fn(array $d): bool => (string) $d['status'] === 'Current'
+        ));
+
+        ViewRenderer::render('hr/employees/show', [
+            'employee'        => $employee,
+            'branchHistory'   => $branchHistory,
+            'salaryHistory'   => $salaryHistory,
+            'currentDocCount' => $currentDocCount,
+            'activePage'      => 'employees',
+        ], $employee['last_name'] . ', ' . $employee['first_name']);
     }
 
     /**
@@ -720,5 +748,207 @@ final class EmployeeController
         $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
         header('Location: ' . $base . $path, true, 302);
         exit;
+    }
+
+    // -----------------------------------------------------------------------
+    // Document management  (Task 4.6.5 / Requirement 14 AC4)
+    // -----------------------------------------------------------------------
+
+    /**
+     * GET /hr/employees/{id}/documents
+     * List all documents for an employee and show the upload form.
+     *
+     * @param array<string, string> $params
+     */
+    public function documents(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $employee = $this->makeRepo()->findById($id);
+
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $service   = new EmployeeDocumentService($this->makeConnection());
+        $documents = $service->listForEmployee($id);
+
+        ViewRenderer::render('hr/employees/documents', [
+            'employee'      => $employee,
+            'documents'     => $documents,
+            'documentTypes' => EmployeeDocumentService::DOCUMENT_TYPES,
+            'errors'        => [],
+            'activePage'    => 'employees',
+        ], 'Employee Documents');
+    }
+
+    /**
+     * POST /hr/employees/{id}/documents
+     * Handle a new document upload.
+     *
+     * @param array<string, string> $params
+     */
+    public function uploadDocument(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $employee = $this->makeRepo()->findById($id);
+
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $actorId  = (int) (AuthMiddleware::identity()['user_id'] ?? 0);
+        $meta     = [
+            'document_type'  => trim((string) ($_POST['document_type']  ?? '')),
+            'document_label' => trim((string) ($_POST['document_label'] ?? '')),
+            'notes'          => trim((string) ($_POST['notes']          ?? '')),
+        ];
+
+        try {
+            (new EmployeeDocumentService($this->makeConnection()))
+                ->upload($id, $_FILES['document'] ?? [], $meta, $actorId);
+
+            ViewRenderer::flash('Document uploaded successfully.');
+            $this->redirect('/hr/employees/' . $id . '/documents');
+        } catch (\RuntimeException $e) {
+            $service   = new EmployeeDocumentService($this->makeConnection());
+            $documents = $service->listForEmployee($id);
+
+            ViewRenderer::render('hr/employees/documents', [
+                'employee'      => $employee,
+                'documents'     => $documents,
+                'documentTypes' => EmployeeDocumentService::DOCUMENT_TYPES,
+                'errors'        => ['upload' => $e->getMessage()],
+                'activePage'    => 'employees',
+            ], 'Employee Documents');
+        }
+    }
+
+    /**
+     * GET /hr/employees/{id}/documents/{docId}
+     * View / download a single document.
+     * Serves the file directly with the correct Content-Type.
+     *
+     * @param array<string, string> $params
+     */
+    public function viewDocument(array $params = []): void
+    {
+        $id    = (int) ($params['id']    ?? 0);
+        $docId = (int) ($params['docId'] ?? 0);
+
+        $employee = $this->makeRepo()->findById($id);
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        try {
+            $doc     = (new EmployeeDocumentService($this->makeConnection()))->getDocument($docId, $id);
+            $absPath = APP_ROOT . '/' . ltrim((string) $doc['stored_path'], '/');
+
+            if (!is_file($absPath)) {
+                http_response_code(404);
+                ViewRenderer::render('errors/404', [], '404 Not Found');
+                return;
+            }
+
+            // Serve the file inline (PDF opens in browser; images display inline)
+            $mime     = (string) $doc['mime_type'];
+            $filename = (string) $doc['original_filename'];
+
+            // Safe ASCII-only filename for Content-Disposition
+            $safeFilename = preg_replace('/[^\w\-.]/', '_', $filename) ?: 'document';
+
+            header('Content-Type: ' . $mime);
+            header('Content-Length: ' . filesize($absPath));
+            header('Content-Disposition: inline; filename="' . $safeFilename . '"');
+            header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, no-store');
+            readfile($absPath);
+            exit;
+        } catch (\RuntimeException) {
+            $this->renderNotFound();
+        }
+    }
+
+    /**
+     * POST /hr/employees/{id}/documents/{docId}/replace
+     * Replace an existing document with a new upload.
+     *
+     * @param array<string, string> $params
+     */
+    public function replaceDocument(array $params = []): void
+    {
+        $id    = (int) ($params['id']    ?? 0);
+        $docId = (int) ($params['docId'] ?? 0);
+
+        $employee = $this->makeRepo()->findById($id);
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $actorId = (int) (AuthMiddleware::identity()['user_id'] ?? 0);
+        $meta    = [
+            'document_type'  => trim((string) ($_POST['document_type']  ?? '')),
+            'document_label' => trim((string) ($_POST['document_label'] ?? '')),
+            'notes'          => trim((string) ($_POST['notes']          ?? '')),
+        ];
+
+        try {
+            (new EmployeeDocumentService($this->makeConnection()))
+                ->replace($docId, $id, $_FILES['document'] ?? [], $meta, $actorId);
+
+            ViewRenderer::flash('Document replaced successfully. The previous version has been retained.');
+            $this->redirect('/hr/employees/' . $id . '/documents');
+        } catch (\RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+            $this->redirect('/hr/employees/' . $id . '/documents');
+        }
+    }
+
+    /**
+     * POST /hr/employees/{id}/documents/{docId}/verify
+     * Mark a document as HR-verified.
+     *
+     * @param array<string, string> $params
+     */
+    public function verifyDocument(array $params = []): void
+    {
+        $id      = (int) ($params['id']    ?? 0);
+        $docId   = (int) ($params['docId'] ?? 0);
+        $actorId = (int) (AuthMiddleware::identity()['user_id'] ?? 0);
+
+        try {
+            (new EmployeeDocumentService($this->makeConnection()))->verify($docId, $id, $actorId);
+            ViewRenderer::flash('Document marked as verified.');
+        } catch (\RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/hr/employees/' . $id . '/documents');
+    }
+
+    /**
+     * POST /hr/employees/{id}/documents/{docId}/archive
+     * Soft-archive a document (retains file and metadata).
+     *
+     * @param array<string, string> $params
+     */
+    public function archiveDocument(array $params = []): void
+    {
+        $id      = (int) ($params['id']    ?? 0);
+        $docId   = (int) ($params['docId'] ?? 0);
+        $actorId = (int) (AuthMiddleware::identity()['user_id'] ?? 0);
+
+        try {
+            (new EmployeeDocumentService($this->makeConnection()))->archive($docId, $id, $actorId);
+            ViewRenderer::flash('Document archived.');
+        } catch (\RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/hr/employees/' . $id . '/documents');
     }
 }

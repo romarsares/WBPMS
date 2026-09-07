@@ -482,4 +482,130 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    // -----------------------------------------------------------------------
+    // Detail-view read methods
+    // -----------------------------------------------------------------------
+
+    /**
+     * Return a rich employee row for the read-only detail view.
+     *
+     * Includes linked user account, current schedule name, work hours,
+     * current daily rate, and current biometric enrollment.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function findDetail(int $employeeId): ?array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT
+                e.employee_id                                   AS id,
+                e.employee_number,
+                e.employee_type,
+                e.first_name,
+                e.middle_initial,
+                e.last_name,
+                e.email,
+                e.contact_number,
+                e.birthdate,
+                e.hire_date,
+                e.position,
+                e.status,
+                e.philhealth_number,
+                e.pagibig_number,
+                e.tin_number,
+                e.contract_review_date,
+                e.created_at,
+                -- Current branch
+                COALESCE(b.branch_name, '—')                    AS branch_name,
+                COALESCE(eba.effective_from, '—')               AS branch_since,
+                -- Current schedule
+                COALESCE(ws.schedule_name, '—')                 AS schedule_name,
+                COALESCE(ws.work_start_time, '')                AS work_start_time,
+                COALESCE(ws.work_end_time, '')                  AS work_end_time,
+                COALESCE(ws.standard_minutes, 0)                AS standard_minutes,
+                COALESCE(ws.break_minutes, 0)                   AS break_minutes,
+                -- Current salary
+                COALESCE(s.daily_rate, 0)                       AS daily_rate,
+                s.effective_from                                AS salary_since,
+                -- Biometric enrollment
+                COALESCE(bd.device_name, bd.device_code, '—')  AS device_name,
+                COALESCE(ebe.device_employee_code, '—')         AS enrollment_code,
+                -- Linked user account
+                u.user_id,
+                u.username,
+                u.status                                        AS account_status,
+                u.requires_password_change
+             FROM employee e
+             LEFT JOIN employee_branch_assignment eba
+                    ON eba.employee_id = e.employee_id
+                   AND eba.effective_to IS NULL
+             LEFT JOIN branch b ON b.branch_id = eba.branch_id
+             LEFT JOIN employee_schedule_assignment esa
+                    ON esa.employee_id = e.employee_id
+                   AND esa.effective_to IS NULL
+                   AND esa.status = 'Active'
+             LEFT JOIN work_schedule ws ON ws.schedule_id = esa.schedule_id
+             LEFT JOIN salary s
+                    ON s.employee_id = e.employee_id
+                   AND s.effective_to IS NULL
+                   AND s.status = 'Active'
+             LEFT JOIN employee_biometric_enrollment ebe
+                    ON ebe.employee_id = e.employee_id
+                   AND ebe.effective_to IS NULL
+                   AND ebe.status = 'Active'
+             LEFT JOIN biometric_device bd ON bd.device_id = ebe.device_id
+             LEFT JOIN users u ON u.employee_id = e.employee_id
+             WHERE e.employee_id = :id"
+        );
+        $stmt->execute([':id' => $employeeId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row !== false ? $row : null;
+    }
+
+    /**
+     * Return the full branch assignment history for an employee, newest first.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function branchHistory(int $employeeId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT
+                eba.effective_from,
+                eba.effective_to,
+                b.branch_name,
+                eba.transfer_reason
+             FROM employee_branch_assignment eba
+             LEFT JOIN branch b ON b.branch_id = eba.branch_id
+             WHERE eba.employee_id = :id
+             ORDER BY eba.effective_from DESC"
+        );
+        $stmt->execute([':id' => $employeeId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Return the full salary history for an employee, newest first.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function salaryHistory(int $employeeId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT
+                s.daily_rate,
+                s.effective_from,
+                s.effective_to,
+                s.status
+             FROM salary s
+             WHERE s.employee_id = :id
+             ORDER BY s.effective_from DESC"
+        );
+        $stmt->execute([':id' => $employeeId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
 }

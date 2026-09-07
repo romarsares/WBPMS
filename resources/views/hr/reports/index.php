@@ -32,7 +32,9 @@
         ['label'=>'Employee List',        'type'=>'employees',   'icon'=>'♟'],
     ];
     foreach ($reportTypes as $rt): ?>
-    <a href="<?= $base ?>/hr/reports/export?type=<?= htmlspecialchars($rt['type']) ?>"
+    <a href="<?= $rt['type'] === '13th_month'
+        ? $base . '/hr/reports/13th-month'
+        : $base . '/hr/reports/' . htmlspecialchars($rt['type']) ?>"
        class="card" style="text-decoration:none;display:flex;align-items:center;gap:.75rem;padding:1rem">
         <span style="font-size:1.5rem"><?= $rt['icon'] ?></span>
         <span style="font-weight:500"><?= htmlspecialchars($rt['label']) ?></span>

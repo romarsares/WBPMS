@@ -1002,19 +1002,37 @@ final class PayrollService
     // ===================================================================
 
     /**
-     * Compute 13th-month pay for all employees with approved payroll in a
-     * given calendar year.
+     * Compute 13th-month pay for employees with approved payroll in a given
+     * calendar year, optionally limited by the historical branch assignment
+     * captured on the payroll row or by employee.
      *
      * 13th month = total basic pay earned in the year / 12.
      * Total basic pay = SUM of payroll_earnings.amount WHERE earning_type = 'Basic'
      * across all Approved payroll runs in the year.
      *
+     * @param array{branch_id?:int,employee_id?:int} $filters
      * @return list<array{employee_id:int,employee_name:string,employee_number:string,basic_total:float,thirteenth_month:float}>
      */
-    public function compute13thMonth(int $year): array
+    public function compute13thMonth(int $year, array $filters = []): array
     {
-        $stmt = $this->connection->pdo()->prepare(
-            "SELECT e.employee_id,
+        $where = [
+            "pe.earning_type = 'Basic'",
+            "pr.status = 'Approved'",
+            'YEAR(pp.period_start) = :year',
+        ];
+        $parameters = [':year' => $year];
+
+        if (($filters['branch_id'] ?? 0) > 0) {
+            $where[] = 'eba.branch_id = :branch_id';
+            $parameters[':branch_id'] = $filters['branch_id'];
+        }
+
+        if (($filters['employee_id'] ?? 0) > 0) {
+            $where[] = 'p.employee_id = :employee_id';
+            $parameters[':employee_id'] = $filters['employee_id'];
+        }
+
+        $sql = "SELECT e.employee_id,
                     CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
                     e.employee_number,
                     SUM(pe.amount) AS basic_total
@@ -1023,13 +1041,14 @@ final class PayrollService
                JOIN payroll_run pr    ON pr.payroll_run_id    = p.payroll_run_id
                JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
                JOIN employee e        ON e.employee_id        = p.employee_id
-              WHERE pe.earning_type = 'Basic'
-                AND pr.status       = 'Approved'
-                AND YEAR(pp.period_start) = :year
+                JOIN employee_branch_assignment eba
+                  ON eba.branch_assignment_id = p.branch_assignment_id
+               WHERE " . implode("\n                 AND ", $where) . "
               GROUP BY e.employee_id, e.last_name, e.first_name, e.employee_number
-              ORDER BY e.last_name, e.first_name"
-        );
-        $stmt->execute([':year' => $year]);
+               ORDER BY e.last_name, e.first_name";
+
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($parameters);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $result = [];

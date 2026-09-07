@@ -101,6 +101,13 @@ $router->add('GET',  '/hr/employees/{id}/archive',   [EmployeeController::class,
 $router->add('POST', '/hr/employees/{id}/archive',   [EmployeeController::class, 'archive'],       ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}/rehire',    [EmployeeController::class, 'rehireForm'],    ['HRHead']);
 $router->add('POST', '/hr/employees/{id}/rehire',    [EmployeeController::class, 'rehire'],        ['HRHead']);
+// Documents — literal sub-paths before bare {id} catch-alls  (Task 4.6.5 / REQ014-AC4)
+$router->add('GET',  '/hr/employees/{id}/documents',                      [EmployeeController::class, 'documents'],       ['HRHead']);
+$router->add('POST', '/hr/employees/{id}/documents',                      [EmployeeController::class, 'uploadDocument'],  ['HRHead']);
+$router->add('GET',  '/hr/employees/{id}/documents/{docId}',              [EmployeeController::class, 'viewDocument'],    ['HRHead']);
+$router->add('POST', '/hr/employees/{id}/documents/{docId}/replace',      [EmployeeController::class, 'replaceDocument'], ['HRHead']);
+$router->add('POST', '/hr/employees/{id}/documents/{docId}/verify',       [EmployeeController::class, 'verifyDocument'],  ['HRHead']);
+$router->add('POST', '/hr/employees/{id}/documents/{docId}/archive',      [EmployeeController::class, 'archiveDocument'], ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}',           [EmployeeController::class, 'show'],          ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}/edit',      [EmployeeController::class, 'editForm'],      ['HRHead']);
 $router->add('POST', '/hr/employees/{id}',           [EmployeeController::class, 'update'],        ['HRHead']);
@@ -184,7 +191,9 @@ $router->add('POST', '/hr/payroll/{id}/submit',      [PayrollController::class, 
 // ---------------------------------------------------------------------------
 
 $router->add('GET',  '/hr/reports',        [ReportsController::class, 'index'],    ['HRHead', 'BusinessOwner']);
+$router->add('GET',  '/hr/reports/13th-month', [ReportsController::class, 'thirteenthMonth'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/export', [ReportsController::class, 'export'],   ['HRHead', 'BusinessOwner']);
+$router->add('GET',  '/hr/reports/{type}', [ReportsController::class, 'preview'],  ['HRHead', 'BusinessOwner']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Settings  (Job Positions · Payroll Periods · Holidays)

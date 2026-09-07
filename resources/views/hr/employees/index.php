@@ -116,6 +116,7 @@ $branches     ??= [];
             <td><?= Formatter::date($emp['effective_from']) ?></td>
             <td><?= $statusBadge ?></td>
             <td style="white-space:nowrap">
+                <a href="<?= $base ?>/hr/employees/<?= (int) $emp['id'] ?>" class="btn btn-secondary btn-sm">View</a>
                 <a href="<?= $base ?>/hr/employees/<?= (int) $emp['id'] ?>/edit" class="btn btn-secondary btn-sm">Edit</a>
                 <?php if ($emp['status'] === 'archived'): ?>
                 <a href="<?= $base ?>/hr/employees/<?= (int) $emp['id'] ?>/rehire" class="btn btn-primary btn-sm">Rehire</a>
