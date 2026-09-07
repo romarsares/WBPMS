@@ -232,8 +232,11 @@ final class PayrollService
         $pdo  = $this->connection->pdo();
         $stmt = $pdo->prepare(
             "SELECT pr.payroll_run_id,
+                    pr.payroll_period_id,
                     pr.status,
                     pr.return_reason,
+                    pr.cancellation_reason,
+                    pr.cancelled_at,
                     pr.submitted_at,
                     pr.reviewed_at,
                     pr.created_at,
@@ -409,8 +412,8 @@ final class PayrollService
         $pdo = $this->connection->pdo();
 
         $run = $this->findRunOrFail($runId);
-        if ($run['status'] === 'Approved') {
-            throw new RuntimeException('Approved payroll runs are immutable.');
+        if (!in_array($run['status'], ['Draft', 'Computed', 'Returned'], true)) {
+            throw new RuntimeException('Only Draft, Computed, or Returned payroll runs can be computed.');
         }
 
         $adjustmentCheck = $pdo->prepare(
@@ -478,12 +481,31 @@ final class PayrollService
         ]);
         $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        $this->assertEmployeesAreNotAlreadyPaidInAnotherRun(
+            $pdo,
+            $runId,
+            (int) $run['payroll_period_id'],
+            $employees,
+        );
+
         $this->connection->transaction(function () use (
             $pdo, $runId, $employees, $periodStart, $periodEnd,
             $contribPolicy, $sssBrackets, $philRate, $pagibigRate,
             $lateRatePerMin, $eemrDaysPerYear, $computedByUserId,
             $payDate, $applyContributions
         ): void {
+            // Lock and re-check after the pre-computation reads. This prevents
+            // a cancellation from being overwritten by a concurrently running
+            // calculation.
+            $statusStatement = $pdo->prepare(
+                'SELECT status FROM payroll_run WHERE payroll_run_id = :id FOR UPDATE'
+            );
+            $statusStatement->execute([':id' => $runId]);
+            $lockedRun = $statusStatement->fetch(PDO::FETCH_ASSOC);
+            if ($lockedRun === false || !in_array($lockedRun['status'], ['Draft', 'Computed', 'Returned'], true)) {
+                throw new RuntimeException('This payroll run is no longer available for computation.');
+            }
+
             // Clear prior rows for this run
             $pdo->prepare("DELETE FROM contribution_record WHERE payroll_id IN (SELECT payroll_id FROM payroll WHERE payroll_run_id = :id)")->execute([':id' => $runId]);
             $pdo->prepare("DELETE FROM deduction WHERE payroll_id IN (SELECT payroll_id FROM payroll WHERE payroll_run_id = :id)")->execute([':id' => $runId]);
@@ -509,10 +531,12 @@ final class PayrollService
                         SUM(hours_worked_minutes) AS total_worked,
                         SUM(late_minutes)         AS total_late,
                         SUM(undertime_minutes)    AS total_undertime
-                       FROM attendance
-                      WHERE employee_id = :emp_id
+                       FROM attendance a
+                       LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
+                      WHERE a.employee_id = :emp_id
                         AND attendance_date BETWEEN :start AND :end
-                        AND status IN ('Complete','Approved','ReviewRequired')"
+                        AND a.status IN ('Complete','Approved','ReviewRequired')
+                        AND (a.import_batch_id IS NULL OR aib.status IN ('Approved','Completed'))"
                 );
                 $stmt->execute([':emp_id' => $employeeId, ':start' => $periodStart, ':end' => $periodEnd]);
                 $att = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -552,12 +576,14 @@ final class PayrollService
                             hc.holiday_type,
                             hc.description AS holiday_description
                        FROM attendance a
+                       LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
                        JOIN holiday_calendar hc
                          ON hc.holiday_date = a.attendance_date
                         AND hc.status = 'Active'
                       WHERE a.employee_id = :emp_id
                         AND a.attendance_date BETWEEN :start AND :end
-                        AND a.status IN ('Complete','Approved')"
+                         AND a.status IN ('Complete','Approved')
+                         AND (a.import_batch_id IS NULL OR aib.status IN ('Approved','Completed'))"
                 );
                 $hStmt->execute([
                     ':emp_id' => $employeeId,
@@ -811,19 +837,24 @@ final class PayrollService
         }
 
         $submittedNow = $this->utcNow();
-        $pdo->prepare(
+        $updated = $pdo->prepare(
             "UPDATE payroll_run SET
                 status       = 'PendingOwnerApproval',
                 submitted_by = :by,
                 submitted_at = :submitted_at,
                 updated_at   = :updated_at
-              WHERE payroll_run_id = :id"
-        )->execute([
+              WHERE payroll_run_id = :id
+                AND status IN ('Computed', 'Returned')"
+        );
+        $updated->execute([
             ':by'           => $submittedByUserId,
             ':submitted_at' => $submittedNow,
             ':updated_at'   => $submittedNow,
             ':id'           => $runId,
         ]);
+        if ($updated->rowCount() !== 1) {
+            throw new RuntimeException('This payroll run changed status and can no longer be submitted.');
+        }
     }
 
     public function approve(int $runId, int $reviewedByUserId): void
@@ -839,14 +870,19 @@ final class PayrollService
 
         $this->connection->transaction(function () use ($pdo, $runId, $reviewedByUserId, $now): void {
             // 1. Mark run as Approved
-            $pdo->prepare(
+            $updated = $pdo->prepare(
                 "UPDATE payroll_run SET
                     status      = 'Approved',
                     reviewed_by = :by,
                     reviewed_at = :reviewed_at,
                     updated_at  = :updated_at
-                  WHERE payroll_run_id = :id"
-            )->execute([':by' => $reviewedByUserId, ':reviewed_at' => $now, ':updated_at' => $now, ':id' => $runId]);
+                  WHERE payroll_run_id = :id
+                    AND status = 'PendingOwnerApproval'"
+            );
+            $updated->execute([':by' => $reviewedByUserId, ':reviewed_at' => $now, ':updated_at' => $now, ':id' => $runId]);
+            if ($updated->rowCount() !== 1) {
+                throw new RuntimeException('This payroll run changed status and can no longer be approved.');
+            }
 
             // 2. Generate one payslip row per employee payroll row (REQ048)
             // Skip employees that already have a payslip for this run
@@ -896,15 +932,104 @@ final class PayrollService
         }
 
         $now = $this->utcNow();
-        $pdo->prepare(
+        $updated = $pdo->prepare(
             "UPDATE payroll_run SET
                 status        = 'Returned',
                 return_reason = :reason,
                 reviewed_by   = :by,
                 reviewed_at   = :reviewed_at,
                 updated_at    = :updated_at
-              WHERE payroll_run_id = :id"
-        )->execute([':reason' => $reason, ':by' => $reviewedByUserId, ':reviewed_at' => $now, ':updated_at' => $now, ':id' => $runId]);
+              WHERE payroll_run_id = :id
+                AND status = 'PendingOwnerApproval'"
+        );
+        $updated->execute([':reason' => $reason, ':by' => $reviewedByUserId, ':reviewed_at' => $now, ':updated_at' => $now, ':id' => $runId]);
+        if ($updated->rowCount() !== 1) {
+            throw new RuntimeException('This payroll run changed status and can no longer be returned.');
+        }
+    }
+
+    /**
+     * Cancel an unapproved payroll run without deleting its calculation history.
+     * A cancelled run no longer occupies its period/branch, so HR can create a
+     * corrected replacement run.
+     */
+    public function cancelRun(int $runId, int $cancelledByUserId, string $reason): void
+    {
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new RuntimeException('A cancellation reason is required.');
+        }
+        if (mb_strlen($reason) > 1000) {
+            throw new RuntimeException('The cancellation reason must be 1,000 characters or fewer.');
+        }
+
+        $this->connection->transaction(function (PDO $pdo) use ($runId, $cancelledByUserId, $reason): void {
+            $statement = $pdo->prepare(
+                'SELECT status FROM payroll_run WHERE payroll_run_id = :id FOR UPDATE'
+            );
+            $statement->execute([':id' => $runId]);
+            $run = $statement->fetch(PDO::FETCH_ASSOC);
+
+            if ($run === false) {
+                throw new RuntimeException('Payroll run not found.');
+            }
+
+            $previousStatus = (string) $run['status'];
+            if ($previousStatus === 'Approved') {
+                throw new RuntimeException('Approved payroll runs are immutable and cannot be cancelled.');
+            }
+            if ($previousStatus === 'Cancelled') {
+                throw new RuntimeException('This payroll run has already been cancelled.');
+            }
+
+            // Remove all payroll detail rows for this run so they do not
+            // block a replacement run for the same payroll_period_id + employee_id
+            // combination (enforced by uq_payroll_period_employee). The cancellation
+            // marks the run as historical; keeping stale child rows would cause a
+            // duplicate-key error on every subsequent recompute attempt.
+            $pdo->prepare("DELETE FROM contribution_record WHERE payroll_id IN (SELECT payroll_id FROM payroll WHERE payroll_run_id = :id)")->execute([':id' => $runId]);
+            $pdo->prepare("DELETE FROM deduction         WHERE payroll_id IN (SELECT payroll_id FROM payroll WHERE payroll_run_id = :id)")->execute([':id' => $runId]);
+            $pdo->prepare("DELETE FROM payroll_earnings  WHERE payroll_id IN (SELECT payroll_id FROM payroll WHERE payroll_run_id = :id)")->execute([':id' => $runId]);
+            $pdo->prepare("DELETE FROM payslip           WHERE payroll_id IN (SELECT payroll_id FROM payroll WHERE payroll_run_id = :id)")->execute([':id' => $runId]);
+            $pdo->prepare("DELETE FROM payroll           WHERE payroll_run_id = :id")->execute([':id' => $runId]);
+
+            $now = $this->utcNow();
+            $pdo->prepare(
+                "UPDATE payroll_run
+                    SET status              = 'Cancelled',
+                        active_run_marker   = NULL,
+                        cancellation_reason = :reason,
+                        cancelled_by        = :cancelled_by,
+                        cancelled_at        = :cancelled_at,
+                        updated_at          = :updated_at
+                  WHERE payroll_run_id = :id"
+            )->execute([
+                ':reason'       => $reason,
+                ':cancelled_by' => $cancelledByUserId,
+                ':cancelled_at' => $now,
+                ':updated_at'   => $now,
+                ':id'           => $runId,
+            ]);
+
+            $description = json_encode([
+                'previous_status' => $previousStatus,
+                'reason'          => $reason,
+            ], JSON_UNESCAPED_SLASHES);
+            $pdo->prepare(
+                "INSERT INTO audit_logs
+                    (user_id, event_type, action_performed, table_affected, record_id,
+                     description, action_at, created_at)
+                 VALUES
+                    (:user_id, 'payroll_cancelled', 'cancel_payroll_run', 'payroll_run', :record_id,
+                     :description, :action_at, :created_at)"
+            )->execute([
+                ':user_id'     => $cancelledByUserId,
+                ':record_id'   => $runId,
+                ':description' => $description,
+                ':action_at'   => $now,
+                ':created_at'  => $now,
+            ]);
+        });
     }
 
     // ===================================================================
@@ -1201,12 +1326,14 @@ final class PayrollService
         }
 
         $stmt = $pdo->prepare(
-            "SELECT attendance_date, time_out, overtime_minutes
-               FROM attendance
-              WHERE employee_id = :emp_id
-                AND attendance_date BETWEEN :start AND :end
-                AND status IN ('Complete', 'Approved')
-                AND overtime_minutes > 0"
+            "SELECT a.attendance_date, a.time_out, a.overtime_minutes
+               FROM attendance a
+               LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
+              WHERE a.employee_id = :emp_id
+                AND a.attendance_date BETWEEN :start AND :end
+                AND a.status IN ('Complete', 'Approved')
+                AND (a.import_batch_id IS NULL OR aib.status IN ('Approved','Completed'))
+                AND a.overtime_minutes > 0"
         );
         $stmt->execute([':emp_id' => $employeeId, ':start' => $periodStart, ':end' => $periodEnd]);
 
@@ -1251,6 +1378,53 @@ final class PayrollService
             ];
         }
         return $policy;
+    }
+
+    /**
+     * Guards against computing a run when any of its employees already have a
+     * finalised payroll row for the same payroll period in a *different*, still
+     * active (non-Cancelled) run.
+     *
+     * This prevents the `uq_payroll_period_employee` unique-key violation that
+     * occurs when a cancelled run's payroll rows were not cleaned up (legacy
+     * data) or when two concurrent compute attempts race on the same period.
+     *
+     * @param list<array<string,mixed>> $employees
+     */
+    private function assertEmployeesAreNotAlreadyPaidInAnotherRun(
+        PDO $pdo,
+        int $currentRunId,
+        int $periodId,
+        array $employees,
+    ): void {
+        if (empty($employees)) {
+            return;
+        }
+
+        $employeeIds = array_map(static fn(array $e): int => (int) $e['employee_id'], $employees);
+        $placeholders = implode(',', array_fill(0, count($employeeIds), '?'));
+
+        $stmt = $pdo->prepare(
+            "SELECT p.employee_id
+               FROM payroll p
+               JOIN payroll_run pr ON pr.payroll_run_id = p.payroll_run_id
+              WHERE p.payroll_period_id  = ?
+                AND p.payroll_run_id    != ?
+                AND pr.status           != 'Cancelled'
+                AND p.employee_id IN ($placeholders)
+              LIMIT 1"
+        );
+
+        $bindings = [$periodId, $currentRunId, ...$employeeIds];
+        $stmt->execute($bindings);
+        $conflict = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($conflict !== false) {
+            throw new RuntimeException(
+                'One or more employees in this run have already been paid under a different active '
+                . 'payroll run for the same period. Cancel or resolve that run before computing this one.'
+            );
+        }
     }
 
     /** @return array<string,mixed> */

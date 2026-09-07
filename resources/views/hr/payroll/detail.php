@@ -16,6 +16,7 @@ $statusColors = [
     'PendingOwnerApproval' => '#f59e0b',
     'Approved'             => '#10b981',
     'Returned'             => '#ef4444',
+    'Cancelled'            => '#6b7280',
 ];
 $sc = $statusColors[$run['status']] ?? '#6b7280';
 
@@ -42,6 +43,12 @@ foreach ($deductions as $deduction) {
 <?php if (!empty($run['return_reason'])): ?>
 <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:.75rem 1rem;margin-bottom:1rem;color:#991b1b">
     <strong>Returned by Owner:</strong> <?= htmlspecialchars((string)$run['return_reason']) ?>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($run['cancellation_reason'])): ?>
+<div style="background:#f9fafb;border:1px solid #d1d5db;border-radius:6px;padding:.75rem 1rem;margin-bottom:1rem;color:#374151">
+    <strong>Cancelled by HR:</strong> <?= htmlspecialchars((string)$run['cancellation_reason']) ?>
 </div>
 <?php endif; ?>
 
@@ -201,7 +208,7 @@ foreach ($deductions as $deduction) {
 
 <!-- Action buttons -->
 <?php $runId = (int)$run['payroll_run_id']; ?>
-<?php if (!in_array($run['status'], ['PendingOwnerApproval','Approved'], true)): ?>
+<?php if (!in_array($run['status'], ['PendingOwnerApproval', 'Approved', 'Cancelled'], true)): ?>
 <div style="display:flex;gap:.75rem;flex-wrap:wrap">
     <!-- Compute -->
     <form method="post" action="<?= $base ?>/hr/payroll/<?= $runId ?>/compute">
@@ -222,9 +229,32 @@ foreach ($deductions as $deduction) {
         </button>
     </form>
     <?php endif; ?>
+
+    <form method="post" action="<?= $base ?>/hr/payroll/<?= $runId ?>/cancel" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+        <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="text" name="cancellation_reason" required maxlength="1000"
+               aria-label="Cancellation reason" placeholder="Reason for cancellation">
+        <button type="submit" class="btn btn-danger"
+                onclick="return confirm('Cancel this payroll run? It cannot be restored, but its history will be retained.')">
+            Cancel Payroll Run
+        </button>
+    </form>
 </div>
 <?php elseif ($run['status'] === 'Approved'): ?>
 <p style="color:#10b981;font-weight:600">✓ This payroll run has been approved and is read-only.</p>
+<?php elseif ($run['status'] === 'Cancelled'): ?>
+<p style="color:#6b7280;font-weight:600">⊘ This payroll run is cancelled and read-only. Create a new run when the correction is ready.</p>
 <?php else: ?>
-<p style="color:#f59e0b;font-weight:600">&#9711; Awaiting Business Owner approval.</p>
+<div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
+    <p style="color:#f59e0b;font-weight:600;margin:0">&#9711; Awaiting Business Owner approval.</p>
+    <form method="post" action="<?= $base ?>/hr/payroll/<?= $runId ?>/cancel" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+        <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="text" name="cancellation_reason" required maxlength="1000"
+               aria-label="Cancellation reason" placeholder="Reason for cancellation">
+        <button type="submit" class="btn btn-danger"
+                onclick="return confirm('Cancel this pending payroll run? It cannot be restored, but its history will be retained.')">
+            Cancel Payroll Run
+        </button>
+    </form>
+</div>
 <?php endif; ?>

@@ -51,7 +51,8 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
     {
         $stmt = $this->pdo->prepare(
             "SELECT COUNT(*) FROM attendance_import_batch
-              WHERE file_checksum = :cs AND status = 'Completed'"
+              WHERE file_checksum = :cs
+                AND status IN ('Draft', 'Approved', 'Completed', 'Cancelled')"
         );
         $stmt->execute([':cs' => $sha256]);
         return (int) $stmt->fetchColumn() > 0;
@@ -100,7 +101,7 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
         $now  = $this->utcNow();
         $stmt = $this->pdo->prepare(
             "UPDATE attendance_import_batch SET
-                status              = 'Completed',
+                status              = 'Draft',
                 records_parsed      = :parsed,
                 records_matched     = :matched,
                 records_unmatched   = :unmatched,
@@ -378,9 +379,9 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
               ORDER BY effective_from DESC LIMIT 1"
         );
         $stmt->execute([
-            ':emp_id' => $attendance->employeeId,
-            ':branch_from_date' => $punchDate,
-            ':branch_to_date' => $punchDate,
+            ':emp_id'            => $attendance->employeeId,
+            ':branch_from_date'  => $punchDate,
+            ':branch_to_date'    => $punchDate,
         ]);
         $baRow = $stmt->fetch(PDO::FETCH_ASSOC);
         $baId  = $baRow ? (int) $baRow['branch_assignment_id'] : null;
@@ -395,14 +396,89 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
               ORDER BY esa.effective_from DESC LIMIT 1"
         );
         $stmt->execute([
-            ':emp_id' => $attendance->employeeId,
-            ':schedule_from_date' => $punchDate,
-            ':schedule_to_date' => $punchDate,
+            ':emp_id'              => $attendance->employeeId,
+            ':schedule_from_date'  => $punchDate,
+            ':schedule_to_date'    => $punchDate,
         ]);
-        $schRow    = $stmt->fetch(PDO::FETCH_ASSOC);
+        $schRow     = $stmt->fetch(PDO::FETCH_ASSOC);
         $scheduleId = $schRow ? (int) $schRow['schedule_id'] : null;
 
-        // Upsert: skip if already exists for this employee+date
+        // Check for an existing attendance row for this employee+date.
+        //
+        // The weekly-upload workflow means HR uploads the same month's XLS again
+        // each week as the device accumulates more data. Days from prior weeks
+        // will already have attendance rows. Rules:
+        //
+        //   Different branch              → throw  (data conflict; HR must resolve)
+        //   Same branch + Approved        → throw  (immutable per ADR-0002)
+        //   Same branch + Incomplete
+        //     AND new data has both punches → UPDATE (boundary-day completion)
+        //   Same branch + anything else   → skip silently (already fully captured)
+        $existing = $this->pdo->prepare(
+            "SELECT a.attendance_id, a.status, eba.branch_id
+               FROM attendance a
+               JOIN employee_branch_assignment eba
+                 ON eba.branch_assignment_id = a.branch_assignment_id
+              WHERE a.employee_id    = :emp_id
+                AND a.attendance_date = :date
+              FOR UPDATE"
+        );
+        $existing->execute([':emp_id' => $attendance->employeeId, ':date' => $punchDate]);
+        $existingRow = $existing->fetch(PDO::FETCH_ASSOC);
+
+        if ($existingRow !== false) {
+            $sameBranch     = (int) $existingRow['branch_id'] === $this->branchIdForAssignment($baId);
+            $existingStatus = (string) $existingRow['status'];
+            $existingId     = (int) $existingRow['attendance_id'];
+
+            if (!$sameBranch) {
+                throw new \RuntimeException(
+                    'Attendance already exists for this employee and date under another branch. '
+                    . 'Resolve that branch assignment before importing.'
+                );
+            }
+
+            if ($existingStatus === 'Approved') {
+                throw new \RuntimeException(
+                    'Attendance for this employee and date has already been approved and is immutable.'
+                );
+            }
+
+            // Incomplete row + new upload now supplies both time-in and time-out
+            // → complete the record in-place so the weekly payroll can use it.
+            if ($existingStatus === 'Incomplete' && $timeIn !== null && $timeOut !== null) {
+                $this->pdo->prepare(
+                    "UPDATE attendance
+                        SET time_in              = :time_in,
+                            time_out             = :time_out,
+                            hours_worked_minutes = :worked,
+                            late_minutes         = :late,
+                            undertime_minutes    = :undertime,
+                            overtime_minutes     = :overtime,
+                            status               = :status,
+                            import_batch_id      = :batch_id,
+                            updated_at           = :updated_at
+                      WHERE attendance_id = :id"
+                )->execute([
+                    ':time_in'    => $timeIn,
+                    ':time_out'   => $timeOut,
+                    ':worked'     => $attendance->workedMinutes,
+                    ':late'       => $attendance->lateMinutes,
+                    ':undertime'  => $attendance->undertimeMinutes,
+                    ':overtime'   => $attendance->overtimeMinutes,
+                    ':status'     => $status,
+                    ':batch_id'   => $batchId,
+                    ':updated_at' => $now,
+                    ':id'         => $existingId,
+                ]);
+                return;
+            }
+
+            // Complete or ReviewRequired (same branch, not approved): the prior
+            // import already captured this day fully — skip silently.
+            return;
+        }
+
         $stmt = $this->pdo->prepare(
             "INSERT INTO attendance
                 (employee_id, branch_assignment_id, schedule_id,
@@ -415,30 +491,21 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
                  :date, :time_in, :time_out,
                  :worked, :late, :undertime, :overtime,
                  :status, 'xls_import', :batch_id,
-                 :created_at, :updated_at)
-             ON DUPLICATE KEY UPDATE
-                time_in               = VALUES(time_in),
-                time_out              = VALUES(time_out),
-                hours_worked_minutes  = VALUES(hours_worked_minutes),
-                late_minutes          = VALUES(late_minutes),
-                undertime_minutes     = VALUES(undertime_minutes),
-                overtime_minutes      = VALUES(overtime_minutes),
-                status                = VALUES(status),
-                updated_at            = VALUES(updated_at)"
+                 :created_at, :updated_at)"
         );
         $stmt->execute([
-            ':emp_id'    => $attendance->employeeId,
-            ':ba_id'     => $baId,
-            ':sch_id'    => $scheduleId,
-            ':date'      => $punchDate,
-            ':time_in'   => $timeIn,
-            ':time_out'  => $timeOut,
-            ':worked'    => $attendance->workedMinutes,
-            ':late'      => $attendance->lateMinutes,
-            ':undertime' => $attendance->undertimeMinutes,
-            ':overtime'  => $attendance->overtimeMinutes,
-            ':status'    => $status,
-            ':batch_id'  => $batchId,
+            ':emp_id'     => $attendance->employeeId,
+            ':ba_id'      => $baId,
+            ':sch_id'     => $scheduleId,
+            ':date'       => $punchDate,
+            ':time_in'    => $timeIn,
+            ':time_out'   => $timeOut,
+            ':worked'     => $attendance->workedMinutes,
+            ':late'       => $attendance->lateMinutes,
+            ':undertime'  => $attendance->undertimeMinutes,
+            ':overtime'   => $attendance->overtimeMinutes,
+            ':status'     => $status,
+            ':batch_id'   => $batchId,
             ':created_at' => $now,
             ':updated_at' => $now,
         ]);
@@ -451,5 +518,17 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
     private function utcNow(): string
     {
         return (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+    }
+
+    private function branchIdForAssignment(?int $branchAssignmentId): int
+    {
+        if ($branchAssignmentId === null) {
+            return 0;
+        }
+        $stmt = $this->pdo->prepare(
+            'SELECT branch_id FROM employee_branch_assignment WHERE branch_assignment_id = :id'
+        );
+        $stmt->execute([':id' => $branchAssignmentId]);
+        return (int) $stmt->fetchColumn();
     }
 }

@@ -24,6 +24,11 @@
 use Wbpms\Http\View\Formatter;
 
 $rows      ??= [];
+$employees ??= [];
+$dates     ??= [];
+$approvedLeaves ??= [];
+$holidayDates ??= [];
+$today     ??= date('Y-m-d');
 $periods   ??= [];
 $branches  ??= [];
 $activeTab ??= 'month';
@@ -45,13 +50,16 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
         <h1>Attendance Management</h1>
         <p>Review employee timesheets and attendance records.</p>
     </div>
-    <a href="<?= $base ?>/hr/attendance/import" class="btn btn-primary">Import Workbook</a>
+    <div style="display:flex;gap:.5rem;align-items:center">
+        <button type="button" class="btn btn-secondary no-print" onclick="window.print()">Print Attendance</button>
+        <a href="<?= $base ?>/hr/attendance/import" class="btn btn-primary no-print">Import Workbook</a>
+    </div>
 </div>
 
 <!-- =====================================================================
      Filter bar
      ===================================================================== -->
-<div class="card" style="margin-bottom:1.25rem;padding:1rem 1.25rem">
+<div class="card no-print" style="margin-bottom:1.25rem;padding:1rem 1.25rem">
     <form method="GET" action="<?= $base ?>/hr/attendance" id="attendanceFilter">
 
         <!-- Tab switcher -->
@@ -153,7 +161,7 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
 <!-- =====================================================================
      Summary cards
      ===================================================================== -->
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem">
+<div class="no-print" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem">
     <div class="stat-card">
         <span class="stat-value"><?= (int) $total ?></span>
         <span class="stat-label">Records in Range</span>
@@ -181,6 +189,139 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
 <!-- =====================================================================
      Attendance table
      ===================================================================== -->
+<?php
+$attendanceByEmployeeDate = [];
+foreach ($rows as $row) {
+    $attendanceByEmployeeDate[(int) $row['employee_id']][(string) $row['attendance_date']] = $row;
+}
+$cellStyles = [
+    'Complete' => 'background:#ecfdf5;border-color:#a7f3d0;color:#065f46',
+    'Approved' => 'background:#ecfdf5;border-color:#a7f3d0;color:#065f46',
+    'Incomplete' => 'background:#fffbeb;border-color:#fde68a;color:#92400e',
+    'ReviewRequired' => 'background:#fff1f2;border-color:#fecdd3;color:#9f1239',
+    'Draft' => 'background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8',
+    'Cancelled' => 'background:#f3f4f6;border-color:#d1d5db;color:#6b7280',
+    'ApprovedLeave' => 'background:#f3e8ff;border-color:#d8b4fe;color:#7e22ce',
+    'Absent' => 'background:#fff1f2;border-color:#fecdd3;color:#be123c',
+];
+?>
+<div class="card" style="padding:0;overflow:hidden">
+    <?php if ($employees === []): ?>
+    <p style="padding:2rem;text-align:center;color:#6b7280">No active employees match this filter.</p>
+    <?php else: ?>
+    <div style="overflow:auto;max-height:calc(100vh - 310px);min-height:360px">
+        <table style="border-collapse:separate;border-spacing:0;min-width:max-content;width:100%;font-size:12px">
+            <thead>
+                <tr>
+                    <th style="position:sticky;left:0;top:0;z-index:4;min-width:200px;text-align:left;padding:10px 12px;background:#f8fafc;border-right:1px solid var(--line);border-bottom:1px solid var(--line)">Employee</th>
+                    <?php foreach ($dates as $date): $header = new DateTimeImmutable($date); $holidayName = $holidayDates[$date] ?? null; ?>
+                    <th style="position:sticky;top:0;z-index:3;min-width:82px;padding:8px 4px;text-align:center;background:#f8fafc;border-right:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap">
+                        <span style="display:block;font-size:11px;color:#64748b"><?= $header->format('D') ?></span>
+                        <strong><?= $header->format('j') ?></strong>
+                        <?php if ($holidayName !== null): ?>
+                        <span title="<?= Formatter::escape($holidayName) ?>" style="display:block;margin-top:2px;font-size:8px;line-height:1.1;color:#9f1239;font-weight:700">HOLIDAY</span>
+                        <?php endif; ?>
+                    </th>
+                    <?php endforeach; ?>
+                    <th title="Hours:minutes" style="position:sticky;top:0;z-index:3;min-width:82px;padding:8px 4px;text-align:center;background:#eef2ff;border-left:2px solid #c7d2fe;border-bottom:1px solid var(--line)">Hours<br><small>(H:MM)</small></th>
+                    <th title="Total late minutes" style="position:sticky;top:0;z-index:3;min-width:64px;padding:8px 4px;text-align:center;background:#eef2ff;border-bottom:1px solid var(--line)">Late<br><small>(min)</small></th>
+                    <th title="Total undertime minutes" style="position:sticky;top:0;z-index:3;min-width:64px;padding:8px 4px;text-align:center;background:#eef2ff;border-bottom:1px solid var(--line)">UT<br><small>(min)</small></th>
+                    <th title="Total overtime minutes" style="position:sticky;top:0;z-index:3;min-width:64px;padding:8px 4px;text-align:center;background:#eef2ff;border-bottom:1px solid var(--line)">OT<br><small>(min)</small></th>
+                    <th title="Number of absent workdays" style="position:sticky;top:0;z-index:3;min-width:64px;padding:8px 4px;text-align:center;background:#fff1f2;border-bottom:1px solid var(--line)">Absent<br><small>(days)</small></th>
+                    <th title="Number of approved leave days" style="position:sticky;top:0;z-index:3;min-width:64px;padding:8px 4px;text-align:center;background:#f3e8ff;border-bottom:1px solid var(--line)">Leave<br><small>(days)</small></th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($employees as $employee): ?>
+                <?php
+                $totalWorked = $totalLate = $totalUndertime = $totalOvertime = $absentDays = $leaveDays = 0;
+                foreach ($dates as $summaryDate) {
+                    $summaryCell = $attendanceByEmployeeDate[(int) $employee['employee_id']][$summaryDate] ?? null;
+                    $summaryLeave = $approvedLeaves[(int) $employee['employee_id']][$summaryDate] ?? null;
+                    $summaryWeekday = (int) (new DateTimeImmutable($summaryDate))->format('N');
+                    $summaryWorkingDay = $summaryWeekday <= 5 && !isset($holidayDates[$summaryDate]);
+                    if ($summaryCell !== null) {
+                        $totalWorked += (int) $summaryCell['worked_minutes'];
+                        $totalLate += (int) $summaryCell['late_minutes'];
+                        $totalUndertime += (int) $summaryCell['undertime_minutes'];
+                        $totalOvertime += (int) $summaryCell['overtime_minutes'];
+                    } elseif ($summaryLeave !== null) {
+                        $leaveDays++;
+                    } elseif ($summaryDate < $today && $summaryDate >= (string) $employee['hire_date'] && $summaryWorkingDay) {
+                        $absentDays++;
+                    }
+                }
+                $totalHours = sprintf('%d:%02d', intdiv($totalWorked, 60), $totalWorked % 60);
+                ?>
+                <tr>
+                    <th scope="row" style="position:sticky;left:0;z-index:2;text-align:left;padding:8px 12px;background:#fff;border-right:1px solid var(--line);border-bottom:1px solid var(--line);white-space:nowrap">
+                        <strong><?= Formatter::escape($employee['employee_name']) ?></strong><br>
+                        <span style="font-size:10px;color:#64748b"><?= Formatter::escape($employee['employee_number']) ?> · <?= Formatter::escape((string) ($employee['branch_name'] ?? '—')) ?></span>
+                    </th>
+                    <?php foreach ($dates as $date):
+                        $employeeId = (int) $employee['employee_id'];
+                        $cell = $attendanceByEmployeeDate[$employeeId][$date] ?? null;
+                        $leave = $approvedLeaves[$employeeId][$date] ?? null;
+                        $weekday = (int) (new DateTimeImmutable($date))->format('N');
+                        $isWorkingDay = $weekday <= 5 && !isset($holidayDates[$date]);
+                        $isAbsent = $cell === null
+                            && $leave === null
+                            && $date < $today
+                            && $date >= (string) $employee['hire_date']
+                            && $isWorkingDay;
+                    ?>
+                    <td style="padding:3px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:center;vertical-align:middle">
+                        <?php if ($cell !== null):
+                            $status = (string) $cell['status'];
+                            $style = $cellStyles[$status] ?? 'background:#f8fafc;border-color:#e2e8f0;color:#475569';
+                        ?>
+                        <a href="<?= $base ?>/hr/attendance/<?= (int) $cell['attendance_id'] ?>/adjust"
+                           title="<?= Formatter::escape($status) ?> — <?= Formatter::escape((string) ($cell['time_in'] ?? 'No time in')) ?> to <?= Formatter::escape((string) ($cell['time_out'] ?? 'No time out')) ?>. Click to review."
+                           style="<?= $style ?>;display:block;min-width:72px;padding:5px 3px;border:1px solid;border-radius:4px;text-decoration:none;line-height:1.2">
+                            <strong style="font-size:11px"><?= Formatter::escape((string) ($cell['time_in'] ?? '—')) ?></strong><br>
+                            <span style="font-size:10px"><?= Formatter::escape((string) ($cell['time_out'] ?? '—')) ?></span>
+                            <?php if ($status === 'Draft'): ?><span style="display:block;font-size:9px;font-weight:700">DRAFT</span><?php endif; ?>
+                            <?php if ($status === 'Incomplete' || $status === 'ReviewRequired'): ?><span style="display:block;font-size:9px;font-weight:700">REVIEW</span><?php endif; ?>
+                        </a>
+                        <?php elseif ($leave !== null): ?>
+                        <a href="<?= $base ?>/hr/requests/<?= (int) $leave['request_id'] ?>"
+                           title="Approved <?= Formatter::escape((string) $leave['leave_type']) ?> leave. Click to view the request."
+                           style="<?= $cellStyles['ApprovedLeave'] ?>;display:block;min-width:72px;padding:8px 3px;border:1px solid;border-radius:4px;text-decoration:none;font-size:10px;font-weight:700">
+                            LEAVE
+                        </a>
+                        <?php elseif (isset($holidayDates[$date])): ?>
+                        <span title="<?= Formatter::escape((string) $holidayDates[$date]) ?>"
+                              style="background:#fff7ed;border-color:#fed7aa;color:#9a3412;display:block;min-width:72px;padding:8px 3px;border:1px solid;border-radius:4px;font-size:9px;font-weight:700">
+                            HOLIDAY
+                        </span>
+                        <?php elseif ($isAbsent): ?>
+                        <span title="No attendance or approved leave recorded for this completed workday"
+                              style="<?= $cellStyles['Absent'] ?>;display:block;min-width:72px;padding:8px 3px;border:1px solid;border-radius:4px;font-size:10px;font-weight:700">
+                            ABSENT
+                        </span>
+                        <?php else: ?>
+                        <span style="display:block;min-width:72px;color:#cbd5e1">—</span>
+                        <?php endif; ?>
+                    </td>
+                    <?php endforeach; ?>
+                    <td style="padding:8px 4px;text-align:center;font-weight:700;background:#eef2ff;border-left:2px solid #c7d2fe;border-bottom:1px solid var(--line)"><?= $totalHours ?></td>
+                    <td style="padding:8px 4px;text-align:center;<?= $totalLate > 0 ? 'color:#b45309;font-weight:700;' : '' ?>background:#eef2ff;border-bottom:1px solid var(--line)"><?= $totalLate ?></td>
+                    <td style="padding:8px 4px;text-align:center;<?= $totalUndertime > 0 ? 'color:#b45309;font-weight:700;' : '' ?>background:#eef2ff;border-bottom:1px solid var(--line)"><?= $totalUndertime ?></td>
+                    <td style="padding:8px 4px;text-align:center;<?= $totalOvertime > 0 ? 'color:#1d4ed8;font-weight:700;' : '' ?>background:#eef2ff;border-bottom:1px solid var(--line)"><?= $totalOvertime ?></td>
+                    <td style="padding:8px 4px;text-align:center;<?= $absentDays > 0 ? 'color:#be123c;font-weight:700;' : '' ?>background:#fff1f2;border-bottom:1px solid var(--line)"><?= $absentDays ?></td>
+                    <td style="padding:8px 4px;text-align:center;<?= $leaveDays > 0 ? 'color:#7e22ce;font-weight:700;' : '' ?>background:#f3e8ff;border-bottom:1px solid var(--line)"><?= $leaveDays ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <div style="padding:.75rem 1rem;border-top:1px solid var(--line);font-size:12px;color:#64748b">
+        Click a populated day to review or adjust it. Green = complete, yellow/red = review or absence, blue = draft import, purple = approved leave, orange = holiday, grey = future/non-working day or cancelled.
+    </div>
+    <?php endif; ?>
+</div>
+
+<?php if (false): ?>
 <div class="card" style="padding:0;overflow-x:auto">
     <?php if ($rows === []): ?>
     <p style="padding:2rem;text-align:center;color:#6b7280">
@@ -256,6 +397,20 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
     <?php endif; ?>
     <?php endif; ?>
 </div>
+<?php endif; ?>
+
+<style media="print">
+@page { size: landscape; margin: 8mm; }
+.no-print { display: none !important; }
+body { background: #fff !important; color: #111827 !important; }
+.page-header { margin-bottom: 8px !important; }
+.card { box-shadow: none !important; border: 1px solid #cbd5e1 !important; }
+.card[style*="overflow:hidden"] { overflow: visible !important; }
+.card[style*="overflow:hidden"] > div[style*="overflow:auto"] { overflow: visible !important; max-height: none !important; }
+table { font-size: 9px !important; }
+th, td { break-inside: avoid; }
+thead th { position: static !important; }
+</style>
 
 <script>
 // Tab switcher — shows/hides the month picker vs cut-off dropdown

@@ -43,15 +43,16 @@ final class EmployeeTransferTest extends IntegrationTestCase
 
         $this->repo->transferEmployee($employeeId, $branchB, '2026-06-01');
 
-        // Old assignment must be closed one day before transfer
+        // The old period ends exclusively on the transfer date, so it covers
+        // dates before transfer but not the transfer date itself.
         $stmt = $this->pdo->prepare(
             "SELECT effective_to FROM employee_branch_assignment
               WHERE employee_id = :emp AND branch_id = :br"
         );
         $stmt->execute([':emp' => $employeeId, ':br' => $branchA]);
         $old = $stmt->fetch();
-        $this->assertSame('2026-05-31', $old['effective_to'],
-            'Old assignment effective_to should be day before transfer date.');
+        $this->assertSame('2026-06-01', $old['effective_to'],
+            'Old assignment effective_to should equal the transfer date.');
 
         // New assignment must be open (effective_to IS NULL)
         $stmt->execute([':emp' => $employeeId, ':br' => $branchB]);
@@ -80,6 +81,39 @@ final class EmployeeTransferTest extends IntegrationTestCase
         $stmt->execute([':emp' => $employeeId]);
         $this->assertSame(1, (int) $stmt->fetchColumn(),
             'Exactly one open assignment should exist after transfer.');
+    }
+
+    public function testTransferBoundaryResolvesOldBranchBeforeAndNewBranchOnEffectiveDate(): void
+    {
+        $branchA    = $this->insertBranch();
+        $branchB    = $this->insertBranch();
+        $employeeId = $this->insertEmployee();
+        $this->insertBranchAssignment($employeeId, $branchA, '2026-01-01');
+
+        $this->repo->transferEmployee($employeeId, $branchB, '2026-06-01');
+
+        $branchForDate = $this->pdo->prepare(
+            "SELECT branch_id FROM employee_branch_assignment
+              WHERE employee_id = :employee_id
+                AND effective_from <= :from_date
+                AND (effective_to IS NULL OR effective_to > :to_date)
+              ORDER BY effective_from DESC
+              LIMIT 1"
+        );
+
+        $branchForDate->execute([
+            ':employee_id' => $employeeId,
+            ':from_date' => '2026-05-31',
+            ':to_date' => '2026-05-31',
+        ]);
+        $this->assertSame($branchA, (int) $branchForDate->fetchColumn());
+
+        $branchForDate->execute([
+            ':employee_id' => $employeeId,
+            ':from_date' => '2026-06-01',
+            ':to_date' => '2026-06-01',
+        ]);
+        $this->assertSame($branchB, (int) $branchForDate->fetchColumn());
     }
 
     // -----------------------------------------------------------------------

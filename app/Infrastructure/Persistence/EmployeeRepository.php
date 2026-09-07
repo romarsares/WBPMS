@@ -391,7 +391,9 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
     /**
      * Transfer an employee to a new branch.
      *
-     * Closes the current active branch assignment (effective_to = transfer_date - 1 day)
+     * Closes the current active branch assignment at the transfer date. Periods
+     * are half-open: [effective_from, effective_to), so the old branch covers
+     * every date before the transfer and the new branch covers the transfer day.
      * and opens a new one (effective_from = transfer_date). The operation is transactional.
      *
      * ADR-0002: branch assignments must not overlap; the half-open [from, to) period is enforced.
@@ -445,12 +447,13 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                 );
             }
 
-            // Close the current assignment one day before transfer date
-            $closeDate = (new \DateTimeImmutable($transferDate))->modify('-1 day')->format('Y-m-d');
+            // Use the transfer date as the exclusive end of the old assignment.
+            // Attendance matching also uses `effective_to > punch_date`; using
+            // the preceding day would create an uncovered day before transfer.
+            $closeDate = $transferDate;
             $pdo->prepare(
                 "UPDATE employee_branch_assignment
-                    SET effective_to = :close,
-                        updated_at   = NOW()
+                    SET effective_to = :close
                   WHERE branch_assignment_id = :id"
             )->execute([':close' => $closeDate, ':id' => $current['branch_assignment_id']]);
 

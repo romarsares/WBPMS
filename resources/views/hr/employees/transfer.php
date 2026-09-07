@@ -37,7 +37,7 @@ $current = htmlspecialchars($employee['branch_name'] ?? '—', ENT_QUOTES);
         <p><strong>Current Branch:</strong> <?= $current ?></p>
 
         <form method="POST" action="<?= $base ?>/hr/employees/<?= $empId ?>/transfer">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES) ?>">
+            <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf, ENT_QUOTES) ?>">
 
             <div class="form-group <?= isset($errors['branch_id']) ? 'has-error' : '' ?>">
                 <label for="branch_id">New Branch <span class="required">*</span></label>
