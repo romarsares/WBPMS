@@ -80,6 +80,21 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
         // inserting a fresh batch. Processing rows are left behind when a confirm
         // request fails mid-transaction; Cancelled rows are superseded by a
         // re-upload of the same file. Both have no usable data.
+        // Child rows must be deleted first due to FK constraints (RESTRICT).
+        $this->pdo->prepare(
+            "DELETE bp FROM biometric_punch bp
+               JOIN attendance_import_batch aib ON aib.import_batch_id = bp.import_batch_id
+              WHERE aib.file_checksum = :cs
+                AND aib.status IN ('Processing', 'Cancelled')"
+        )->execute([':cs' => $sha256]);
+
+        $this->pdo->prepare(
+            "DELETE a FROM attendance a
+               JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
+              WHERE aib.file_checksum = :cs
+                AND aib.status IN ('Processing', 'Cancelled')"
+        )->execute([':cs' => $sha256]);
+
         $this->pdo->prepare(
             "DELETE FROM attendance_import_batch
               WHERE file_checksum = :cs
