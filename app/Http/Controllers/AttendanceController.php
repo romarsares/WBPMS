@@ -665,6 +665,15 @@ final class AttendanceController
                 $pdo->prepare(
                     "UPDATE attendance SET status = 'Cancelled' WHERE import_batch_id = :id"
                 )->execute([':id' => $batchId]);
+
+                // Delete biometric_punch rows so the same file can be cleanly
+                // re-imported after cancellation — isDuplicatePunch checks
+                // biometric_punch and would otherwise skip every punch as a
+                // duplicate, producing an empty re-import.
+                $pdo->prepare(
+                    'DELETE FROM biometric_punch WHERE import_batch_id = :id'
+                )->execute([':id' => $batchId]);
+
                 $pdo->prepare(
                     "UPDATE attendance_import_batch
                         SET status = 'Cancelled', cancelled_by = :user_id, cancelled_at = UTC_TIMESTAMP(),

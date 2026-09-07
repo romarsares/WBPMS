@@ -49,10 +49,14 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
 
     public function hasCompletedChecksum(string $sha256): bool
     {
+        // Cancelled and Processing batches are excluded:
+        // - Cancelled: their file may be re-uploaded to replace the cancelled import.
+        // - Processing: a stale Processing row (abandoned mid-import) should not
+        //   block a fresh import of the same file; createImportBatch handles cleanup.
         $stmt = $this->pdo->prepare(
             "SELECT COUNT(*) FROM attendance_import_batch
               WHERE file_checksum = :cs
-                AND status IN ('Draft', 'Approved', 'Completed', 'Cancelled')"
+                AND status IN ('Draft', 'Approved', 'Completed')"
         );
         $stmt->execute([':cs' => $sha256]);
         return (int) $stmt->fetchColumn() > 0;
@@ -71,6 +75,17 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
         string $parserVersion,
     ): int {
         $now  = $this->utcNow();
+
+        // Remove any stale Processing or Cancelled row for this checksum before
+        // inserting a fresh batch. Processing rows are left behind when a confirm
+        // request fails mid-transaction; Cancelled rows are superseded by a
+        // re-upload of the same file. Both have no usable data.
+        $this->pdo->prepare(
+            "DELETE FROM attendance_import_batch
+              WHERE file_checksum = :cs
+                AND status IN ('Processing', 'Cancelled')"
+        )->execute([':cs' => $sha256]);
+
         $stmt = $this->pdo->prepare(
             "INSERT INTO attendance_import_batch
                 (device_id, uploaded_by, file_name, file_checksum,
@@ -409,16 +424,20 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
         // each week as the device accumulates more data. Days from prior weeks
         // will already have attendance rows. Rules:
         //
+        //   Existing row belongs to a Cancelled batch → treat as absent (INSERT/UPDATE over it)
         //   Different branch              → throw  (data conflict; HR must resolve)
         //   Same branch + Approved        → throw  (immutable per ADR-0002)
         //   Same branch + Incomplete
         //     AND new data has both punches → UPDATE (boundary-day completion)
         //   Same branch + anything else   → skip silently (already fully captured)
         $existing = $this->pdo->prepare(
-            "SELECT a.attendance_id, a.status, eba.branch_id
+            "SELECT a.attendance_id, a.status, eba.branch_id,
+                    COALESCE(aib.status, 'manual') AS batch_status
                FROM attendance a
                JOIN employee_branch_assignment eba
                  ON eba.branch_assignment_id = a.branch_assignment_id
+               LEFT JOIN attendance_import_batch aib
+                 ON aib.import_batch_id = a.import_batch_id
               WHERE a.employee_id    = :emp_id
                 AND a.attendance_date = :date
               FOR UPDATE"
@@ -427,56 +446,65 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
         $existingRow = $existing->fetch(PDO::FETCH_ASSOC);
 
         if ($existingRow !== false) {
-            $sameBranch     = (int) $existingRow['branch_id'] === $this->branchIdForAssignment($baId);
-            $existingStatus = (string) $existingRow['status'];
-            $existingId     = (int) $existingRow['attendance_id'];
-
-            if (!$sameBranch) {
-                throw new \RuntimeException(
-                    'Attendance already exists for this employee and date under another branch. '
-                    . 'Resolve that branch assignment before importing.'
-                );
-            }
-
-            if ($existingStatus === 'Approved') {
-                throw new \RuntimeException(
-                    'Attendance for this employee and date has already been approved and is immutable.'
-                );
-            }
-
-            // Incomplete row + new upload now supplies both time-in and time-out
-            // → complete the record in-place so the weekly payroll can use it.
-            if ($existingStatus === 'Incomplete' && $timeIn !== null && $timeOut !== null) {
+            // If the existing row came from a cancelled batch, it is superseded —
+            // delete it and fall through to the normal INSERT below.
+            if ((string) $existingRow['batch_status'] === 'Cancelled') {
                 $this->pdo->prepare(
-                    "UPDATE attendance
-                        SET time_in              = :time_in,
-                            time_out             = :time_out,
-                            hours_worked_minutes = :worked,
-                            late_minutes         = :late,
-                            undertime_minutes    = :undertime,
-                            overtime_minutes     = :overtime,
-                            status               = :status,
-                            import_batch_id      = :batch_id,
-                            updated_at           = :updated_at
-                      WHERE attendance_id = :id"
-                )->execute([
-                    ':time_in'    => $timeIn,
-                    ':time_out'   => $timeOut,
-                    ':worked'     => $attendance->workedMinutes,
-                    ':late'       => $attendance->lateMinutes,
-                    ':undertime'  => $attendance->undertimeMinutes,
-                    ':overtime'   => $attendance->overtimeMinutes,
-                    ':status'     => $status,
-                    ':batch_id'   => $batchId,
-                    ':updated_at' => $now,
-                    ':id'         => $existingId,
-                ]);
+                    'DELETE FROM attendance WHERE attendance_id = :id'
+                )->execute([':id' => (int) $existingRow['attendance_id']]);
+                // Fall through to INSERT
+            } else {
+                $sameBranch     = (int) $existingRow['branch_id'] === $this->branchIdForAssignment($baId);
+                $existingStatus = (string) $existingRow['status'];
+                $existingId     = (int) $existingRow['attendance_id'];
+
+                if (!$sameBranch) {
+                    throw new \RuntimeException(
+                        'Attendance already exists for this employee and date under another branch. '
+                        . 'Resolve that branch assignment before importing.'
+                    );
+                }
+
+                if ($existingStatus === 'Approved') {
+                    throw new \RuntimeException(
+                        'Attendance for this employee and date has already been approved and is immutable.'
+                    );
+                }
+
+                // Incomplete row + new upload now supplies both time-in and time-out
+                // → complete the record in-place so the weekly payroll can use it.
+                if ($existingStatus === 'Incomplete' && $timeIn !== null && $timeOut !== null) {
+                    $this->pdo->prepare(
+                        "UPDATE attendance
+                            SET time_in              = :time_in,
+                                time_out             = :time_out,
+                                hours_worked_minutes = :worked,
+                                late_minutes         = :late,
+                                undertime_minutes    = :undertime,
+                                overtime_minutes     = :overtime,
+                                status               = :status,
+                                import_batch_id      = :batch_id,
+                                updated_at           = :updated_at
+                          WHERE attendance_id = :id"
+                    )->execute([
+                        ':time_in'    => $timeIn,
+                        ':time_out'   => $timeOut,
+                        ':worked'     => $attendance->workedMinutes,
+                        ':late'       => $attendance->lateMinutes,
+                        ':undertime'  => $attendance->undertimeMinutes,
+                        ':overtime'   => $attendance->overtimeMinutes,
+                        ':status'     => $status,
+                        ':batch_id'   => $batchId,
+                        ':updated_at' => $now,
+                        ':id'         => $existingId,
+                    ]);
+                    return;
+                }
+
+                // Complete or ReviewRequired (same branch, not approved): the prior
+                // import already captured this day fully — skip silently.
                 return;
             }
-
-            // Complete or ReviewRequired (same branch, not approved): the prior
-            // import already captured this day fully — skip silently.
-            return;
         }
 
         $stmt = $this->pdo->prepare(
