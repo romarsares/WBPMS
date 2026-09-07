@@ -116,6 +116,7 @@ $formatMoney = static fn(mixed $v): string =>
     <!-- Government IDs -->
     <div class="card detail-section">
         <h2>Government IDs</h2>
+        <?= $field('SSS',         $employee['sss_number'],        true) ?>
         <?= $field('PhilHealth',  $employee['philhealth_number'], true) ?>
         <?= $field('Pag-IBIG',    $employee['pagibig_number'],    true) ?>
         <?= $field('TIN',         $employee['tin_number'],        true) ?>
