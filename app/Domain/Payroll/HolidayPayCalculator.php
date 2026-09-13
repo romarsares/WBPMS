@@ -21,6 +21,13 @@ namespace Wbpms\Domain\Payroll;
  * │  Overtime (beyond 8 h):         holiday_hourly_rate × 1.30        │
  * │    where holiday_hourly_rate = (daily_rate × 2.00) / std_hours    │
  * ├────────────────────────────────────────────────────────────────────┤
+ * │ SPECIAL WORKING HOLIDAY                                            │
+ * │  Not worked:                    0 (no pay obligation)             │
+ * │  Worked (first 8 h):            daily_rate × 1.00                 │
+ * │  Worked on rest day:            daily_rate × 1.30  (100% + 30%)   │
+ * │  Overtime (beyond 8 h):         holiday_hourly_rate × 1.30        │
+ * │    where holiday_hourly_rate = (daily_rate × 1.00) / std_hours    │
+ * ├────────────────────────────────────────────────────────────────────┤
  * │ SPECIAL NON-WORKING HOLIDAY                                        │
  * │  Not worked:                    0 (no pay obligation)             │
  * │  Worked (first 8 h):            daily_rate × 1.30                 │
@@ -173,8 +180,9 @@ final class HolidayPayCalculator
     private function earningType(HolidayType $type): string
     {
         return match ($type) {
-            HolidayType::Regular => 'RegularHoliday',
-            HolidayType::Special => 'SpecialHoliday',
+            HolidayType::Regular           => 'RegularHoliday',
+            HolidayType::Special           => 'SpecialHoliday',
+            HolidayType::SpecialNonWorking => 'SpecialNonWorkingHoliday',
         };
     }
 

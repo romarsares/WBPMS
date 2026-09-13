@@ -563,8 +563,8 @@ final class ScheduleController
         if ($data['description'] === '') {
             $errors['description'] = 'Holiday name / description is required.';
         }
-        if (!in_array($data['holiday_type'], ['Regular', 'Special'], true)) {
-            $errors['holiday_type'] = 'Holiday type must be Regular or Special.';
+        if (!in_array($data['holiday_type'], ['Regular', 'Special', 'SpecialNonWorking'], true)) {
+            $errors['holiday_type'] = 'Holiday type must be Regular, Special, or Special Non-Working.';
         }
 
         return $errors;

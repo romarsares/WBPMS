@@ -260,7 +260,12 @@ final class ScheduleRepository extends AbstractRepository
     /** @param array{holiday_date: string, description: string, holiday_type: string} $attrs */
     public function createHoliday(array $attrs): int
     {
-        $multiplier = $attrs['holiday_type'] === 'Regular' ? '2.00' : '1.30';
+        $multiplier = match ($attrs['holiday_type']) {
+            'Regular'           => '2.00',
+            'Special'           => '1.00',
+            'SpecialNonWorking' => '1.30',
+            default             => '1.00',
+        };
         try {
             $stmt = $this->pdo()->prepare(
                 "INSERT INTO holiday_calendar (holiday_date, description, holiday_type, pay_multiplier, status)
@@ -282,7 +287,12 @@ final class ScheduleRepository extends AbstractRepository
     /** @param array{holiday_date: string, description: string, holiday_type: string, status: string} $attrs */
     public function updateHoliday(int $holidayId, array $attrs): void
     {
-        $multiplier = $attrs['holiday_type'] === 'Regular' ? '2.00' : '1.30';
+        $multiplier = match ($attrs['holiday_type']) {
+            'Regular'           => '2.00',
+            'Special'           => '1.00',
+            'SpecialNonWorking' => '1.30',
+            default             => '1.00',
+        };
         try {
             $this->pdo()->prepare(
                 "UPDATE holiday_calendar

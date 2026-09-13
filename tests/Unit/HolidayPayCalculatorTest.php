@@ -14,11 +14,16 @@ use Wbpms\Domain\Payroll\HolidayType;
  * All tests are pure calculations — no database or HTTP dependency.
  *
  * Coverage:
- *   - computeAbsencePay: Regular and Special holiday, zero values
- *   - computeDayPay: Regular/Special, ordinary day vs rest day
- *   - computeOvertimeOnHoliday: Regular/Special, rest day compounding, edge cases
+ *   - computeAbsencePay: Regular, Special, SpecialNonWorking
+ *   - computeDayPay: all three types, ordinary day vs rest day
+ *   - computeOvertimeOnHoliday: all three types, rest day compounding, edge cases
  *   - computeBundle: worked/absent branches, full output keys
  *   - Rounding (REQ047, REQN013)
+ *
+ * Holiday multiplier reference:
+ *   Regular           worked=2.00  absent=1.00  restDay=2.60
+ *   Special           worked=1.00  absent=0.00  restDay=1.30  (Special Working Holiday)
+ *   SpecialNonWorking worked=1.30  absent=0.00  restDay=1.50  (Special Non-Working Holiday)
  *
  * REQ047 | ADR-0001 §Holiday Pay | REQN013 (rounding_mode = HalfUp)
  */
@@ -44,15 +49,23 @@ final class HolidayPayCalculatorTest extends TestCase
 
     public function testAbsencePaySpecialHolidayIsZero(): void
     {
-        // Special Non-Working Days carry no pay obligation for absences.
+        // Special Working Holiday — no work, no pay.
         $result = $this->calc->computeAbsencePay(460.00, HolidayType::Special);
         $this->assertSame(0.00, $result, 'Special holiday absence pay must be ₱0.00.');
+    }
+
+    public function testAbsencePaySpecialNonWorkingHolidayIsZero(): void
+    {
+        // Special Non-Working Holiday — no work, no pay.
+        $result = $this->calc->computeAbsencePay(460.00, HolidayType::SpecialNonWorking);
+        $this->assertSame(0.00, $result, 'Special Non-Working holiday absence pay must be ₱0.00.');
     }
 
     public function testAbsencePayZeroDailyRateReturnsZero(): void
     {
         $this->assertSame(0.00, $this->calc->computeAbsencePay(0.00, HolidayType::Regular));
         $this->assertSame(0.00, $this->calc->computeAbsencePay(0.00, HolidayType::Special));
+        $this->assertSame(0.00, $this->calc->computeAbsencePay(0.00, HolidayType::SpecialNonWorking));
     }
 
     public function testAbsencePayRoundingHalfUp(): void
@@ -81,28 +94,46 @@ final class HolidayPayCalculatorTest extends TestCase
     }
 
     // ===================================================================
-    // computeDayPay — Special Holiday
+    // computeDayPay — Special Holiday (Special Working Holiday, 100%)
     // ===================================================================
 
     public function testDayPaySpecialOrdinaryDay(): void
     {
-        // Special holiday, ordinary day: 460.00 × 1.30 = 598.00
+        // Special Working Holiday, ordinary day: 460.00 × 1.00 = 460.00
         $result = $this->calc->computeDayPay(460.00, HolidayType::Special, false);
-        $this->assertSame(598.00, $result, 'Special holiday day pay should be 130 % of daily rate.');
+        $this->assertSame(460.00, $result, 'Special holiday day pay should be 100 % of daily rate.');
     }
 
     public function testDayPaySpecialRestDay(): void
     {
-        // Special holiday + rest day: 460.00 × 1.50 = 690.00
+        // Special Working Holiday + rest day: 460.00 × 1.30 = 598.00
         $result = $this->calc->computeDayPay(460.00, HolidayType::Special, true);
-        $this->assertSame(690.00, $result, 'Special holiday + rest day pay should be 150 % of daily rate.');
+        $this->assertSame(598.00, $result, 'Special holiday + rest day pay should be 130 % of daily rate.');
+    }
+
+    // ===================================================================
+    // computeDayPay — Special Non-Working Holiday (130%)
+    // ===================================================================
+
+    public function testDayPaySpecialNonWorkingOrdinaryDay(): void
+    {
+        // Special Non-Working Holiday, ordinary day: 460.00 × 1.30 = 598.00
+        $result = $this->calc->computeDayPay(460.00, HolidayType::SpecialNonWorking, false);
+        $this->assertSame(598.00, $result, 'Special Non-Working holiday day pay should be 130 % of daily rate.');
+    }
+
+    public function testDayPaySpecialNonWorkingRestDay(): void
+    {
+        // Special Non-Working Holiday + rest day: 460.00 × 1.50 = 690.00
+        $result = $this->calc->computeDayPay(460.00, HolidayType::SpecialNonWorking, true);
+        $this->assertSame(690.00, $result, 'Special Non-Working holiday + rest day pay should be 150 % of daily rate.');
     }
 
     public function testDayPayDefaultIsOrdinaryDay(): void
     {
         // isRestDay defaults to false
-        $ordinary  = $this->calc->computeDayPay(460.00, HolidayType::Regular);
-        $explicit  = $this->calc->computeDayPay(460.00, HolidayType::Regular, false);
+        $ordinary = $this->calc->computeDayPay(460.00, HolidayType::Regular);
+        $explicit = $this->calc->computeDayPay(460.00, HolidayType::Regular, false);
         $this->assertSame($explicit, $ordinary);
     }
 
@@ -135,10 +166,10 @@ final class HolidayPayCalculatorTest extends TestCase
 
     public function testOvertimeOnSpecialHoliday(): void
     {
-        // Special holiday, 60 min OT, 480 std min.
-        // dayPay        = 460.00 × 1.30 = 598.00
-        // holidayHourly = 598.00 / 8    = 74.75
-        // OT pay        = 74.75 × 1.30 × 1.0h = 97.175 → 97.18 (half-up)
+        // Special Working Holiday, 60 min OT, 480 std min.
+        // dayPay        = 460.00 × 1.00 = 460.00
+        // holidayHourly = 460.00 / 8    = 57.50
+        // OT pay        = 57.50 × 1.30 × 1.0h = 74.75
         $result = $this->calc->computeOvertimeOnHoliday(
             dailyRate: 460.00,
             type: HolidayType::Special,
@@ -146,7 +177,23 @@ final class HolidayPayCalculatorTest extends TestCase
             overtimeMinutes: 60,
             standardMinutes: 480,
         );
-        $this->assertSame(97.18, $result, 'Special holiday OT (1h) should be ₱97.18.');
+        $this->assertSame(74.75, $result, 'Special holiday OT (1h) should be ₱74.75.');
+    }
+
+    public function testOvertimeOnSpecialNonWorkingHoliday(): void
+    {
+        // Special Non-Working Holiday, 60 min OT, 480 std min.
+        // dayPay        = 460.00 × 1.30 = 598.00
+        // holidayHourly = 598.00 / 8    = 74.75
+        // OT pay        = 74.75 × 1.30 × 1.0h = 97.175 → 97.18 (half-up)
+        $result = $this->calc->computeOvertimeOnHoliday(
+            dailyRate: 460.00,
+            type: HolidayType::SpecialNonWorking,
+            isRestDay: false,
+            overtimeMinutes: 60,
+            standardMinutes: 480,
+        );
+        $this->assertSame(97.18, $result, 'Special Non-Working holiday OT (1h) should be ₱97.18.');
     }
 
     public function testOvertimeOnRegularHolidayRestDay(): void
@@ -167,10 +214,10 @@ final class HolidayPayCalculatorTest extends TestCase
 
     public function testOvertimeOnSpecialHolidayRestDay(): void
     {
-        // Special + rest day, 60 min OT.
-        // dayPay        = 460.00 × 1.50 = 690.00
-        // holidayHourly = 690.00 / 8    = 86.25
-        // OT pay        = 86.25 × 1.30 × 1.0h = 112.125 → 112.13 (half-up)
+        // Special Working Holiday + rest day, 60 min OT.
+        // dayPay        = 460.00 × 1.30 = 598.00
+        // holidayHourly = 598.00 / 8    = 74.75
+        // OT pay        = 74.75 × 1.30 × 1.0h = 97.175 → 97.18 (half-up)
         $result = $this->calc->computeOvertimeOnHoliday(
             dailyRate: 460.00,
             type: HolidayType::Special,
@@ -178,7 +225,23 @@ final class HolidayPayCalculatorTest extends TestCase
             overtimeMinutes: 60,
             standardMinutes: 480,
         );
-        $this->assertSame(112.13, $result, 'Special holiday + rest day OT (1h) should be ₱112.13.');
+        $this->assertSame(97.18, $result, 'Special holiday + rest day OT (1h) should be ₱97.18.');
+    }
+
+    public function testOvertimeOnSpecialNonWorkingHolidayRestDay(): void
+    {
+        // Special Non-Working Holiday + rest day, 60 min OT.
+        // dayPay        = 460.00 × 1.50 = 690.00
+        // holidayHourly = 690.00 / 8    = 86.25
+        // OT pay        = 86.25 × 1.30 × 1.0h = 112.125 → 112.13 (half-up)
+        $result = $this->calc->computeOvertimeOnHoliday(
+            dailyRate: 460.00,
+            type: HolidayType::SpecialNonWorking,
+            isRestDay: true,
+            overtimeMinutes: 60,
+            standardMinutes: 480,
+        );
+        $this->assertSame(112.13, $result, 'Special Non-Working holiday + rest day OT (1h) should be ₱112.13.');
     }
 
     public function testZeroOvertimeMinutesReturnsZero(): void
@@ -232,6 +295,21 @@ final class HolidayPayCalculatorTest extends TestCase
         $this->assertSame(0.00, $bundle['total'],           'Absent Special: total = 0.');
         $this->assertSame(0.00, $bundle['multiplier_used'], 'Absent Special: multiplier = 0.');
         $this->assertSame('SpecialHoliday', $bundle['earning_type']);
+    }
+
+    public function testBundleAbsentSpecialNonWorkingHoliday(): void
+    {
+        $bundle = $this->calc->computeBundle(
+            dailyRate: 460.00,
+            type: HolidayType::SpecialNonWorking,
+            worked: false,
+        );
+
+        $this->assertSame(0.00, $bundle['day_pay'],         'Absent SpecialNonWorking: day_pay = 0.');
+        $this->assertSame(0.00, $bundle['overtime_pay'],    'Absent SpecialNonWorking: overtime_pay = 0.');
+        $this->assertSame(0.00, $bundle['total'],           'Absent SpecialNonWorking: total = 0.');
+        $this->assertSame(0.00, $bundle['multiplier_used'], 'Absent SpecialNonWorking: multiplier = 0.');
+        $this->assertSame('SpecialNonWorkingHoliday', $bundle['earning_type']);
     }
 
     // ===================================================================
@@ -289,9 +367,48 @@ final class HolidayPayCalculatorTest extends TestCase
 
     public function testBundleWorkedSpecialHolidayNoOT(): void
     {
+        // Special Working Holiday: 460.00 × 1.00 = 460.00
         $bundle = $this->calc->computeBundle(
             dailyRate: 460.00,
             type: HolidayType::Special,
+            worked: true,
+            isRestDay: false,
+            overtimeMinutes: 0,
+        );
+
+        $this->assertSame(460.00, $bundle['day_pay']);
+        $this->assertSame(0.00,   $bundle['overtime_pay']);
+        $this->assertSame(460.00, $bundle['total']);
+        $this->assertSame(1.00,   $bundle['multiplier_used']);
+        $this->assertSame('SpecialHoliday', $bundle['earning_type']);
+    }
+
+    public function testBundleWorkedSpecialHolidayRestDayWithOT(): void
+    {
+        // Special Working Holiday + rest day: dayPay = 460.00 × 1.30 = 598.00
+        // OT 60min: holidayHourly=74.75, OT pay=74.75×1.30×1h=97.18 (half-up)
+        // total = 598.00 + 97.18 = 695.18
+        $bundle = $this->calc->computeBundle(
+            dailyRate: 460.00,
+            type: HolidayType::Special,
+            worked: true,
+            isRestDay: true,
+            overtimeMinutes: 60,
+            standardMinutes: 480,
+        );
+
+        $this->assertSame(598.00, $bundle['day_pay']);
+        $this->assertSame(97.18,  $bundle['overtime_pay']);
+        $this->assertSame(695.18, $bundle['total']);
+        $this->assertSame(1.30,   $bundle['multiplier_used']);
+    }
+
+    public function testBundleWorkedSpecialNonWorkingHolidayNoOT(): void
+    {
+        // Special Non-Working Holiday: 460.00 × 1.30 = 598.00
+        $bundle = $this->calc->computeBundle(
+            dailyRate: 460.00,
+            type: HolidayType::SpecialNonWorking,
             worked: true,
             isRestDay: false,
             overtimeMinutes: 0,
@@ -301,15 +418,17 @@ final class HolidayPayCalculatorTest extends TestCase
         $this->assertSame(0.00,   $bundle['overtime_pay']);
         $this->assertSame(598.00, $bundle['total']);
         $this->assertSame(1.30,   $bundle['multiplier_used']);
-        $this->assertSame('SpecialHoliday', $bundle['earning_type']);
+        $this->assertSame('SpecialNonWorkingHoliday', $bundle['earning_type']);
     }
 
-    public function testBundleWorkedSpecialHolidayRestDayWithOT(): void
+    public function testBundleWorkedSpecialNonWorkingHolidayRestDayWithOT(): void
     {
-        // Special + rest day: dayPay = 690.00; OT 60min → 112.13; total = 802.13
+        // Special Non-Working Holiday + rest day: dayPay = 460.00 × 1.50 = 690.00
+        // OT 60min: holidayHourly=86.25, OT pay=86.25×1.30×1h=112.125→112.13
+        // total = 690.00 + 112.13 = 802.13
         $bundle = $this->calc->computeBundle(
             dailyRate: 460.00,
-            type: HolidayType::Special,
+            type: HolidayType::SpecialNonWorking,
             worked: true,
             isRestDay: true,
             overtimeMinutes: 60,
@@ -320,6 +439,7 @@ final class HolidayPayCalculatorTest extends TestCase
         $this->assertSame(112.13, $bundle['overtime_pay']);
         $this->assertSame(802.13, $bundle['total']);
         $this->assertSame(1.50,   $bundle['multiplier_used']);
+        $this->assertSame('SpecialNonWorkingHoliday', $bundle['earning_type']);
     }
 
     public function testBundleContainsAllRequiredKeys(): void
@@ -358,7 +478,7 @@ final class HolidayPayCalculatorTest extends TestCase
     {
         $bundle = $this->calc->computeBundle(
             dailyRate: 461.005,
-            type: HolidayType::Special,
+            type: HolidayType::SpecialNonWorking,
             worked: true,
             isRestDay: false,
             overtimeMinutes: 30,

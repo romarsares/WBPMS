@@ -445,8 +445,9 @@ openEditModal(
                 <label for="holiday_type">Type <span style="color:#dc2626">*</span></label>
                 <select name="holiday_type" id="holiday_type" class="form-control" required>
                     <option value="">— Select —</option>
-                    <option value="Regular" <?= ($input['holiday_type'] ?? '') === 'Regular' ? 'selected' : '' ?>>Regular (200%)</option>
-                    <option value="Special" <?= ($input['holiday_type'] ?? '') === 'Special' ? 'selected' : '' ?>>Special (130%)</option>
+                    <option value="Regular"           <?= ($input['holiday_type'] ?? '') === 'Regular'           ? 'selected' : '' ?>>Regular Holiday (200%)</option>
+                    <option value="Special"           <?= ($input['holiday_type'] ?? '') === 'Special'           ? 'selected' : '' ?>>Special Holiday (100%)</option>
+                    <option value="SpecialNonWorking" <?= ($input['holiday_type'] ?? '') === 'SpecialNonWorking' ? 'selected' : '' ?>>Special Non-Working Holiday (130%)</option>
                 </select>
                 <?= $e('holiday_type') ?>
             </div>
@@ -484,8 +485,22 @@ openEditModal(
                     <td style="white-space:nowrap"><?= Formatter::escape($h['holiday_date']) ?></td>
                     <td><strong><?= Formatter::escape($h['description']) ?></strong></td>
                     <td>
-                        <span class="badge <?= $h['holiday_type'] === 'Regular' ? 'ok' : 'warn' ?>">
-                            <?= Formatter::escape($h['holiday_type']) ?>
+                        <?php
+                            $hBadgeClass = match ($h['holiday_type']) {
+                                'Regular'           => 'ok',
+                                'Special'           => 'info',
+                                'SpecialNonWorking' => 'warn',
+                                default             => 'off',
+                            };
+                            $hBadgeLabel = match ($h['holiday_type']) {
+                                'Regular'           => 'Regular Holiday (200%)',
+                                'Special'           => 'Special Holiday (100%)',
+                                'SpecialNonWorking' => 'Special Non-Working (130%)',
+                                default             => Formatter::escape($h['holiday_type']),
+                            };
+                        ?>
+                        <span class="badge <?= $hBadgeClass ?>">
+                            <?= $hBadgeLabel ?>
                         </span>
                     </td>
                     <td style="text-align:center"><?= Formatter::escape((string) $h['pay_multiplier']) ?>×</td>

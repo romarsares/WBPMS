@@ -53,8 +53,9 @@ $input = $input ?? [];
                 <label for="holiday_type">Type</label>
                 <select name="holiday_type" id="holiday_type" class="form-control" required>
                     <option value="">— Select —</option>
-                    <option value="Regular"  <?= ($input['holiday_type'] ?? '') === 'Regular'  ? 'selected' : '' ?>>Regular (200%)</option>
-                    <option value="Special"  <?= ($input['holiday_type'] ?? '') === 'Special'  ? 'selected' : '' ?>>Special (130%)</option>
+                    <option value="Regular"           <?= ($input['holiday_type'] ?? '') === 'Regular'           ? 'selected' : '' ?>>Regular Holiday (200%)</option>
+                    <option value="Special"           <?= ($input['holiday_type'] ?? '') === 'Special'           ? 'selected' : '' ?>>Special Holiday (100%)</option>
+                    <option value="SpecialNonWorking" <?= ($input['holiday_type'] ?? '') === 'SpecialNonWorking' ? 'selected' : '' ?>>Special Non-Working Holiday (130%)</option>
                 </select>
                 <?php if (isset($errors['holiday_type'])): ?>
                     <span class="error-text"><?= htmlspecialchars($errors['holiday_type'], ENT_QUOTES) ?></span>
@@ -95,8 +96,22 @@ $input = $input ?? [];
                             <td><?= htmlspecialchars($h['holiday_date'], ENT_QUOTES) ?></td>
                             <td><?= htmlspecialchars($h['description'], ENT_QUOTES) ?></td>
                             <td>
-                                <span class="badge badge-<?= $h['holiday_type'] === 'Regular' ? 'primary' : 'warning' ?>">
-                                    <?= htmlspecialchars($h['holiday_type'], ENT_QUOTES) ?>
+                                <?php
+                                    $badgeClass  = match ($h['holiday_type']) {
+                                        'Regular'           => 'badge-primary',
+                                        'Special'           => 'badge-info',
+                                        'SpecialNonWorking' => 'badge-warning',
+                                        default             => 'badge-secondary',
+                                    };
+                                    $badgeLabel  = match ($h['holiday_type']) {
+                                        'Regular'           => 'Regular Holiday (200%)',
+                                        'Special'           => 'Special Holiday (100%)',
+                                        'SpecialNonWorking' => 'Special Non-Working (130%)',
+                                        default             => htmlspecialchars($h['holiday_type'], ENT_QUOTES),
+                                    };
+                                ?>
+                                <span class="badge <?= $badgeClass ?>">
+                                    <?= $badgeLabel ?>
                                 </span>
                             </td>
                             <td><?= htmlspecialchars((string) $h['pay_multiplier'], ENT_QUOTES) ?>×</td>

@@ -50,8 +50,9 @@ $id = (int) $holiday['holiday_id'];
             <div class="form-group <?= isset($errors['holiday_type']) ? 'has-error' : '' ?>">
                 <label for="holiday_type">Type <span class="required">*</span></label>
                 <select name="holiday_type" id="holiday_type" class="form-control" required>
-                    <option value="Regular" <?= $holiday['holiday_type'] === 'Regular' ? 'selected' : '' ?>>Regular (200%)</option>
-                    <option value="Special" <?= $holiday['holiday_type'] === 'Special' ? 'selected' : '' ?>>Special (130%)</option>
+                    <option value="Regular"           <?= $holiday['holiday_type'] === 'Regular'           ? 'selected' : '' ?>>Regular Holiday (200%)</option>
+                    <option value="Special"           <?= $holiday['holiday_type'] === 'Special'           ? 'selected' : '' ?>>Special Holiday (100%)</option>
+                    <option value="SpecialNonWorking" <?= $holiday['holiday_type'] === 'SpecialNonWorking' ? 'selected' : '' ?>>Special Non-Working Holiday (130%)</option>
                 </select>
                 <?php if (isset($errors['holiday_type'])): ?>
                     <span class="error-text"><?= htmlspecialchars($errors['holiday_type'], ENT_QUOTES) ?></span>

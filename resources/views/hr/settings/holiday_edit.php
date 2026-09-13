@@ -67,8 +67,9 @@ $id = (int) $holiday['holiday_id'];
                 <label for="holiday_type">Type <span style="color:#dc2626">*</span></label>
                 <select name="holiday_type" id="holiday_type" class="form-control
                     <?= isset($errors['holiday_type']) ? ' is-invalid' : '' ?>" required>
-                    <option value="Regular" <?= $holiday['holiday_type'] === 'Regular' ? 'selected' : '' ?>>Regular (200%)</option>
-                    <option value="Special" <?= $holiday['holiday_type'] === 'Special' ? 'selected' : '' ?>>Special (130%)</option>
+                    <option value="Regular"           <?= $holiday['holiday_type'] === 'Regular'           ? 'selected' : '' ?>>Regular Holiday (200%)</option>
+                    <option value="Special"           <?= $holiday['holiday_type'] === 'Special'           ? 'selected' : '' ?>>Special Holiday (100%)</option>
+                    <option value="SpecialNonWorking" <?= $holiday['holiday_type'] === 'SpecialNonWorking' ? 'selected' : '' ?>>Special Non-Working Holiday (130%)</option>
                 </select>
                 <?php if (isset($errors['holiday_type'])): ?>
                     <p class="field-error" style="color:#dc2626;font-size:.8rem;margin:.2rem 0 0">
