@@ -103,7 +103,7 @@ final class PayrollController
         try {
             $service->createPeriod($periodStart);
             ViewRenderer::flash('Payroll period created successfully.');
-            $this->redirect('/hr/payroll/periods');
+            $this->redirect('/hr/settings/periods');
         } catch (RuntimeException $e) {
             ViewRenderer::render('hr/payroll/periods', [
                 'periods'      => $service->listPeriods(),

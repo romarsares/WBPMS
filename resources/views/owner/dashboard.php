@@ -20,6 +20,7 @@ $totalBranches      ??= 0;
 $currentPeriod      ??= '';
 $pendingRuns        ??= [];
 $recentApproved     ??= [];
+$pendingRequests    ??= 0;
 ?>
 
 <div class="page-header">
@@ -28,11 +29,16 @@ $recentApproved     ??= [];
 </div>
 
 <!-- Stat cards -->
-<div class="stat-grid" style="grid-template-columns: repeat(3, 1fr)">
+<div class="stat-grid" style="grid-template-columns: repeat(4, 1fr)">
     <div class="stat-card">
-        <div class="stat-label">Pending Approval</div>
+        <div class="stat-label">Payroll Pending Approval</div>
         <div class="stat-value" style="<?= $pendingApprovals > 0 ? 'color:#b45309' : '' ?>"><?= $pendingApprovals ?></div>
         <div class="stat-sub"><a href="<?= $base ?>/owner/payroll">Review payroll →</a></div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid #6366f1">
+        <div class="stat-label">Requests Awaiting Approval</div>
+        <div class="stat-value" style="<?= $pendingRequests > 0 ? 'color:#4338ca' : '' ?>"><?= $pendingRequests ?></div>
+        <div class="stat-sub"><a href="<?= $base ?>/owner/requests">Review requests →</a></div>
     </div>
     <div class="stat-card">
         <div class="stat-label">Approved This Period</div>

@@ -833,9 +833,15 @@ final class AttendanceController
 
         try {
             $identity = AuthMiddleware::identity();
+            // Load the record first so we can redirect back to the correct month
+            $attendance = $this->adjustmentService()->findForAdjustment($attendanceId);
+            $attendanceDate = (string) ($attendance['attendance_date'] ?? '');
             $this->adjustmentService()->adjust($attendanceId, $input, (int) ($identity['user_id'] ?? 0));
             ViewRenderer::flash('Attendance adjustment saved. Recompute any unapproved payroll run for this period before submitting it.');
-            $this->redirect('/hr/attendance');
+            // Return to the cut-off tab filtered to the same month so HR can
+            // see the updated record without having to re-navigate.
+            $monthParam = $attendanceDate !== '' ? '?_tab=cutoff&month=' . substr($attendanceDate, 0, 7) : '';
+            $this->redirect('/hr/attendance' . $monthParam);
             return;
         } catch (RuntimeException $e) {
             try {

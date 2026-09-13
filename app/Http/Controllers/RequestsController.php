@@ -50,7 +50,7 @@ final class RequestsController
         $types    = $service->requestTypes();
         $total    = count($rows);
         $pending  = count(array_filter($rows, fn($r) => $r['status'] === 'Pending'));
-        $approved = count(array_filter($rows, fn($r) => $r['status'] === 'Approved'));
+        $approved = count(array_filter($rows, fn($r) => in_array($r['status'], ['HRApproved', 'Approved'], true)));
         $rejected = count(array_filter($rows, fn($r) => $r['status'] === 'Rejected'));
 
         ViewRenderer::render('hr/requests/index', [
@@ -177,7 +177,7 @@ final class RequestsController
 
         try {
             $this->makeService()->approve($id, (int) ($identity['user_id'] ?? 0));
-            ViewRenderer::flash('Request approved.');
+            ViewRenderer::flash('Request pre-approved. It is now awaiting the Business Owner\'s final approval.');
         } catch (RuntimeException $e) {
             ViewRenderer::flashError($e->getMessage());
         }

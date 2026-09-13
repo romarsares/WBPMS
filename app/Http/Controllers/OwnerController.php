@@ -5,28 +5,34 @@ declare(strict_types=1);
 namespace Wbpms\Http\Controllers;
 
 use PDO;
+use RuntimeException;
 use Wbpms\Application\PayrollService;
+use Wbpms\Application\RequestService;
+use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
 
 /**
- * OwnerController — Business Owner payroll review actions.
+ * OwnerController — Business Owner payroll and request review actions.
  *
  * Routes (all require BusinessOwner role):
- *   GET /owner/payroll               → payrollList()  — list pending runs
- *   GET /owner/payroll/{id}/review   → reviewForm()   — review a single run
+ *   GET  /owner/payroll                  → payrollList()    — pending payroll runs
+ *   GET  /owner/payroll/{id}/review      → reviewForm()     — review a single run
+ *   POST /owner/payroll/{id}/approve     → approve()        — approve payroll run
+ *   POST /owner/payroll/{id}/return      → returnRun()      — return run to HR
+ *   GET  /owner/requests                 → requestList()    — HRApproved requests queue
+ *   GET  /owner/requests/{id}            → requestShow()    — request detail
+ *   POST /owner/requests/{id}/approve    → requestApprove() — final approval
+ *   POST /owner/requests/{id}/return     → requestReturn()  — return to HR
  *
- * Approve/Return actions (POST) are deferred until PayrollService is implemented.
- * For P0 this is read-only from the Owner's perspective.
- *
- * REQ050, REQ051 (P0 view subset).
- *
- * Schema notes (from migration 005):
- *   payroll_run: payroll_period_id, return_reason, reviewed_at
- *   payroll_period: payroll_period_id (PK), period_start, period_end
+ * REQ050, REQ051 (payroll); REQ034b (requests).
  */
 final class OwnerController
 {
+    // =========================================================================
+    // Payroll
+    // =========================================================================
+
     /**
      * GET /owner/payroll
      *
@@ -36,7 +42,6 @@ final class OwnerController
     {
         $pdo = $this->makeConnection()->pdo();
 
-        // Runs awaiting Owner approval
         $stmt = $pdo->query(
             "SELECT pr.payroll_run_id AS id,
                     b.branch_name,
@@ -45,8 +50,8 @@ final class OwnerController
                     pr.submitted_at,
                     (SELECT COUNT(*) FROM payroll p WHERE p.payroll_run_id = pr.payroll_run_id)
                         AS employee_count,
-                    COALESCE(pr.gross_pay, 0.00)         AS gross_total,
-                    COALESCE(pr.net_pay, 0.00)           AS net_total
+                    COALESCE(pr.gross_pay, 0.00) AS gross_total,
+                    COALESCE(pr.net_pay, 0.00)   AS net_total
              FROM payroll_run pr
              JOIN branch b         ON b.branch_id          = pr.branch_id
              JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
@@ -55,7 +60,6 @@ final class OwnerController
         );
         $pendingRuns = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Recently actioned runs (last 10 Approved or Returned)
         $stmt = $pdo->query(
             "SELECT pr.payroll_run_id AS id,
                     b.branch_name,
@@ -113,7 +117,6 @@ final class OwnerController
             return;
         }
 
-        // Employee payroll rows for this run ($details matches view contract)
         $stmt = $pdo->prepare(
             "SELECT p.payroll_id,
                     CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
@@ -129,13 +132,11 @@ final class OwnerController
         $stmt->execute([':id' => $id]);
         $details = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Owner review has the same read-only itemization as HR, so approval
-        // is based on the actual earnings and deductions rather than totals alone.
-        $payrollService = new PayrollService($this->makeConnection());
-        $earningSummary = $payrollService->runEarningSummary($id);
-        $earnings = $payrollService->runEarnings($id);
+        $payrollService   = new PayrollService($this->makeConnection());
+        $earningSummary   = $payrollService->runEarningSummary($id);
+        $earnings         = $payrollService->runEarnings($id);
         $deductionSummary = $payrollService->runDeductionSummary($id);
-        $deductions = $payrollService->runDeductions($id);
+        $deductions       = $payrollService->runDeductions($id);
 
         ViewRenderer::render('owner/payroll/review', [
             'run'              => $run,
@@ -151,21 +152,19 @@ final class OwnerController
     /**
      * POST /owner/payroll/{id}/approve
      *
-     * REQ051: Business Owner approves a run.
-     *
      * @param array<string, string> $params
      */
     public function approve(array $params = []): void
     {
         $id       = (int) ($params['id'] ?? 0);
-        $identity = \Wbpms\Http\Middleware\AuthMiddleware::identity();
+        $identity = AuthMiddleware::identity();
 
         try {
-            (new \Wbpms\Application\PayrollService($this->makeConnection()))
+            (new PayrollService($this->makeConnection()))
                 ->approve($id, (int) ($identity['user_id'] ?? 0));
-            \Wbpms\Http\View\ViewRenderer::flash('Payroll run approved.');
-        } catch (\RuntimeException $e) {
-            \Wbpms\Http\View\ViewRenderer::flashError($e->getMessage());
+            ViewRenderer::flash('Payroll run approved.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
         }
 
         $this->redirect('/owner/payroll');
@@ -174,34 +173,123 @@ final class OwnerController
     /**
      * POST /owner/payroll/{id}/return
      *
-     * REQ051: Business Owner returns a run to HR with a note.
-     *
      * @param array<string, string> $params
      */
     public function returnRun(array $params = []): void
     {
         $id       = (int) ($params['id'] ?? 0);
-        $identity = \Wbpms\Http\Middleware\AuthMiddleware::identity();
+        $identity = AuthMiddleware::identity();
         $reason   = trim((string) ($_POST['return_reason'] ?? ''));
 
         try {
-            (new \Wbpms\Application\PayrollService($this->makeConnection()))
+            (new PayrollService($this->makeConnection()))
                 ->returnForRevision($id, (int) ($identity['user_id'] ?? 0), $reason);
-            \Wbpms\Http\View\ViewRenderer::flash('Payroll run returned to HR for revision.');
-        } catch (\RuntimeException $e) {
-            \Wbpms\Http\View\ViewRenderer::flashError($e->getMessage());
+            ViewRenderer::flash('Payroll run returned to HR for revision.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
         }
 
         $this->redirect('/owner/payroll');
     }
 
-    // -----------------------------------------------------------------------
+    // =========================================================================
+    // Request approvals
+    // =========================================================================
+
+    /**
+     * GET /owner/requests
+     * Lists all HR-approved requests awaiting the Owner's final decision.
+     *
+     * @param array<string, string> $params
+     */
+    public function requestList(array $params = []): void
+    {
+        $service = $this->makeRequestService();
+        $pending = $service->ownerPendingList();
+
+        ViewRenderer::render('owner/requests/index', [
+            'pending' => $pending,
+        ], 'Request Approvals');
+    }
+
+    /**
+     * GET /owner/requests/{id}
+     * Shows full request detail for Owner review.
+     *
+     * @param array<string, string> $params
+     */
+    public function requestShow(array $params = []): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+
+        try {
+            $request = $this->makeRequestService()->findOrFail($id);
+        } catch (RuntimeException) {
+            http_response_code(404);
+            ViewRenderer::render('errors/404', [], '404 Not Found');
+            return;
+        }
+
+        ViewRenderer::render('owner/requests/show', [
+            'request' => $request,
+        ], 'Review Request');
+    }
+
+    /**
+     * POST /owner/requests/{id}/approve
+     * Owner finally approves an HRApproved request.
+     *
+     * @param array<string, string> $params
+     */
+    public function requestApprove(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $identity = AuthMiddleware::identity();
+
+        try {
+            $this->makeRequestService()->ownerApprove($id, (int) ($identity['user_id'] ?? 0));
+            ViewRenderer::flash('Request approved. The employee has been notified.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/owner/requests');
+    }
+
+    /**
+     * POST /owner/requests/{id}/return
+     * Owner returns an HRApproved request to HR for revision.
+     *
+     * @param array<string, string> $params
+     */
+    public function requestReturn(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $identity = AuthMiddleware::identity();
+        $note     = trim((string) ($_POST['owner_notes'] ?? ''));
+
+        try {
+            $this->makeRequestService()->ownerReturn($id, (int) ($identity['user_id'] ?? 0), $note);
+            ViewRenderer::flash('Request returned to HR for revision.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/owner/requests');
+    }
+
+    // =========================================================================
     // Private helpers
-    // -----------------------------------------------------------------------
+    // =========================================================================
 
     private function makeConnection(): Connection
     {
         return new Connection(require APP_ROOT . '/config/database.php');
+    }
+
+    private function makeRequestService(): RequestService
+    {
+        return new RequestService($this->makeConnection());
     }
 
     private function redirect(string $path): void

@@ -36,6 +36,7 @@ $nav = match ($roleName) {
         ['owner/dashboard',  'Dashboard',          '⌂', 'dashboard'],
         ['users',            'User Management',    '♙', 'users'],
         ['owner/payroll',    'Payroll Approval',   '₱', 'payroll'],
+        ['owner/requests',   'Request Approvals',  '✉', 'requests'],
         ['hr/reports',       'Reports',            '▤', 'reports'],
     ],
     'HRHead' => [
@@ -157,6 +158,7 @@ $nav = match ($roleName) {
                     <p><strong>Payroll Runs Pending Approval</strong><br>
                         <?= (int) $notifCount ?> payroll run(s) waiting for your final approval.<br>
                         <a href="<?= $base ?>/owner/payroll">Review pending payroll</a></p>
+                    <p><a href="<?= $base ?>/owner/requests">View pending request approvals →</a></p>
                 <?php elseif ($roleName === 'HRHead'): ?>
                     <p><strong>Attendance Alerts</strong><br>
                         <?= (int) $notifCount ?> attendance record(s) with missing punch data.</p>

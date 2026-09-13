@@ -108,6 +108,10 @@ final class DashboardController
             ->query("SELECT COUNT(*) FROM payroll_run WHERE status = 'PendingOwnerApproval'")
             ->fetchColumn();
 
+        $pendingRequests = (int) $pdo
+            ->query("SELECT COUNT(*) FROM request WHERE status = 'HRApproved' AND archived_at IS NULL")
+            ->fetchColumn();
+
         $approvedThisPeriod = (int) $pdo
             ->query("SELECT COUNT(*) FROM payroll_run WHERE status = 'Approved'")
             ->fetchColumn();
@@ -152,6 +156,7 @@ final class DashboardController
 
         ViewRenderer::render('owner/dashboard', [
             'pendingApprovals'   => $pendingApprovals,
+            'pendingRequests'    => $pendingRequests,
             'approvedThisPeriod' => $approvedThisPeriod,
             'totalBranches'      => $totalBranches,
             'currentPeriod'      => '',

@@ -169,7 +169,7 @@ final class ScheduleController
         ]);
 
         ViewRenderer::flash('Work schedule updated.');
-        $this->redirect('/hr/schedules/' . $id . '/edit');
+        $this->redirect('/hr/schedules');
     }
 
     // =========================================================================
@@ -439,14 +439,35 @@ final class ScheduleController
             $errors['time_out'] = 'Time out is required.';
         }
 
-        if ($data['time_in'] !== '' && $data['time_out'] !== ''
-            && $data['time_in'] >= $data['time_out']) {
-            $errors['time_out'] = 'Time out must be after time in.';
+        if ($data['time_in'] !== '' && $data['time_out'] !== '') {
+            // Convert to total minutes for a reliable numeric comparison.
+            // This also correctly rejects overnight spans (e.g. 18:00–06:00)
+            // where a raw string comparison would pass if time_out < time_in.
+            [$h1, $m1] = array_map('intval', explode(':', $data['time_in']));
+            [$h2, $m2] = array_map('intval', explode(':', $data['time_out']));
+            $startMinutes = $h1 * 60 + $m1;
+            $endMinutes   = $h2 * 60 + $m2;
+
+            if ($endMinutes <= $startMinutes) {
+                $errors['time_out'] = 'Time out must be after time in. Overnight shifts spanning midnight are not supported.';
+            } elseif (($endMinutes - $startMinutes) < 60) {
+                $errors['time_out'] = 'Shift must be at least 60 minutes long.';
+            } elseif (($endMinutes - $startMinutes) > 720) {
+                $errors['time_out'] = 'Shift cannot exceed 12 hours.';
+            }
         }
 
         $breakMin = (int) $data['break_minutes'];
         if ($breakMin < 0 || $breakMin > 480) {
             $errors['break_minutes'] = 'Break time must be between 0 and 480 minutes.';
+        } elseif (!isset($errors['time_out']) && $data['time_in'] !== '' && $data['time_out'] !== '') {
+            // Ensure break doesn't consume the entire shift
+            [$h1, $m1] = array_map('intval', explode(':', $data['time_in']));
+            [$h2, $m2] = array_map('intval', explode(':', $data['time_out']));
+            $shiftMinutes = ($h2 * 60 + $m2) - ($h1 * 60 + $m1);
+            if ($breakMin >= $shiftMinutes) {
+                $errors['break_minutes'] = 'Break duration cannot be equal to or longer than the shift.';
+            }
         }
 
         $grace = (int) $data['grace_minutes'];
@@ -512,6 +533,8 @@ final class ScheduleController
 
     /**
      * Compute net paid minutes (gross span minus unpaid break).
+     * Returns 0 for any invalid or overnight span — validation should have
+     * already blocked those, but this guards against stale data.
      */
     private function computeStandardMinutes(string $timeIn, string $timeOut, int $breakMinutes): int
     {
@@ -521,6 +544,9 @@ final class ScheduleController
         [$h1, $m1] = array_map('intval', explode(':', $timeIn));
         [$h2, $m2] = array_map('intval', explode(':', $timeOut));
         $total = ($h2 * 60 + $m2) - ($h1 * 60 + $m1);
+        if ($total <= 0) {
+            return 0; // Overnight or equal — validation should have blocked this
+        }
         return max(0, $total - $breakMinutes);
     }
 

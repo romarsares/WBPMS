@@ -82,6 +82,16 @@ $router->add('POST', '/owner/payroll/{id}/approve',  [OwnerController::class, 'a
 $router->add('POST', '/owner/payroll/{id}/return',   [OwnerController::class, 'returnRun'],   ['BusinessOwner']);
 
 // ---------------------------------------------------------------------------
+// Business Owner — Request approval  (REQ034b)
+// NOTE: /owner/requests/{id} must be after any future literal sub-paths
+// ---------------------------------------------------------------------------
+
+$router->add('GET',  '/owner/requests',                  [OwnerController::class, 'requestList'],    ['BusinessOwner']);
+$router->add('GET',  '/owner/requests/{id}',             [OwnerController::class, 'requestShow'],    ['BusinessOwner']);
+$router->add('POST', '/owner/requests/{id}/approve',     [OwnerController::class, 'requestApprove'], ['BusinessOwner']);
+$router->add('POST', '/owner/requests/{id}/return',      [OwnerController::class, 'requestReturn'],  ['BusinessOwner']);
+
+// ---------------------------------------------------------------------------
 // HR Head — dashboard
 // ---------------------------------------------------------------------------
 
