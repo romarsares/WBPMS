@@ -766,7 +766,23 @@ Required by REQ006 AC16–17 (supplemental HR answer, p. 1).
 
 ---
 
-### 7.10 `payroll_period`
+### 7.10 `employee_hr_notice`
+
+Employee-facing written notice issued by HR from a reviewed attendance-policy
+flag. A policy flag can issue at most one notice; the employee can acknowledge
+only their own notice. The record does not automatically change employment or
+disciplinary status.
+
+| Attribute | Description |
+|---|---|
+| `notice_id` | Notice identifier. |
+| `employee_id` | Employee recipient. |
+| `policy_flag_id` | Source attendance-policy flag; unique per notice. |
+| `issued_by` / `issued_at` | HR user and issue timestamp. |
+| `title` / `body` | Employee-visible notice content. |
+| `acknowledged_at` | Timestamp of the employee's acknowledgment; NULL while pending. |
+
+### 7.11 `payroll_period`
 
 Concrete Friday–Thursday pay period definition shared across all branch
 payroll runs. Separates the disbursement date (`pay_date`) from the

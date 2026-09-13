@@ -26,6 +26,8 @@ use Wbpms\Http\View\Formatter;
 $rows      ??= [];
 $employees ??= [];
 $dates     ??= [];
+$scheduledWorkingDays ??= [];
+$attendanceUploadCoverage ??= [];
 $approvedLeaves ??= [];
 $holidayDates ??= [];
 $today     ??= date('Y-m-d');
@@ -271,8 +273,8 @@ $cellStyles = [
                 foreach ($dates as $summaryDate) {
                     $summaryCell = $attendanceByEmployeeDate[(int) $employee['employee_id']][$summaryDate] ?? null;
                     $summaryLeave = $approvedLeaves[(int) $employee['employee_id']][$summaryDate] ?? null;
-                    $summaryWeekday = (int) (new DateTimeImmutable($summaryDate))->format('N');
-                    $summaryWorkingDay = $summaryWeekday <= 5 && !isset($holidayDates[$summaryDate]);
+                    $summaryWorkingDay = ($scheduledWorkingDays[(int) $employee['employee_id']][$summaryDate] ?? false)
+                        && !isset($holidayDates[$summaryDate]);
                     if ($summaryCell !== null) {
                         $totalWorked += (int) $summaryCell['worked_minutes'];
                         $totalLate += (int) $summaryCell['late_minutes'];
@@ -280,7 +282,10 @@ $cellStyles = [
                         $totalOvertime += (int) $summaryCell['overtime_minutes'];
                     } elseif ($summaryLeave !== null) {
                         $leaveDays++;
-                    } elseif ($summaryDate < $today && $summaryDate >= (string) $employee['hire_date'] && $summaryWorkingDay) {
+                    } elseif ($summaryDate < $today
+                        && $summaryDate >= (string) $employee['hire_date']
+                        && $summaryWorkingDay
+                        && ($attendanceUploadCoverage[(int) $employee['employee_id']][$summaryDate] ?? null) === 'Covered') {
                         $absentDays++;
                     }
                 }
@@ -295,13 +300,17 @@ $cellStyles = [
                         $employeeId = (int) $employee['employee_id'];
                         $cell = $attendanceByEmployeeDate[$employeeId][$date] ?? null;
                         $leave = $approvedLeaves[$employeeId][$date] ?? null;
-                        $weekday = (int) (new DateTimeImmutable($date))->format('N');
-                        $isWorkingDay = $weekday <= 5 && !isset($holidayDates[$date]);
-                        $isAbsent = $cell === null
+                        $isWorkingDay = ($scheduledWorkingDays[$employeeId][$date] ?? false)
+                            && !isset($holidayDates[$date]);
+                        $uploadCoverage = $attendanceUploadCoverage[$employeeId][$date] ?? null;
+                        $isPastExpectedWorkday = $cell === null
                             && $leave === null
                             && $date < $today
                             && $date >= (string) $employee['hire_date']
                             && $isWorkingDay;
+                        $isAbsent = $isPastExpectedWorkday && $uploadCoverage === 'Covered';
+                        $isDraftUpload = $isPastExpectedWorkday && $uploadCoverage === 'Draft';
+                        $isNotUploaded = $isPastExpectedWorkday && $uploadCoverage === null;
                     ?>
                     <td style="padding:3px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:center;vertical-align:middle">
                         <?php if ($cell !== null):
@@ -332,6 +341,16 @@ $cellStyles = [
                               style="<?= $cellStyles['Absent'] ?>;display:block;min-width:72px;padding:8px 3px;border:1px solid;border-radius:4px;font-size:10px;font-weight:700">
                             ABSENT
                         </span>
+                        <?php elseif ($isDraftUpload): ?>
+                        <span title="Attendance import is awaiting HR approval for this source month"
+                              style="background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;display:block;min-width:72px;padding:8px 3px;border:1px solid;border-radius:4px;font-size:9px;font-weight:700">
+                            DRAFT UPLOAD
+                        </span>
+                        <?php elseif ($isNotUploaded): ?>
+                        <span title="No approved attendance import covers this employee and month"
+                              style="background:#f8fafc;border-color:#cbd5e1;color:#64748b;display:block;min-width:72px;padding:8px 3px;border:1px solid;border-radius:4px;font-size:9px;font-weight:700">
+                            NOT UPLOADED
+                        </span>
                         <?php else: ?>
                         <span style="display:block;min-width:72px;color:#cbd5e1">—</span>
                         <?php endif; ?>
@@ -349,7 +368,7 @@ $cellStyles = [
         </table>
     </div>
     <div style="padding:.75rem 1rem;border-top:1px solid var(--line);font-size:12px;color:#64748b">
-        Click a populated day to review or adjust it. Green = complete, yellow/red = review or absence, blue = draft import, purple = approved leave, orange = holiday, grey = future/non-working day or cancelled.
+        Click a populated day to review or adjust it. Green = complete, yellow/red = review or absence, blue = draft import, purple = approved leave, orange = holiday, and grey = future/non-working day or missing upload coverage.
     </div>
     <?php endif; ?>
 </div>

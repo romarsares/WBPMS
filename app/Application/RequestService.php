@@ -14,8 +14,9 @@ use Wbpms\Infrastructure\Database\Connection;
  * Implements REQ032–REQ046, REQ076–REQ080:
  *   REQ032  HR lists all requests with filters
  *   REQ033  HR views a single request
- *   REQ034  HR approves a request
- *   REQ035  HR rejects a request with a note
+ *   REQ034  HR pre-approves a request (Pending → HRApproved)
+ *   REQ034b Owner finally approves (HRApproved → Approved) — side-effects applied here
+ *   REQ035  HR or Owner rejects a request with a note
  *   REQ036  HR archives a request
  *   REQ076  Employee submits a leave request
  *   REQ077  Employee submits an overtime request
@@ -23,11 +24,15 @@ use Wbpms\Infrastructure\Database\Connection;
  *   REQ079  Employee submits a cash-advance request
  *   REQ080  Employee cancels a Pending request
  *
+ * Two-stage approval workflow:
+ *   Pending → HR pre-approves → HRApproved → Owner approves → Approved
+ *                                           → Owner returns  → Returned
+ *   Returned → HR re-submits (pre-approve again) → HRApproved
+ *
  * Business rules:
- *   - Only Pending requests may be updated/cancelled by the employee.
- *   - Only Pending requests may be approved/rejected by HR.
- *   - Approved Leave creates a Usage ledger entry debiting the leave balance.
- *   - Approved CashAdvance creates a cash_advance_history obligation row.
+ *   - Only Pending or Returned requests may be pre-approved by HR.
+ *   - Only HRApproved requests may be finally approved or returned by Owner.
+ *   - Leave ledger debit and CashAdvance obligation are created on Owner final approval.
  *   - Leave balance is checked against the leave_entitlement before submission;
  *     if no entitlement row exists for the year, a 4-day default is auto-provisioned.
  *   - Leave days are calculated as business days (inclusive) from start_date to end_date.
@@ -197,9 +202,9 @@ final class RequestService
     }
 
     /**
-     * Cancel a Pending request (employee action — REQ080).
+     * Cancel a Pending or Returned request (employee action — REQ080).
      *
-     * @throws RuntimeException when request not found, not owned by employee, or not Pending
+     * @throws RuntimeException when request not found, not owned by employee, or not cancellable
      */
     public function cancel(int $requestId, int $employeeId): void
     {
@@ -208,8 +213,8 @@ final class RequestService
         if ((int) $row['employee_id'] !== $employeeId) {
             throw new RuntimeException('You may only cancel your own requests.');
         }
-        if ($row['status'] !== 'Pending') {
-            throw new RuntimeException('Only Pending requests can be cancelled.');
+        if (!in_array($row['status'], ['Pending', 'Returned'], true)) {
+            throw new RuntimeException('Only Pending or Returned requests can be cancelled.');
         }
 
         $this->connection->transaction(function (PDO $pdo) use ($requestId): void {
@@ -293,6 +298,9 @@ final class RequestService
                     r.reviewed_by,
                     r.reviewed_at,
                     r.review_notes,
+                    r.owner_reviewed_by,
+                    r.owner_reviewed_at,
+                    r.owner_notes,
                     r.archived_at,
                     CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
                     e.employee_number,
@@ -325,31 +333,59 @@ final class RequestService
     }
 
     /**
-     * Approve a Pending request (HR action — REQ034).
+     * HR pre-approves a Pending or Returned request (REQ034).
      *
-     * Side effects:
-     *   - Leave: appends a Usage ledger entry debiting the balance.
-     *   - CashAdvance: creates a cash_advance_history obligation row.
+     * Moves status to HRApproved. Side-effects (leave debit, cash-advance
+     * obligation) are NOT applied here — they happen on Owner final approval.
      *
-     * @throws RuntimeException when not found or not in Pending status
+     * @throws RuntimeException when not found or not in Pending/Returned status
      */
     public function approve(int $requestId, int $actingUserId): void
     {
         $row = $this->findOrFail($requestId);
 
-        if ($row['status'] !== 'Pending') {
-            throw new RuntimeException('Only Pending requests can be approved.');
+        if (!in_array($row['status'], ['Pending', 'Returned'], true)) {
+            throw new RuntimeException('Only Pending or Returned requests can be pre-approved by HR.');
         }
 
-        $this->connection->transaction(function (PDO $pdo) use ($requestId, $actingUserId, $row): void {
+        $this->connection->transaction(function (PDO $pdo) use ($requestId, $actingUserId): void {
             $pdo->prepare(
                 "UPDATE request
-                    SET status      = 'Approved',
+                    SET status      = 'HRApproved',
                         reviewed_by = :reviewer,
                         reviewed_at = NOW(),
                         updated_at  = NOW()
                   WHERE request_id  = :id"
             )->execute([':reviewer' => $actingUserId, ':id' => $requestId]);
+        });
+    }
+
+    /**
+     * Owner finally approves an HRApproved request (REQ034b).
+     *
+     * Side effects applied here:
+     *   - Leave: appends a Usage ledger entry debiting the balance.
+     *   - CashAdvance: creates a cash_advance_history obligation row.
+     *
+     * @throws RuntimeException when not found or not in HRApproved status
+     */
+    public function ownerApprove(int $requestId, int $actingUserId): void
+    {
+        $row = $this->findOrFail($requestId);
+
+        if ($row['status'] !== 'HRApproved') {
+            throw new RuntimeException('Only HR-approved requests can be finally approved by the Owner.');
+        }
+
+        $this->connection->transaction(function (PDO $pdo) use ($requestId, $actingUserId, $row): void {
+            $pdo->prepare(
+                "UPDATE request
+                    SET status             = 'Approved',
+                        owner_reviewed_by  = :owner,
+                        owner_reviewed_at  = NOW(),
+                        updated_at         = NOW()
+                  WHERE request_id = :id"
+            )->execute([':owner' => $actingUserId, ':id' => $requestId]);
 
             // REQ078: approved Leave → debit leave_ledger
             if ($row['type_name'] === 'Leave') {
@@ -382,16 +418,48 @@ final class RequestService
     }
 
     /**
-     * Reject a Pending request with a note (HR action — REQ035).
+     * Owner returns an HRApproved request to HR for revision.
      *
-     * @throws RuntimeException when not found or not in Pending status
+     * Status becomes Returned so HR can address the feedback and re-submit
+     * for pre-approval.
+     *
+     * @throws RuntimeException when not found, not HRApproved, or note is empty
+     */
+    public function ownerReturn(int $requestId, int $actingUserId, string $note): void
+    {
+        $row = $this->findOrFail($requestId);
+
+        if ($row['status'] !== 'HRApproved') {
+            throw new RuntimeException('Only HR-approved requests can be returned by the Owner.');
+        }
+        if (trim($note) === '') {
+            throw new RuntimeException('A return note is required.');
+        }
+
+        $this->connection->transaction(function (PDO $pdo) use ($requestId, $actingUserId, $note): void {
+            $pdo->prepare(
+                "UPDATE request
+                    SET status            = 'Returned',
+                        owner_reviewed_by = :owner,
+                        owner_reviewed_at = NOW(),
+                        owner_notes       = :note,
+                        updated_at        = NOW()
+                  WHERE request_id = :id"
+            )->execute([':owner' => $actingUserId, ':note' => trim($note), ':id' => $requestId]);
+        });
+    }
+
+    /**
+     * Reject a Pending or HRApproved request with a note (HR or Owner action — REQ035).
+     *
+     * @throws RuntimeException when not found, not in a rejectable status, or note is empty
      */
     public function reject(int $requestId, int $actingUserId, string $note): void
     {
         $row = $this->findOrFail($requestId);
 
-        if ($row['status'] !== 'Pending') {
-            throw new RuntimeException('Only Pending requests can be rejected.');
+        if (!in_array($row['status'], ['Pending', 'HRApproved', 'Returned'], true)) {
+            throw new RuntimeException('Only Pending, HR-approved, or Returned requests can be rejected.');
         }
         if (trim($note) === '') {
             throw new RuntimeException('A rejection note is required.');
@@ -432,6 +500,32 @@ final class RequestService
                   WHERE request_id  = :id"
             )->execute([':by' => $actingUserId, ':id' => $requestId]);
         });
+    }
+
+    /**
+     * List requests awaiting Owner final approval (status = HRApproved).
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function ownerPendingList(): array
+    {
+        $stmt = $this->connection->pdo()->query(
+            "SELECT r.request_id,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    e.employee_number,
+                    rt.type_name,
+                    r.status,
+                    r.submitted_at,
+                    r.reviewed_at   AS hr_reviewed_at,
+                    r.reason
+               FROM request r
+               JOIN employee e      ON e.employee_id      = r.employee_id
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+              WHERE r.status = 'HRApproved'
+                AND r.archived_at IS NULL
+              ORDER BY r.reviewed_at ASC"
+        );
+        return $stmt ? $stmt->fetchAll() : [];
     }
 
     /**

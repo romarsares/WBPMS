@@ -95,6 +95,97 @@ final class EmployeePortalController
     }
 
     /**
+     * GET /employee/notices
+     *
+     * Employee-facing HR notices are scoped exclusively to the authenticated
+     * employee. They document HR's reviewed action and do not themselves
+     * impose discipline.
+     *
+     * @param array<string, string> $params
+     */
+    public function notices(array $params = []): void
+    {
+        $employeeId = $this->requireEmployeeId();
+        $stmt = $this->makeConnection()->pdo()->prepare(
+            "SELECT n.notice_id, n.title, n.body, n.issued_at, n.acknowledged_at,
+                    f.flag_type, f.triggering_date
+               FROM employee_hr_notice n
+               LEFT JOIN attendance_policy_flag f ON f.flag_id = n.policy_flag_id
+              WHERE n.employee_id = :employee_id
+              ORDER BY n.issued_at DESC, n.notice_id DESC
+              LIMIT 50"
+        );
+        $stmt->execute([':employee_id' => $employeeId]);
+
+        ViewRenderer::render('employee/notices', [
+            'notices' => $stmt->fetchAll(PDO::FETCH_ASSOC),
+            'activePage' => 'my-notices',
+        ], 'HR Notices');
+    }
+
+    /**
+     * POST /employee/notices/{id}/acknowledge
+     *
+     * Acknowledgment is idempotent and guarded by the session employee ID,
+     * preventing an employee from acknowledging another employee's notice.
+     *
+     * @param array<string, string> $params
+     */
+    public function acknowledgeNotice(array $params = []): void
+    {
+        $employeeId = $this->requireEmployeeId();
+        $noticeId = (int) ($params['id'] ?? 0);
+        $identity = AuthMiddleware::identity();
+
+        try {
+            $this->makeConnection()->transaction(function (PDO $pdo) use ($employeeId, $noticeId, $identity): void {
+                $notice = $pdo->prepare(
+                    'SELECT acknowledged_at FROM employee_hr_notice WHERE notice_id = :notice_id AND employee_id = :employee_id'
+                );
+                $notice->execute([':notice_id' => $noticeId, ':employee_id' => $employeeId]);
+                $row = $notice->fetch(PDO::FETCH_ASSOC);
+                if ($row === false) {
+                    throw new RuntimeException('HR notice not found.');
+                }
+                if ($row['acknowledged_at'] !== null) {
+                    return;
+                }
+
+                $now = gmdate('Y-m-d H:i:s');
+                $pdo->prepare(
+                    'UPDATE employee_hr_notice
+                        SET acknowledged_at = :acknowledged_at, updated_at = :updated_at
+                      WHERE notice_id = :notice_id AND employee_id = :employee_id'
+                )->execute([
+                    ':acknowledged_at' => $now,
+                    ':updated_at' => $now,
+                    ':notice_id' => $noticeId,
+                    ':employee_id' => $employeeId,
+                ]);
+                $pdo->prepare(
+                    "INSERT INTO audit_logs
+                        (user_id, event_type, action_performed, table_affected, record_id,
+                         description, action_at, created_at)
+                     VALUES
+                        (:user_id, 'employee_hr_notice_acknowledged', 'acknowledge_employee_hr_notice',
+                         'employee_hr_notice', :record_id, :description, :action_at, :created_at)"
+                )->execute([
+                    ':user_id' => (int) ($identity['user_id'] ?? 0),
+                    ':record_id' => $noticeId,
+                    ':description' => "Employee acknowledged HR notice {$noticeId}.",
+                    ':action_at' => $now,
+                    ':created_at' => $now,
+                ]);
+            });
+            ViewRenderer::flash('HR notice acknowledged.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/employee/notices');
+    }
+
+    /**
      * GET /employee/requests
      *
      * @param array<string, string> $params

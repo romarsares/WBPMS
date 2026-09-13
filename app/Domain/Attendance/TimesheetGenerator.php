@@ -53,7 +53,9 @@ final class TimesheetGenerator
         }
         $elapsed = max(0, intdiv($timeOut->getTimestamp() - $timeIn->getTimestamp(), 60));
         $worked = max(0, $elapsed - $schedule->unpaidBreakMinutes);
-        $late = max(0, intdiv($timeIn->getTimestamp() - $scheduledStart->getTimestamp(), 60));
+        // Match the HR adjustment rule: the schedule grace period reduces
+        // chargeable lateness, never the recorded time-in.
+        $late = max(0, intdiv($timeIn->getTimestamp() - $scheduledStart->getTimestamp(), 60) - $schedule->graceMinutes);
         $undertime = max(0, intdiv($scheduledEnd->getTimestamp() - $timeOut->getTimestamp(), 60));
         $overtime = max(0, $worked - $schedule->standardMinutes);
         return [$worked, $late, $undertime, $overtime];

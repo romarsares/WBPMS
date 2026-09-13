@@ -20,7 +20,10 @@ use Wbpms\Infrastructure\Database\Connection;
  * Responsibilities (ADR-0001):
  *   - Period management (create Sunday→Friday periods).
  *   - Draft payroll run creation.
- *   - Computation: gross from attendance, deductions (late/undertime/contributions/cash-advance), net.
+ *   - Computation: gross from attendance and approved paid leave; deductions
+ *     include late/undertime/contributions/cash-advance; unpaid absences are
+ *     retained as zero-value policy records because they are excluded from
+ *     basic pay before deductions are calculated.
  *   - Submission to Owner (Draft/Computed → PendingOwnerApproval).
  *   - Owner approve / return for revision.
  *   - 13th-month pay computation.
@@ -526,11 +529,7 @@ final class PayrollService
 
                 // --- Attendance summary for period ---
                 $stmt = $pdo->prepare(
-                    "SELECT
-                        COUNT(*) AS days_count,
-                        SUM(hours_worked_minutes) AS total_worked,
-                        SUM(late_minutes)         AS total_late,
-                        SUM(undertime_minutes)    AS total_undertime
+                    "SELECT a.attendance_date, a.late_minutes, a.undertime_minutes
                        FROM attendance a
                        LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
                       WHERE a.employee_id = :emp_id
@@ -539,11 +538,20 @@ final class PayrollService
                         AND (a.import_batch_id IS NULL OR aib.status IN ('Approved','Completed'))"
                 );
                 $stmt->execute([':emp_id' => $employeeId, ':start' => $periodStart, ':end' => $periodEnd]);
-                $att = $stmt->fetch(PDO::FETCH_ASSOC);
-
-                $daysCount       = (int)   ($att['days_count']    ?? 0);
-                $totalLate       = (int)   ($att['total_late']     ?? 0);
-                $totalUndertime  = (int)   ($att['total_undertime'] ?? 0);
+                $attendanceRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $daysCount = count($attendanceRows);
+                $totalLate = array_sum(array_map(static fn (array $row): int => (int) $row['late_minutes'], $attendanceRows));
+                $totalUndertime = array_sum(array_map(static fn (array $row): int => (int) $row['undertime_minutes'], $attendanceRows));
+                $attendanceDates = array_fill_keys(
+                    array_map(static fn (array $row): string => (string) $row['attendance_date'], $attendanceRows),
+                    true,
+                );
+                $attendancePolicy = $this->attendancePolicyForPeriod(
+                    $pdo, $employeeId, $periodStart, $periodEnd, $attendanceDates
+                );
+                $paidLeaveRows = $attendancePolicy['paid_leave'];
+                $paidLeaveDays = array_sum(array_column($paidLeaveRows, 'days'));
+                $paidLeavePay = round($paidLeaveDays * $dailyRate, 2);
                 $approvedOtByDate = $this->approvedOvertimeRequestsByDate(
                     $pdo, $employeeId, $periodStart, $periodEnd
                 );
@@ -646,7 +654,7 @@ final class PayrollService
                     }
                 }
 
-                $grossPay = round($basicPay + $overtimePay + $holidayDayAdj + $holidayOtAdj, 2);
+                $grossPay = round($basicPay + $paidLeavePay + $overtimePay + $holidayDayAdj + $holidayOtAdj, 2);
 
                 // EEMR = (daily_rate × eemr_days_per_year) / 12
                 $eemr = round(($dailyRate * $eemrDaysPerYear) / 12, 2);
@@ -706,6 +714,21 @@ final class PayrollService
 
                 // --- Earnings rows ---
                 $this->insertEarning($pdo, $payrollId, 'Basic', 'Basic Pay', $daysCount, $dailyRate, 1.0, $basicPay, $now);
+                foreach ($paidLeaveRows as $leave) {
+                    $leaveAmount = round((float) $leave['days'] * $dailyRate, 2);
+                    $this->insertEarning(
+                        $pdo,
+                        $payrollId,
+                        'Basic',
+                        'Approved ' . $leave['leave_type'] . ' Leave',
+                        (float) $leave['days'],
+                        $dailyRate,
+                        1.0,
+                        $leaveAmount,
+                        $now,
+                        (int) $leave['request_id'],
+                    );
+                }
                 if ($overtimePay > 0) {
                     $this->insertEarning($pdo, $payrollId, 'Overtime', 'Approved overtime pay', $totalOvertime, $minuteRate, 1.25, $overtimePay, $now);
                 }
@@ -725,6 +748,18 @@ final class PayrollService
                 }
                 if ($undertimeDed > 0) {
                     $this->insertDeduction($pdo, $payrollId, 'Undertime', 'Undertime deduction', $totalUndertime, $minuteRate, $undertimeDed, $now);
+                }
+                if ($attendancePolicy['unpaid_absence_days'] > 0) {
+                    $this->insertDeduction(
+                        $pdo,
+                        $payrollId,
+                        'Absence',
+                        'Unpaid absence (already excluded from Basic Pay)',
+                        (float) $attendancePolicy['unpaid_absence_days'],
+                        $dailyRate,
+                        0.0,
+                        $now,
+                    );
                 }
                 if ($caDed > 0) {
                     $this->insertDeduction($pdo, $payrollId, 'CashAdvance', 'Cash advance repayment', 1, $caDed, $caDed, $now);
@@ -1512,17 +1547,185 @@ final class PayrollService
         return $row;
     }
 
+    /**
+     * Resolve payroll-relevant leave and absence days from the employee's
+     * historical work schedule. A day with qualifying attendance wins over a
+     * leave request; approved leave wins over an absence; holidays are neither
+     * absence nor leave-pay days here because holiday pay has its own policy.
+     *
+     * @param array<string, bool> $attendanceDates
+     * @return array{
+     *   paid_leave:list<array{request_id:int,leave_type:string,days:int}>,
+     *   unpaid_absence_days:int
+     * }
+     */
+    private function attendancePolicyForPeriod(
+        PDO $pdo,
+        int $employeeId,
+        string $periodStart,
+        string $periodEnd,
+        array $attendanceDates,
+    ): array {
+        $scheduleStmt = $pdo->prepare(
+            "SELECT esa.effective_from, esa.effective_to, ws.working_days
+               FROM employee_schedule_assignment esa
+               JOIN work_schedule ws ON ws.schedule_id = esa.schedule_id
+              WHERE esa.employee_id = :employee_id
+                AND esa.effective_from <= :period_end
+                AND (esa.effective_to IS NULL OR esa.effective_to >= :period_start)
+              ORDER BY esa.effective_from DESC"
+        );
+        $scheduleStmt->execute([
+            ':employee_id' => $employeeId,
+            ':period_start' => $periodStart,
+            ':period_end' => $periodEnd,
+        ]);
+
+        $assignments = [];
+        foreach ($scheduleStmt->fetchAll(PDO::FETCH_ASSOC) as $assignment) {
+            $workingDays = json_decode((string) $assignment['working_days'], true);
+            if (!is_array($workingDays)) {
+                continue;
+            }
+            $assignments[] = [
+                'effective_from' => (string) $assignment['effective_from'],
+                'effective_to' => $assignment['effective_to'] !== null ? (string) $assignment['effective_to'] : null,
+                'working_days' => array_fill_keys(array_filter($workingDays, 'is_string'), true),
+            ];
+        }
+
+        $scheduledDates = [];
+        $timezone = new DateTimeZone('Asia/Manila');
+        for ($day = new DateTimeImmutable($periodStart, $timezone); $day <= new DateTimeImmutable($periodEnd, $timezone); $day = $day->modify('+1 day')) {
+            $date = $day->format('Y-m-d');
+            foreach ($assignments as $assignment) {
+                if ($assignment['effective_from'] <= $date
+                    && ($assignment['effective_to'] === null || $assignment['effective_to'] >= $date)) {
+                    $scheduledDates[$date] = isset($assignment['working_days'][$day->format('l')]);
+                    break;
+                }
+            }
+        }
+        $approvedUploadDates = $this->approvedAttendanceUploadDates(
+            $pdo, $employeeId, $periodStart, $periodEnd
+        );
+
+        $leaveStmt = $pdo->prepare(
+            "SELECT r.request_id, lrd.leave_type, lrd.start_date, lrd.end_date
+               FROM request r
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+               JOIN leave_request_detail lrd ON lrd.request_id = r.request_id
+              WHERE r.employee_id = :employee_id
+                AND r.status = 'Approved'
+                AND rt.type_name = 'Leave'
+                AND lrd.start_date <= :period_end
+                AND lrd.end_date >= :period_start
+              ORDER BY r.request_id"
+        );
+        $leaveStmt->execute([
+            ':employee_id' => $employeeId,
+            ':period_start' => $periodStart,
+            ':period_end' => $periodEnd,
+        ]);
+
+        $leaveByDate = [];
+        foreach ($leaveStmt->fetchAll(PDO::FETCH_ASSOC) as $leave) {
+            $start = max((string) $leave['start_date'], $periodStart);
+            $end = min((string) $leave['end_date'], $periodEnd);
+            for ($day = new DateTimeImmutable($start, $timezone); $day <= new DateTimeImmutable($end, $timezone); $day = $day->modify('+1 day')) {
+                $date = $day->format('Y-m-d');
+                if (($scheduledDates[$date] ?? false) && !isset($leaveByDate[$date])) {
+                    $leaveByDate[$date] = [
+                        'request_id' => (int) $leave['request_id'],
+                        'leave_type' => (string) $leave['leave_type'],
+                    ];
+                }
+            }
+        }
+
+        $holidayStmt = $pdo->prepare(
+            "SELECT holiday_date FROM holiday_calendar
+              WHERE status = 'Active' AND holiday_date BETWEEN :period_start AND :period_end"
+        );
+        $holidayStmt->execute([':period_start' => $periodStart, ':period_end' => $periodEnd]);
+        $holidayDates = array_fill_keys($holidayStmt->fetchAll(PDO::FETCH_COLUMN), true);
+
+        $paidLeave = [];
+        $unpaidAbsenceDays = 0;
+        $today = (new DateTimeImmutable('now', $timezone))->format('Y-m-d');
+        foreach ($scheduledDates as $date => $isScheduled) {
+            if (!$isScheduled || isset($holidayDates[$date]) || isset($attendanceDates[$date])) {
+                continue;
+            }
+            if (isset($leaveByDate[$date])) {
+                $leave = $leaveByDate[$date];
+                $key = $leave['request_id'];
+                $paidLeave[$key] ??= [
+                    'request_id' => $leave['request_id'],
+                    'leave_type' => $leave['leave_type'],
+                    'days' => 0,
+                ];
+                $paidLeave[$key]['days']++;
+            } elseif ($date < $today && isset($approvedUploadDates[$date])) {
+                $unpaidAbsenceDays++;
+            }
+        }
+
+        return [
+            'paid_leave' => array_values($paidLeave),
+            'unpaid_absence_days' => $unpaidAbsenceDays,
+        ];
+    }
+
+    /**
+     * @return array<string, bool> Scheduled dates covered by an approved or
+     *                              completed device import for this employee.
+     */
+    private function approvedAttendanceUploadDates(PDO $pdo, int $employeeId, string $periodStart, string $periodEnd): array
+    {
+        $stmt = $pdo->prepare(
+            "SELECT eba.effective_from AS assignment_from, eba.effective_to AS assignment_to,
+                    dbb.effective_from AS device_from, dbb.effective_to AS device_to,
+                    aib.source_year, aib.source_month
+               FROM attendance_import_batch aib
+               JOIN biometric_device_branch dbb ON dbb.device_id = aib.device_id
+               JOIN employee_branch_assignment eba ON eba.branch_id = dbb.branch_id
+              WHERE eba.employee_id = :employee_id
+                AND aib.status IN ('Approved', 'Completed')"
+        );
+        $stmt->execute([':employee_id' => $employeeId]);
+
+        $covered = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            for ($day = new DateTimeImmutable($periodStart); $day <= new DateTimeImmutable($periodEnd); $day = $day->modify('+1 day')) {
+                $date = $day->format('Y-m-d');
+                if ((int) $day->format('Y') !== (int) $row['source_year']
+                    || (int) $day->format('n') !== (int) $row['source_month']
+                    || (string) $row['assignment_from'] > $date
+                    || ($row['assignment_to'] !== null && (string) $row['assignment_to'] < $date)
+                    || (string) $row['device_from'] > $date
+                    || ($row['device_to'] !== null && (string) $row['device_to'] < $date)) {
+                    continue;
+                }
+                $covered[$date] = true;
+            }
+        }
+
+        return $covered;
+    }
+
     private function insertEarning(
         PDO $pdo, int $payrollId, string $type, string $desc,
-        float $qty, float $unitRate, float $multiplier, float $amount, string $now
+        float $qty, float $unitRate, float $multiplier, float $amount, string $now,
+        ?int $sourceRequestId = null,
     ): int {
         $stmt = $pdo->prepare(
             "INSERT INTO payroll_earnings
-                (payroll_id, earning_type, description,
+                (payroll_id, earning_type, description, source_request_id,
                  quantity, unit_rate, multiplier, amount,
                  calculation_details, created_at)
              VALUES
-                (:pid, :type, :desc,
+                (:pid, :type, :desc, :source_request_id,
                  :qty, :rate, :mult, :amount,
                  :details, :now)"
         );
@@ -1530,11 +1733,17 @@ final class PayrollService
             ':pid'     => $payrollId,
             ':type'    => $type,
             ':desc'    => $desc,
+            ':source_request_id' => $sourceRequestId,
             ':qty'     => $qty,
             ':rate'    => $unitRate,
             ':mult'    => $multiplier,
             ':amount'  => $amount,
-            ':details' => json_encode(['qty' => $qty, 'unit_rate' => $unitRate, 'multiplier' => $multiplier]),
+            ':details' => json_encode([
+                'qty' => $qty,
+                'unit_rate' => $unitRate,
+                'multiplier' => $multiplier,
+                'source_request_id' => $sourceRequestId,
+            ]),
             ':now'     => $now,
         ]);
         return (int) $pdo->lastInsertId();

@@ -330,7 +330,7 @@ final class EmployeeController
             try {
                 $repo->transferEmployee($id, $newBranchId, $transferDate);
                 ViewRenderer::flash('Employee transferred successfully.');
-                $this->redirect('/hr/employees/' . $id . '/edit');
+                $this->redirect('/hr/employees/' . $id);
                 return;
             } catch (\RuntimeException $e) {
                 $errors['transfer_date'] = $e->getMessage();
@@ -454,7 +454,7 @@ final class EmployeeController
                     $message .= ' New temporary password: ' . $temporaryPassword . ' (give it to the employee securely; they must change it on first login).';
                 }
                 ViewRenderer::flash($message);
-                $this->redirect('/hr/employees/' . $id . '/edit');
+                $this->redirect('/hr/employees/' . $id);
             } catch (\RuntimeException $e) {
                 $errors['form'] = $e->getMessage();
             }
@@ -531,7 +531,7 @@ final class EmployeeController
         }
 
         ViewRenderer::flash('Employee updated successfully.');
-        $this->redirect('/hr/employees/' . $id . '/edit');
+        $this->redirect('/hr/employees/' . $id);
     }
 
     // -----------------------------------------------------------------------

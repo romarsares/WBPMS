@@ -5,16 +5,10 @@ use Wbpms\Http\View\Formatter;
 /**
  * View: hr/requests/show
  *
- * Variables injected by RequestsController::show() + ViewRenderer:
- *   array<string,mixed> $request  — full row from RequestService::findOrFail()
- *   array<string,string> $errors  — validation errors (unused here; kept for symmetry)
- *   string $base  — injected by ViewRenderer
- *   string $csrf  — injected by ViewRenderer
- *
- * Detail columns available (LEFT-JOINed in findOrFail):
- *   Leave:       start_date, end_date, days_requested
- *   Overtime:    overtime_date, overtime_start_time, overtime_end_time, requested_minutes
- *   CashAdvance: amount_requested
+ * Variables:
+ *   array<string,mixed>  $request — full row from RequestService::findOrFail()
+ *   array<string,string> $errors
+ *   string $base, $csrf — injected by ViewRenderer
  */
 
 $request ??= [];
@@ -22,15 +16,27 @@ $errors  ??= [];
 $base    ??= '';
 $csrf    ??= '';
 
-$statusColors = [
-    'Pending'   => '#f59e0b',
-    'Approved'  => '#10b981',
-    'Rejected'  => '#ef4444',
-    'Cancelled' => '#6b7280',
-];
-$statusColor = $statusColors[$request['status'] ?? ''] ?? '#6b7280';
+$status    = (string) ($request['status'] ?? '');
+$typeName  = (string) ($request['type_name'] ?? '');
 
-$typeName = (string) ($request['type_name'] ?? '');
+$statusColors = [
+    'Pending'    => '#f59e0b',
+    'HRApproved' => '#6366f1',
+    'Approved'   => '#10b981',
+    'Rejected'   => '#ef4444',
+    'Returned'   => '#f97316',
+    'Cancelled'  => '#6b7280',
+];
+$statusLabels = [
+    'Pending'    => 'Pending',
+    'HRApproved' => 'Awaiting Owner Approval',
+    'Approved'   => 'Approved',
+    'Rejected'   => 'Rejected',
+    'Returned'   => 'Returned to HR',
+    'Cancelled'  => 'Cancelled',
+];
+$statusColor = $statusColors[$status] ?? '#6b7280';
+$statusLabel = $statusLabels[$status] ?? $status;
 ?>
 
 <div class="page-head" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
@@ -41,7 +47,7 @@ $typeName = (string) ($request['type_name'] ?? '');
         </p>
     </div>
     <span style="background:<?= $statusColor ?>;color:#fff;padding:4px 14px;border-radius:9999px;font-size:.875rem;font-weight:600">
-        <?= Formatter::escape((string) ($request['status'] ?? '')) ?>
+        <?= Formatter::escape($statusLabel) ?>
     </span>
 </div>
 
@@ -116,9 +122,7 @@ $typeName = (string) ($request['type_name'] ?? '');
             <tr><td colspan="2" style="padding:.5rem 0 0"><hr style="border:0;border-top:1px solid #f3f4f6;margin:0"></td></tr>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Amount</th>
-                <td style="padding:.4rem 0;font-weight:600">
-                    ₱<?= number_format((float) $request['amount_requested'], 2) ?>
-                </td>
+                <td style="padding:.4rem 0;font-weight:600">₱<?= number_format((float) $request['amount_requested'], 2) ?></td>
             </tr>
             <?php endif; ?>
 
@@ -132,30 +136,48 @@ $typeName = (string) ($request['type_name'] ?? '');
 
             <?php if (!empty($request['reviewed_at'])): ?>
             <tr>
-                <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Reviewed at</th>
+                <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">HR reviewed</th>
                 <td style="padding:.4rem 0"><?= Formatter::escape((string) $request['reviewed_at']) ?></td>
+            </tr>
+            <?php endif; ?>
+
+            <?php if (!empty($request['owner_notes'])): ?>
+            <tr><td colspan="2" style="padding:.5rem 0 0"><hr style="border:0;border-top:1px solid #f3f4f6;margin:0"></td></tr>
+            <tr>
+                <th style="text-align:left;padding:.4rem 0;color:#f97316;font-weight:500;vertical-align:top">Owner note</th>
+                <td style="padding:.4rem 0;white-space:pre-wrap;color:#f97316"><?= Formatter::escape((string) $request['owner_notes']) ?></td>
+            </tr>
+            <?php endif; ?>
+
+            <?php if (!empty($request['owner_reviewed_at'])): ?>
+            <tr>
+                <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Owner reviewed</th>
+                <td style="padding:.4rem 0"><?= Formatter::escape((string) $request['owner_reviewed_at']) ?></td>
             </tr>
             <?php endif; ?>
         </table>
     </div>
 
     <!-- ── Actions panel ───────────────────────────────────────────────── -->
-    <?php if (($request['status'] ?? '') === 'Pending'): ?>
     <div class="card" style="padding:1.25rem">
         <h3 style="margin:0 0 1rem;font-size:1rem">Actions</h3>
 
-        <!-- Approve -->
+        <?php if (in_array($status, ['Pending', 'Returned'], true)): ?>
+        <!-- HR pre-approve -->
         <form method="POST"
               action="<?= $base ?>/hr/requests/<?= (int) $request['request_id'] ?>/approve"
               style="margin-bottom:1rem"
-              onsubmit="return confirm('Approve this request?')">
+              onsubmit="return confirm('Pre-approve this request and send it to the Business Owner for final approval?')">
             <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
             <button type="submit" class="btn btn-primary" style="width:100%">
-                ✓ Approve Request
+                ✓ Pre-approve &amp; Send to Owner
             </button>
         </form>
+        <p style="font-size:.8rem;color:#6b7280;margin:0 0 1rem">
+            The Business Owner will review and give the final decision.
+        </p>
 
-        <!-- Reject -->
+        <!-- HR reject -->
         <form method="POST"
               action="<?= $base ?>/hr/requests/<?= (int) $request['request_id'] ?>/reject"
               onsubmit="return confirm('Reject this request?')">
@@ -175,20 +197,26 @@ $typeName = (string) ($request['type_name'] ?? '');
                 ✗ Reject Request
             </button>
         </form>
-    </div>
-    <?php else: ?>
-    <div class="card" style="padding:1.25rem;display:flex;align-items:center;justify-content:center;min-height:120px">
-        <p style="color:#6b7280;font-size:.875rem;margin:0;text-align:center">
+
+        <?php elseif ($status === 'HRApproved'): ?>
+        <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:.9rem 1rem;font-size:.875rem;color:#4338ca">
+            <strong>Awaiting Owner approval.</strong><br>
+            This request has been pre-approved by HR and is in the Business Owner's queue.
+            No further HR action is required unless the Owner returns it.
+        </div>
+
+        <?php else: ?>
+        <p style="color:#6b7280;font-size:.875rem;margin:0;text-align:center;padding:1.5rem 0">
             No further actions available for a
-            <strong><?= Formatter::escape((string) ($request['status'] ?? '')) ?></strong> request.
+            <strong><?= Formatter::escape($statusLabel) ?></strong> request.
         </p>
+        <?php endif; ?>
     </div>
-    <?php endif; ?>
 
 </div>
 
 <!-- Archive -->
-<?php if (empty($request['archived_at'])): ?>
+<?php if (empty($request['archived_at']) && !in_array($status, ['Pending', 'HRApproved'], true)): ?>
 <div style="margin-top:1rem">
     <form method="POST"
           action="<?= $base ?>/hr/requests/<?= (int) $request['request_id'] ?>/archive"

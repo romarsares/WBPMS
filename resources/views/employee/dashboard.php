@@ -11,6 +11,7 @@ use Wbpms\Http\View\Formatter;
  * @var string $scheduleName        Current work schedule name
  * @var int    $sickLeaveBalance    Remaining sick leave days this year
  * @var int    $pendingRequests     Own requests not yet actioned
+ * @var int    $unacknowledgedNotices HR notices awaiting acknowledgment
  * @var list<array{id:int,period:string,status:string,net_pay:string}> $recentPayslips
  * @var list<array{id:int,type:string,submitted_at:string,status:string}> $recentRequests
  */
@@ -20,6 +21,7 @@ $branchName       ??= '';
 $scheduleName     ??= '';
 $sickLeaveBalance ??= 0;
 $pendingRequests  ??= 0;
+$unacknowledgedNotices ??= 0;
 $recentPayslips   ??= [];
 $recentRequests   ??= [];
 
@@ -54,6 +56,11 @@ $reqStatusBadge = static function (string $status): string {
         <div class="stat-label">Pending Requests</div>
         <div class="stat-value" style="<?= $pendingRequests > 0 ? 'color:#b45309' : '' ?>"><?= $pendingRequests ?></div>
         <div class="stat-sub"><a href="<?= $base ?>/employee/requests">View →</a></div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">HR Notices</div>
+        <div class="stat-value" style="<?= $unacknowledgedNotices > 0 ? 'color:#b45309' : '' ?>"><?= $unacknowledgedNotices ?></div>
+        <div class="stat-sub"><a href="<?= $base ?>/employee/notices">View notices</a></div>
     </div>
 </div>
 
@@ -130,6 +137,7 @@ $reqStatusBadge = static function (string $status): string {
     <strong style="font-size:.9rem;display:block;margin-bottom:.75rem;color:#374151">Quick Actions</strong>
     <div style="display:flex;flex-wrap:wrap;gap:.65rem">
         <a href="<?= $base ?>/employee/attendance"  class="btn btn-secondary">View Attendance</a>
+        <a href="<?= $base ?>/employee/notices"     class="btn btn-secondary">HR Notices</a>
         <a href="<?= $base ?>/employee/requests/new" class="btn btn-primary">Submit Request</a>
         <a href="<?= $base ?>/employee/payslips"    class="btn btn-secondary">My Payslips</a>
     </div>
