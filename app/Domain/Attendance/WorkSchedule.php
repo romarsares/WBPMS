@@ -17,11 +17,13 @@ final class WorkSchedule
         public string $endTime,
         public int $unpaidBreakMinutes = 60,
         public int $standardMinutes = 480,
+        public int $graceMinutes = 0,
     ) {
         if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $startTime)
             || !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $endTime)
             || $unpaidBreakMinutes < 0
-            || $standardMinutes < 1) {
+            || $standardMinutes < 1
+            || $graceMinutes < 0) {
             throw new InvalidArgumentException('Invalid work schedule.');
         }
     }

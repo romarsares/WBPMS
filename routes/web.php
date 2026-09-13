@@ -15,6 +15,7 @@ declare(strict_types=1);
 /** @var \Wbpms\Http\Routing\Router $router */
 
 use Wbpms\Http\Controllers\AttendanceController;
+use Wbpms\Http\Controllers\AttendancePolicyController;
 use Wbpms\Http\Controllers\AuthController;
 use Wbpms\Http\Controllers\BenefitsController;
 use Wbpms\Http\Controllers\DashboardController;
@@ -241,10 +242,18 @@ $router->add('POST', '/hr/settings/holidays/{id}/delete',         [SettingsContr
 
 $router->add('GET',  '/employee/dashboard',       [DashboardController::class,      'empDashboard'],  ['Employee']);
 $router->add('GET',  '/employee/attendance',      [EmployeePortalController::class, 'attendance'],    ['Employee']);
+$router->add('GET',  '/employee/notices',         [EmployeePortalController::class, 'notices'],       ['Employee']);
+$router->add('POST', '/employee/notices/{id}/acknowledge', [EmployeePortalController::class, 'acknowledgeNotice'], ['Employee']);
 $router->add('GET',  '/employee/requests',        [EmployeePortalController::class, 'requests'],      ['Employee']);
 $router->add('GET',  '/employee/requests/new',    [EmployeePortalController::class, 'requestForm'],   ['Employee']);
 $router->add('POST', '/employee/requests',        [EmployeePortalController::class, 'storeRequest'],  ['Employee']);
 $router->add('POST', '/employee/requests/{id}/cancel', [EmployeePortalController::class, 'cancelRequest'], ['Employee']);
 $router->add('GET',  '/employee/payslips',            [EmployeePortalController::class, 'payslips'],      ['Employee']);
 $router->add('GET',  '/employee/payslips/{id}',       [EmployeePortalController::class, 'payslipDetail'], ['Employee']);
+// Attendance policy flags (REQ006 AC16–AC17): HR-review alerts only — the
+// system never suspends or terminates automatically.
+$router->add('GET',  '/hr/attendance/policy/flags',             [AttendancePolicyController::class, 'index'],    ['HRHead']);
+$router->add('POST', '/hr/attendance/policy/flags/evaluate',    [AttendancePolicyController::class, 'evaluate'], ['HRHead']);
+$router->add('POST', '/hr/attendance/policy/flags/{id}/review', [AttendancePolicyController::class, 'review'],   ['HRHead']);
+
 $router->add('GET',  '/employee/payslips/{id}/print', [EmployeePortalController::class, 'payslipPrint'],  ['Employee']);

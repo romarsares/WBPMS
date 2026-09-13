@@ -235,6 +235,12 @@ live connection to the device.
     have been recorded THEN the system SHALL flag the employee for HR review
     of a one-week suspension. The system SHALL NOT impose discipline
     automatically. [Supplemental HR answer, p. 1]
+17a. WHEN HR reviews an attendance-policy flag and decides to issue a written
+    notice THEN the system SHALL store the notice, issuer, policy flag, and
+    issue time; SHALL display it only in that employee's portal; and SHALL
+    record the employee's acknowledgment. Issuing or acknowledging a notice
+    SHALL NOT automatically impose suspension, termination, or any other
+    disciplinary action. [Employee-notice extension]
 18. WHEN an employee has not reported for two weeks, or has three
     consecutive absences without notice and without an acceptable reason,
     THEN the system SHALL flag the employee for HR review under the

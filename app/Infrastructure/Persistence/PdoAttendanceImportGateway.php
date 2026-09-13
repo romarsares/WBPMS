@@ -269,7 +269,7 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
 
         $stmt = $this->pdo->prepare(
             "SELECT schedule_id, work_start_time, work_end_time,
-                    break_minutes, standard_minutes
+                    break_minutes, standard_minutes, grace_minutes
                FROM work_schedule
               WHERE schedule_id = :id"
         );
@@ -286,6 +286,7 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
             substr((string) $row['work_end_time'], 0, 5),
             (int) $row['break_minutes'],
             (int) $row['standard_minutes'],
+            (int) $row['grace_minutes'],
         );
     }
 

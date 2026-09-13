@@ -39,7 +39,7 @@ final class ViewRenderer
         $identity = (PHP_SAPI !== 'cli') ? AuthMiddleware::identity() : null;
         $roleName = $identity['role_name'] ?? '';
         $userName = $identity['username']  ?? '';
-        $notifCount = self::notificationCount($roleName);
+        $notifCount = self::notificationCount($roleName, isset($identity['employee_id']) ? (int) $identity['employee_id'] : null);
 
         // Active sidebar nav key — forwarded from the view's $data array when provided.
         $activePage = isset($data['activePage']) ? (string) $data['activePage'] : '';
@@ -149,17 +149,27 @@ final class ViewRenderer
     }
 
     /** Return the current in-app alert count appropriate for the signed-in role. */
-    private static function notificationCount(string $roleName): int
+    private static function notificationCount(string $roleName, ?int $employeeId = null): int
     {
-        if ($roleName !== 'BusinessOwner') {
+        if (!in_array($roleName, ['BusinessOwner', 'Employee'], true)) {
             return 0;
         }
 
         try {
             $pdo = (new Connection(require APP_ROOT . '/config/database.php'))->pdo();
-            return (int) $pdo->query(
-                "SELECT COUNT(*) FROM payroll_run WHERE status = 'PendingOwnerApproval'"
-            )->fetchColumn();
+            if ($roleName === 'BusinessOwner') {
+                return (int) $pdo->query(
+                    "SELECT COUNT(*) FROM payroll_run WHERE status = 'PendingOwnerApproval'"
+                )->fetchColumn();
+            }
+            if ($employeeId === null || $employeeId < 1) {
+                return 0;
+            }
+            $stmt = $pdo->prepare(
+                'SELECT COUNT(*) FROM employee_hr_notice WHERE employee_id = :employee_id AND acknowledged_at IS NULL'
+            );
+            $stmt->execute([':employee_id' => $employeeId]);
+            return (int) $stmt->fetchColumn();
         } catch (\Throwable) {
             // A notification must never prevent the page from rendering.
             return 0;

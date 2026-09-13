@@ -43,6 +43,7 @@ $nav = match ($roleName) {
         ['hr/dashboard',     'Dashboard',              '⌂', 'dashboard'],
         ['hr/employees',     'Employee Management',    '♟', 'employees'],
         ['hr/attendance',    'Attendance',             '◷', 'attendance'],
+        ['hr/attendance/policy/flags', 'Policy Flags',    '⚑', 'policy-flags'],
         ['hr/schedules',     'Work Schedule',          '▣', 'schedule'],
         ['hr/requests',      'Requests',               '▱', 'requests'],
         ['hr/payroll',       'Payroll Processing',     '₱', 'payroll'],
@@ -53,6 +54,7 @@ $nav = match ($roleName) {
         ['hr/settings',      'Settings',               '⚙', 'settings'],
     ],
     default => [ // Employee
+        ['employee/notices', 'HR Notices', 'N', 'my-notices'],
         ['employee/dashboard',  'Dashboard',                   '⌂', 'dashboard'],
         ['employee/attendance', 'My Attendance',               '◷', 'my-attendance'],
         ['employee/requests',   'Leave / OT / Cash Advance',   '▱', 'my-requests'],
@@ -163,8 +165,9 @@ $nav = match ($roleName) {
                     <p><strong>Attendance Alerts</strong><br>
                         <?= (int) $notifCount ?> attendance record(s) with missing punch data.</p>
                 <?php else: ?>
-                    <p><strong>Request Updates</strong><br>
-                        <?= (int) $notifCount ?> of your requests have a new decision.</p>
+                    <p><strong>HR Notices</strong><br>
+                        <?= (int) $notifCount ?> notice(s) awaiting your acknowledgment.<br>
+                        <a href="<?= $base ?>/employee/notices">View HR notices</a></p>
                 <?php endif; ?>
             </div>
         </header>

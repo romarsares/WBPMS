@@ -989,7 +989,7 @@ CREATE TABLE `payroll_earnings` (
 CREATE TABLE `deduction` (
   `deduction_id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `payroll_id` bigint unsigned NOT NULL,
-  `deduction_type` enum('Late','Undertime','CashAdvance','SSS','PhilHealth','PagIBIG','IncomeTax','ManualAdjustment') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `deduction_type` enum('Late','Undertime','Absence','CashAdvance','SSS','PhilHealth','PagIBIG','IncomeTax','ManualAdjustment') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `source_attendance_id` bigint unsigned DEFAULT NULL,
   `quantity` decimal(12,4) NOT NULL,

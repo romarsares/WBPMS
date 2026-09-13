@@ -233,6 +233,16 @@ final class AttendanceController
             $dates[] = $day->format('Y-m-d');
         }
 
+        // Determine expected workdays from each employee's effective schedule.
+        // A missing or malformed schedule deliberately does not create an
+        // absence: HR must first assign a valid schedule before a no-show can
+        // be classified as an absence.
+        $scheduledWorkingDays = $this->scheduledWorkingDays($pdo, $employees, $dates, $dateFrom, $dateTo);
+        // An employee can only be absent after an approved device import
+        // covers that employee's branch for the source month. Missing or draft
+        // uploads are data-availability states, not employee absences.
+        $attendanceUploadCoverage = $this->attendanceUploadCoverage($pdo, $employees, $dates);
+
         // Approved leave is a display state in the attendance matrix. It takes
         // precedence over a derived absence and links back to the source request.
         $leaveStmt = $pdo->prepare(
@@ -276,6 +286,8 @@ final class AttendanceController
             'rows'        => $rows,
             'employees'   => $employees,
             'dates'       => $dates,
+            'scheduledWorkingDays' => $scheduledWorkingDays,
+            'attendanceUploadCoverage' => $attendanceUploadCoverage,
             'approvedLeaves' => $approvedLeaves,
             'holidayDates' => $holidayDates,
             'today'       => $today,
@@ -294,6 +306,138 @@ final class AttendanceController
             'branchId'    => $branchId,
             'search'      => $search,
         ], 'Attendance Management');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $employees
+     * @param list<string> $dates
+     * @return array<int, array<string, bool>> indexed by employee ID and date
+     */
+    private function scheduledWorkingDays(\PDO $pdo, array $employees, array $dates, string $dateFrom, string $dateTo): array
+    {
+        if ($employees === [] || $dates === []) {
+            return [];
+        }
+
+        $params = [':date_from' => $dateFrom, ':date_to' => $dateTo];
+        $placeholders = [];
+        foreach ($employees as $index => $employee) {
+            $parameter = ':employee_' . $index;
+            $placeholders[] = $parameter;
+            $params[$parameter] = (int) $employee['employee_id'];
+        }
+
+        $stmt = $pdo->prepare(
+            "SELECT esa.employee_id, esa.effective_from, esa.effective_to, ws.working_days
+               FROM employee_schedule_assignment esa
+               JOIN work_schedule ws ON ws.schedule_id = esa.schedule_id
+              WHERE esa.employee_id IN (" . implode(', ', $placeholders) . ")
+                AND esa.effective_from <= :date_to
+                AND (esa.effective_to IS NULL OR esa.effective_to >= :date_from)
+              ORDER BY esa.employee_id, esa.effective_from DESC"
+        );
+        $stmt->execute($params);
+
+        $assignments = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $workingDays = json_decode((string) $row['working_days'], true);
+            if (!is_array($workingDays)) {
+                continue;
+            }
+            $assignments[(int) $row['employee_id']][] = [
+                'effective_from' => (string) $row['effective_from'],
+                'effective_to' => $row['effective_to'] !== null ? (string) $row['effective_to'] : null,
+                'working_days' => array_fill_keys(array_filter($workingDays, 'is_string'), true),
+            ];
+        }
+
+        $result = [];
+        foreach ($employees as $employee) {
+            $employeeId = (int) $employee['employee_id'];
+            foreach ($dates as $date) {
+                foreach ($assignments[$employeeId] ?? [] as $assignment) {
+                    if ($assignment['effective_from'] <= $date
+                        && ($assignment['effective_to'] === null || $assignment['effective_to'] >= $date)) {
+                        $dayName = (new \DateTimeImmutable($date))->format('l');
+                        $result[$employeeId][$date] = isset($assignment['working_days'][$dayName]);
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $employees
+     * @param list<string> $dates
+     * @return array<int, array<string, 'Covered'|'Draft'>> indexed by employee ID and date
+     */
+    private function attendanceUploadCoverage(\PDO $pdo, array $employees, array $dates): array
+    {
+        if ($employees === [] || $dates === []) {
+            return [];
+        }
+
+        $monthPairs = [];
+        foreach ($dates as $date) {
+            $monthPairs[substr($date, 0, 7)] = true;
+        }
+
+        $params = [];
+        $employeePlaceholders = [];
+        foreach ($employees as $index => $employee) {
+            $placeholder = ':coverage_employee_' . $index;
+            $employeePlaceholders[] = $placeholder;
+            $params[$placeholder] = (int) $employee['employee_id'];
+        }
+        $monthConditions = [];
+        foreach (array_keys($monthPairs) as $index => $yearMonth) {
+            $year = (int) substr($yearMonth, 0, 4);
+            $month = (int) substr($yearMonth, 5, 2);
+            $yearPlaceholder = ':coverage_year_' . $index;
+            $monthPlaceholder = ':coverage_month_' . $index;
+            $monthConditions[] = "(aib.source_year = {$yearPlaceholder} AND aib.source_month = {$monthPlaceholder})";
+            $params[$yearPlaceholder] = $year;
+            $params[$monthPlaceholder] = $month;
+        }
+
+        $stmt = $pdo->prepare(
+            "SELECT eba.employee_id, eba.effective_from AS assignment_from, eba.effective_to AS assignment_to,
+                    dbb.effective_from AS device_from, dbb.effective_to AS device_to,
+                    aib.source_year, aib.source_month, aib.status
+               FROM attendance_import_batch aib
+               JOIN biometric_device_branch dbb ON dbb.device_id = aib.device_id
+               JOIN employee_branch_assignment eba ON eba.branch_id = dbb.branch_id
+              WHERE eba.employee_id IN (" . implode(', ', $employeePlaceholders) . ")
+                AND aib.status IN ('Draft', 'Processing', 'Approved', 'Completed')
+                AND (" . implode(' OR ', $monthConditions) . ")"
+        );
+        $stmt->execute($params);
+
+        $coverage = [];
+        $priority = ['Draft' => 1, 'Covered' => 2];
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $state = in_array((string) $row['status'], ['Approved', 'Completed'], true) ? 'Covered' : 'Draft';
+            foreach ($dates as $date) {
+                if ((int) substr($date, 0, 4) !== (int) $row['source_year']
+                    || (int) substr($date, 5, 2) !== (int) $row['source_month']
+                    || (string) $row['assignment_from'] > $date
+                    || ($row['assignment_to'] !== null && (string) $row['assignment_to'] < $date)
+                    || (string) $row['device_from'] > $date
+                    || ($row['device_to'] !== null && (string) $row['device_to'] < $date)) {
+                    continue;
+                }
+                $employeeId = (int) $row['employee_id'];
+                $current = $coverage[$employeeId][$date] ?? null;
+                if ($current === null || $priority[$state] > $priority[$current]) {
+                    $coverage[$employeeId][$date] = $state;
+                }
+            }
+        }
+
+        return $coverage;
     }
 
     // -----------------------------------------------------------------------

@@ -182,6 +182,7 @@ final class DashboardController
                 'scheduleName'     => '—',
                 'sickLeaveBalance' => 0,
                 'pendingRequests'  => 0,
+                'unacknowledgedNotices' => 0,
                 'recentPayslips'   => [],
                 'recentRequests'   => [],
             ], 'Dashboard');
@@ -233,6 +234,12 @@ final class DashboardController
         $stmt->execute([':id' => $employeeId]);
         $pendingRequests = (int) $stmt->fetchColumn();
 
+        $stmt = $pdo->prepare(
+            'SELECT COUNT(*) FROM employee_hr_notice WHERE employee_id = :id AND acknowledged_at IS NULL'
+        );
+        $stmt->execute([':id' => $employeeId]);
+        $unacknowledgedNotices = (int) $stmt->fetchColumn();
+
         // Recent requests (last 5) — type_name is the column (migration 004)
         $stmt = $pdo->prepare(
             "SELECT r.request_id AS id,
@@ -254,6 +261,7 @@ final class DashboardController
             'scheduleName'     => $scheduleName,
             'sickLeaveBalance' => 4, // ADR-0001: 4 paid sick days; live balance deferred
             'pendingRequests'  => $pendingRequests,
+            'unacknowledgedNotices' => $unacknowledgedNotices,
             'recentPayslips'   => [],
             'recentRequests'   => $recentRequests,
         ], 'Dashboard');
