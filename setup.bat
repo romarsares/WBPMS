@@ -9,6 +9,21 @@ title WBPMS Setup
 ::  Run from the project root directory.
 :: ============================================================
 
+:: ============================================================
+:: ADMIN CHECK — Re-launch as Administrator if not already elevated
+:: ============================================================
+net session >nul 2>&1
+if errorlevel 1 (
+    echo  Not running as Administrator. Re-launching with elevated privileges...
+    echo  ^(A UAC prompt will appear — click Yes to continue.^)
+    echo.
+    powershell -NoProfile -Command ^
+        "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c \"%~f0\"' -Verb RunAs -Wait"
+    exit /b
+)
+
+echo  Running as Administrator.  [OK]
+
 :: Resolve the directory this script lives in (project root).
 set "PROJECT_ROOT=%~dp0"
 if "%PROJECT_ROOT:~-1%"=="\" set "PROJECT_ROOT=%PROJECT_ROOT:~0,-1%"
@@ -25,7 +40,7 @@ echo.
 :: ============================================================
 :: STEP 1 — Locate XAMPP
 :: ============================================================
-echo [1/8] Checking for XAMPP...
+echo [1/10] Checking for XAMPP...
 
 set "PROJECT_DRIVE=%PROJECT_ROOT:~0,2%"
 set "XAMPP_ROOT="
@@ -55,7 +70,7 @@ set "APACHE_BIN=!XAMPP_ROOT!\apache\bin\httpd.exe"
 :: STEP 2 — Check PHP version
 :: ============================================================
 echo.
-echo [2/8] Checking PHP...
+echo [2/10] Checking PHP...
 
 if not exist "!PHP_BIN!" (
     echo.
@@ -66,7 +81,24 @@ if not exist "!PHP_BIN!" (
     goto :FAIL
 )
 
-for /f "tokens=*" %%V in ('"!PHP_BIN!" -r "echo PHP_MAJOR_VERSION.\".\".PHP_MINOR_VERSION;" 2^>nul') do set "PHP_VER=%%V"
+:: Use a temp file to capture PHP version — avoids nested-quote issues with
+:: delayed expansion in for /f command substitution.
+set "_php_tmp=%TEMP%\wbpms_phpver.txt"
+"!PHP_BIN!" -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" > "!_php_tmp!" 2>nul
+
+set "PHP_VER="
+set "PHP_MAJOR=0"
+set "PHP_MINOR=0"
+for /f "usebackq tokens=*" %%V in ("!_php_tmp!") do set "PHP_VER=%%V"
+del "!_php_tmp!" >nul 2>&1
+
+if "!PHP_VER!"=="" (
+    echo.
+    echo  ERROR: Could not determine PHP version from !PHP_BIN!
+    echo  Try running:  "!PHP_BIN!" -v
+    echo.
+    goto :FAIL
+)
 
 for /f "tokens=1,2 delims=." %%A in ("!PHP_VER!") do (
     set "PHP_MAJOR=%%A"
@@ -94,7 +126,7 @@ echo  PHP !PHP_VER! OK.
 :: STEP 3 — Start Apache and MySQL if not already running
 :: ============================================================
 echo.
-echo [3/8] Checking Apache and MySQL services...
+echo [3/10] Checking Apache and MySQL services...
 
 :: --- MySQL ---
 "!MYSQLADMIN_BIN!" -u root --connect-timeout=3 ping >nul 2>&1
@@ -156,7 +188,7 @@ if errorlevel 1 (
 :: STEP 4 — Environment configuration (.env)
 :: ============================================================
 echo.
-echo [4/8] Checking environment configuration (.env)...
+echo [4/10] Checking environment configuration (.env)...
 
 set "ENV_FILE=%PROJECT_ROOT%\.env"
 set "ENV_EXAMPLE=%PROJECT_ROOT%\.env.example"
@@ -211,7 +243,7 @@ echo  APP_BASE_URL: !APP_BASE_URL!
 :: STEP 5 — Database connection, creation, and schema check
 :: ============================================================
 echo.
-echo [5/8] Verifying database connection and schema...
+echo [5/10] Verifying database connection and schema...
 
 if "!DB_PASSWORD!"=="" (
     set "MYSQL_CMD=!MYSQL_BIN! -h !DB_HOST! -P !DB_PORT! -u !DB_USER!"
@@ -252,7 +284,7 @@ if errorlevel 1 (
 :: STEP 6 — Composer dependencies
 :: ============================================================
 echo.
-echo [6/8] Checking Composer dependencies...
+echo [6/10] Checking Composer dependencies...
 
 set "PHINX_BAT=%PROJECT_ROOT%\vendor\bin\phinx.bat"
 set "PHINX_BIN=%PROJECT_ROOT%\vendor\bin\phinx"
@@ -325,10 +357,11 @@ if exist "!PHINX_BAT!" (
 )
 
 :: ============================================================
-:: STEP 6a — Phinx migrations (idempotent — Phinx skips already-run migrations)
+:: STEP 7 — Phinx migrations (idempotent — Phinx skips already-run migrations)
 :: ============================================================
 echo.
-echo  Running Phinx migrations (already-run migrations are skipped automatically)...
+echo [7/10] Running database migrations...
+echo  (Already-run migrations are skipped automatically by Phinx.)
 cd /d "%PROJECT_ROOT%"
 !PHINX! migrate -c phinx.php -e development
 if errorlevel 1 (
@@ -342,12 +375,12 @@ if errorlevel 1 (
 echo  Migrations OK.
 
 :: ============================================================
-:: STEP 6b — Seeders
+:: STEP 8 — Seeders
 ::   Seeders are skipped if the demo data is already present.
 ::   We check for the demo owner account as the sentinel.
 :: ============================================================
 echo.
-echo  Checking seed data...
+echo [8/10] Checking seed data...
 
 !MYSQL_CMD! "!DB_NAME!" -e "SELECT 1 FROM users WHERE username='owner' LIMIT 1;" 2>nul | find "1" >nul
 if not errorlevel 1 (
@@ -368,59 +401,107 @@ echo  Seeders completed.
 :SEEDS_DONE
 
 :: ============================================================
-:: STEP 7 — Apache mod_rewrite check
+:: STEP 9 — Apache mod_rewrite (auto-fix if disabled)
 :: ============================================================
 echo.
-echo [7/8] Checking Apache mod_rewrite...
+echo [9/10] Checking Apache mod_rewrite...
 
 set "HTTPD_CONF=!XAMPP_ROOT!\apache\conf\httpd.conf"
+set "_apache_changed=0"
+
 if not exist "!HTTPD_CONF!" (
     echo  WARNING: Cannot find !HTTPD_CONF! — skipping mod_rewrite check.
     goto :SKIP_REWRITE
 )
 
+:: Back up httpd.conf before any edits (only once — skip if backup already exists)
+set "HTTPD_CONF_BAK=!HTTPD_CONF!.wbpms.bak"
+if not exist "!HTTPD_CONF_BAK!" (
+    copy "!HTTPD_CONF!" "!HTTPD_CONF_BAK!" >nul
+    echo  Backed up httpd.conf to !HTTPD_CONF_BAK!
+)
+
+:: --- Check / fix mod_rewrite ---
 findstr /I /R "^[^#]*LoadModule rewrite_module" "!HTTPD_CONF!" >nul 2>&1
 if errorlevel 1 (
-    echo.
-    echo  WARNING: mod_rewrite is not enabled in httpd.conf.
-    echo  WBPMS requires mod_rewrite for URL routing.
-    echo.
-    echo  To enable:
-    echo    1. Open: !HTTPD_CONF!
-    echo    2. Remove the # before:  LoadModule rewrite_module modules/mod_rewrite.so
-    echo    3. Save and restart Apache.
-    echo.
+    echo  mod_rewrite is disabled. Auto-fixing...
+    :: Use PowerShell to uncomment the LoadModule line reliably
+    powershell -NoProfile -Command ^
+        "(Get-Content '!HTTPD_CONF!') -replace '^#(LoadModule rewrite_module)', '$1' | Set-Content '!HTTPD_CONF!'"
+    findstr /I /R "^[^#]*LoadModule rewrite_module" "!HTTPD_CONF!" >nul 2>&1
+    if errorlevel 1 (
+        echo.
+        echo  ERROR: Could not auto-enable mod_rewrite in !HTTPD_CONF!
+        echo  Please open the file and remove the # before:
+        echo    LoadModule rewrite_module modules/mod_rewrite.so
+        echo.
+        goto :FAIL
+    )
+    echo  mod_rewrite enabled.  [FIXED]
+    set "_apache_changed=1"
 ) else (
     echo  mod_rewrite is enabled.  [OK]
 )
 
+:: --- Check / fix AllowOverride ---
 findstr /I "AllowOverride All" "!HTTPD_CONF!" >nul 2>&1
 if errorlevel 1 (
-    echo.
-    echo  WARNING: "AllowOverride All" not found in httpd.conf.
-    echo  The public\.htaccess rewrite rules may not be honoured.
-    echo.
-    echo  To fix:
-    echo    1. Open: !HTTPD_CONF!
-    echo    2. In the ^<Directory "C:/xampp/htdocs"^> block,
-    echo       change  AllowOverride None  to  AllowOverride All
-    echo    3. Save and restart Apache.
-    echo.
+    echo  AllowOverride is not set to All. Auto-fixing...
+    powershell -NoProfile -Command ^
+        "(Get-Content '!HTTPD_CONF!') -replace 'AllowOverride None', 'AllowOverride All' | Set-Content '!HTTPD_CONF!'"
+    findstr /I "AllowOverride All" "!HTTPD_CONF!" >nul 2>&1
+    if errorlevel 1 (
+        echo.
+        echo  ERROR: Could not auto-set AllowOverride All in !HTTPD_CONF!
+        echo  Please open the file and change AllowOverride None to AllowOverride All
+        echo  inside the ^<Directory "C:/xampp/htdocs"^> block, then restart Apache.
+        echo.
+        goto :FAIL
+    )
+    echo  AllowOverride set to All.  [FIXED]
+    set "_apache_changed=1"
 ) else (
     echo  AllowOverride All is set.  [OK]
+)
+
+:: --- Restart Apache if we changed httpd.conf ---
+if "!_apache_changed!"=="1" (
+    echo  Restarting Apache to apply config changes...
+    net stop apache >nul 2>&1
+    net stop apache2.4 >nul 2>&1
+    timeout /t 2 /nobreak >nul
+    net start apache >nul 2>&1
+    if errorlevel 1 net start apache2.4 >nul 2>&1
+    if errorlevel 1 (
+        if exist "!APACHE_BIN!" (
+            start /B "" "!APACHE_BIN!" -k restart >nul 2>&1
+        )
+    )
+    timeout /t 3 /nobreak >nul
+    tasklist /FI "IMAGENAME eq httpd.exe" 2>nul | find /I "httpd.exe" >nul
+    if errorlevel 1 (
+        echo.
+        echo  WARNING: Apache may not have restarted automatically.
+        echo  Please restart Apache from XAMPP Control Panel.
+        echo.
+    ) else (
+        echo  Apache restarted.  [OK]
+    )
 )
 
 :SKIP_REWRITE
 
 :: ============================================================
-:: STEP 8 — Health check
+:: STEP 10 — Health check (retries once if Apache just restarted)
 :: ============================================================
 echo.
-echo [8/8] Verifying application is reachable...
+echo [10/10] Verifying application is reachable...
 
 if "!APP_BASE_URL:~-1!"=="/" set "APP_BASE_URL=!APP_BASE_URL:~0,-1!"
 set "HEALTH_URL=!APP_BASE_URL!/health"
 
+set "_hc_attempts=0"
+:HEALTH_RETRY
 set "_status="
 for /f "delims=" %%S in ('powershell -NoProfile -Command ^
     "(try{(Invoke-WebRequest -Uri '!HEALTH_URL!' -UseBasicParsing -TimeoutSec 5).StatusCode}catch{$_.Exception.Response.StatusCode.value__})" ^
@@ -428,11 +509,22 @@ for /f "delims=" %%S in ('powershell -NoProfile -Command ^
 
 if "!_status!"=="200" (
     echo  Health check passed  [HTTP 200]  !HEALTH_URL!
-) else if "!_status!"=="" (
+    goto :HEALTH_DONE
+)
+
+set /a _hc_attempts+=1
+if !_hc_attempts! LSS 2 (
+    echo  No response yet — waiting 5 seconds and retrying...
+    timeout /t 5 /nobreak >nul
+    goto :HEALTH_RETRY
+)
+
+if "!_status!"=="" (
     echo.
     echo  WARNING: No response from !HEALTH_URL!
-    echo  Apache may still be starting, or mod_rewrite may need to be enabled.
-    echo  Try opening manually: !APP_BASE_URL!/login
+    echo  Apache may still be starting up. Try opening manually:
+    echo    !APP_BASE_URL!/login
+    echo  If the page does not load, start Apache from XAMPP Control Panel.
     echo.
 ) else (
     echo.
@@ -440,6 +532,8 @@ if "!_status!"=="200" (
     echo  Check: !XAMPP_ROOT!\apache\logs\error.log
     echo.
 )
+
+:HEALTH_DONE
 
 :: ============================================================
 :: SUCCESS
