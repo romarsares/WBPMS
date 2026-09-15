@@ -43,7 +43,6 @@ $nav = match ($roleName) {
         ['hr/dashboard',     'Dashboard',              '⌂', 'dashboard'],
         ['hr/employees',     'Employee Management',    '♟', 'employees'],
         ['hr/attendance',    'Attendance',             '◷', 'attendance'],
-        ['hr/attendance/policy/flags', 'Policy Flags',    '⚑', 'policy-flags'],
         ['hr/schedules',     'Work Schedule',          '▣', 'schedule'],
         ['hr/requests',      'Requests',               '▱', 'requests'],
         ['hr/payroll',       'Payroll Processing',     '₱', 'payroll'],

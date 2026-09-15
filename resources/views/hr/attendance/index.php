@@ -53,6 +53,8 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
         <p>Review employee timesheets and attendance records.</p>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center">
+        <a href="<?= $base ?>/hr/attendance/policy/flags" class="btn btn-secondary no-print">Policy Flags</a>
+        <a href="<?= $base ?>/hr/attendance/frequency-report" class="btn btn-secondary no-print">Frequency Report</a>
         <button type="button" class="btn btn-secondary no-print" onclick="window.print()">Print Attendance</button>
         <a href="<?= $base ?>/hr/attendance/import" class="btn btn-primary no-print">Import Workbook</a>
     </div>

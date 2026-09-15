@@ -49,7 +49,9 @@ final class AttendancePolicyController
             'rows' => $rows,
             'counts' => $counts,
             'filters' => $filters,
-            'activePage' => 'policy-flags',
+            // Policy flags are an attendance-management function, not a
+            // separate module in the sidebar.
+            'activePage' => 'attendance',
             'defaultFrom' => $today->modify('-30 days')->format('Y-m-d'),
             'defaultTo' => $today->format('Y-m-d'),
         ], 'Attendance Policy Flags');

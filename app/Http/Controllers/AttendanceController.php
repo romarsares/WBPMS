@@ -308,6 +308,190 @@ final class AttendanceController
         ], 'Attendance Management');
     }
 
+    // -----------------------------------------------------------------------
+    // GET /hr/attendance/frequency-report
+    // -----------------------------------------------------------------------
+
+    /**
+     * Frequency view for HR: counts late arrivals and verified absence days.
+     * An absence is only counted after a completed scheduled workday where an
+     * approved attendance import covers the employee's branch. This keeps a
+     * missing upload, a holiday, and approved leave out of the report.
+     *
+     * @param array<string, string> $params
+     */
+    public function frequencyReport(array $params = []): void
+    {
+        $pdo = $this->makeConnection()->pdo();
+        $manilaNow = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila'));
+        $defaultFrom = $manilaNow->modify('first day of this month')->format('Y-m-d');
+        $defaultTo = $manilaNow->format('Y-m-d');
+
+        $dateFrom = trim((string) ($_GET['date_from'] ?? $defaultFrom));
+        $dateTo = trim((string) ($_GET['date_to'] ?? $defaultTo));
+        if (!$this->isIsoDate($dateFrom) || !$this->isIsoDate($dateTo) || $dateFrom > $dateTo) {
+            $dateFrom = $defaultFrom;
+            $dateTo = $defaultTo;
+        }
+        // A bounded range keeps the matrix-equivalent absence calculation
+        // responsive while still allowing a full rolling year.
+        if ((new \DateTimeImmutable($dateFrom))->diff(new \DateTimeImmutable($dateTo))->days > 366) {
+            $dateFrom = (new \DateTimeImmutable($dateTo))->modify('-366 days')->format('Y-m-d');
+        }
+
+        $branchValue = filter_var($_GET['branch_id'] ?? null, FILTER_VALIDATE_INT);
+        $branchId = $branchValue !== false && $branchValue !== null && $branchValue > 0 ? $branchValue : null;
+        $search = trim((string) ($_GET['search'] ?? ''));
+
+        $employeeWhere = ["e.status = 'Active'"];
+        $employeeBind = [];
+        if ($branchId !== null) {
+            $employeeWhere[] = 'eba.branch_id = :branch_id';
+            $employeeBind[':branch_id'] = $branchId;
+        }
+        if ($search !== '') {
+            $employeeWhere[] = '(e.last_name LIKE :search_last OR e.first_name LIKE :search_first OR e.employee_number LIKE :search_number)';
+            $pattern = '%' . $search . '%';
+            $employeeBind[':search_last'] = $pattern;
+            $employeeBind[':search_first'] = $pattern;
+            $employeeBind[':search_number'] = $pattern;
+        }
+        $employeeStmt = $pdo->prepare(
+            "SELECT e.employee_id, e.employee_number, e.hire_date,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    b.branch_name
+               FROM employee e
+               LEFT JOIN employee_branch_assignment eba
+                      ON eba.employee_id = e.employee_id AND eba.effective_to IS NULL
+               LEFT JOIN branch b ON b.branch_id = eba.branch_id
+              WHERE " . implode(' AND ', $employeeWhere) . "
+              ORDER BY e.last_name ASC, e.first_name ASC
+              LIMIT 200"
+        );
+        $employeeStmt->execute($employeeBind);
+        $employees = $employeeStmt->fetchAll();
+
+        $dates = [];
+        for ($day = new \DateTimeImmutable($dateFrom); $day <= new \DateTimeImmutable($dateTo); $day = $day->modify('+1 day')) {
+            $dates[] = $day->format('Y-m-d');
+        }
+        $scheduledWorkingDays = $this->scheduledWorkingDays($pdo, $employees, $dates, $dateFrom, $dateTo);
+        $attendanceUploadCoverage = $this->attendanceUploadCoverage($pdo, $employees, $dates);
+
+        $employeeIds = array_map(static fn(array $employee): int => (int) $employee['employee_id'], $employees);
+        $attendanceByEmployeeDate = [];
+        $tardiness = [];
+        if ($employeeIds !== []) {
+            $placeholders = [];
+            $attendanceBind = [':report_from' => $dateFrom, ':report_to' => $dateTo];
+            foreach ($employeeIds as $index => $employeeId) {
+                $placeholder = ':report_employee_' . $index;
+                $placeholders[] = $placeholder;
+                $attendanceBind[$placeholder] = $employeeId;
+            }
+            $attendanceStmt = $pdo->prepare(
+                "SELECT employee_id, attendance_date, late_minutes
+                   FROM attendance
+                  WHERE employee_id IN (" . implode(', ', $placeholders) . ")
+                    AND attendance_date BETWEEN :report_from AND :report_to
+                    AND status <> 'Cancelled'"
+            );
+            $attendanceStmt->execute($attendanceBind);
+            foreach ($attendanceStmt->fetchAll() as $attendance) {
+                $employeeId = (int) $attendance['employee_id'];
+                $attendanceDate = (string) $attendance['attendance_date'];
+                $attendanceByEmployeeDate[$employeeId][$attendanceDate] = true;
+                $lateMinutes = (int) $attendance['late_minutes'];
+                if ($lateMinutes > 0) {
+                    $tardiness[$employeeId]['days'] = ($tardiness[$employeeId]['days'] ?? 0) + 1;
+                    $tardiness[$employeeId]['minutes'] = ($tardiness[$employeeId]['minutes'] ?? 0) + $lateMinutes;
+                }
+            }
+        }
+
+        $approvedLeaves = [];
+        $leaveStmt = $pdo->prepare(
+            "SELECT r.employee_id, lrd.start_date, lrd.end_date
+               FROM request r
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id AND rt.type_name = 'Leave'
+               JOIN leave_request_detail lrd ON lrd.request_id = r.request_id
+              WHERE r.status = 'Approved'
+                AND lrd.start_date <= :report_to AND lrd.end_date >= :report_from"
+        );
+        $leaveStmt->execute([':report_from' => $dateFrom, ':report_to' => $dateTo]);
+        $selectedEmployeeIds = array_fill_keys($employeeIds, true);
+        foreach ($leaveStmt->fetchAll() as $leave) {
+            $employeeId = (int) $leave['employee_id'];
+            if (!isset($selectedEmployeeIds[$employeeId])) {
+                continue;
+            }
+            $start = max((string) $leave['start_date'], $dateFrom);
+            $end = min((string) $leave['end_date'], $dateTo);
+            for ($day = new \DateTimeImmutable($start); $day <= new \DateTimeImmutable($end); $day = $day->modify('+1 day')) {
+                $approvedLeaves[$employeeId][$day->format('Y-m-d')] = true;
+            }
+        }
+
+        $holidayStmt = $pdo->prepare(
+            "SELECT holiday_date FROM holiday_calendar
+              WHERE status = 'Active' AND holiday_date BETWEEN :report_from AND :report_to"
+        );
+        $holidayStmt->execute([':report_from' => $dateFrom, ':report_to' => $dateTo]);
+        $holidayDates = array_fill_keys(array_map(
+            static fn(array $holiday): string => (string) $holiday['holiday_date'],
+            $holidayStmt->fetchAll()
+        ), true);
+        $today = $manilaNow->format('Y-m-d');
+
+        $reportRows = [];
+        $summary = ['tardy_days' => 0, 'late_minutes' => 0, 'absence_days' => 0, 'employees_affected' => 0];
+        foreach ($employees as $employee) {
+            $employeeId = (int) $employee['employee_id'];
+            $absenceDays = 0;
+            foreach ($dates as $date) {
+                $isWorkingDay = ($scheduledWorkingDays[$employeeId][$date] ?? false) && !isset($holidayDates[$date]);
+                if (!isset($attendanceByEmployeeDate[$employeeId][$date])
+                    && !isset($approvedLeaves[$employeeId][$date])
+                    && $date < $today
+                    && $date >= (string) $employee['hire_date']
+                    && $isWorkingDay
+                    && ($attendanceUploadCoverage[$employeeId][$date] ?? null) === 'Covered') {
+                    $absenceDays++;
+                }
+            }
+            $tardyDays = (int) ($tardiness[$employeeId]['days'] ?? 0);
+            $lateMinutes = (int) ($tardiness[$employeeId]['minutes'] ?? 0);
+            $frequency = $tardyDays + $absenceDays;
+            $reportRows[] = [
+                'employee_number' => (string) $employee['employee_number'],
+                'employee_name' => (string) $employee['employee_name'],
+                'branch_name' => (string) ($employee['branch_name'] ?? '—'),
+                'tardy_days' => $tardyDays,
+                'late_minutes' => $lateMinutes,
+                'absence_days' => $absenceDays,
+                'frequency' => $frequency,
+            ];
+            $summary['tardy_days'] += $tardyDays;
+            $summary['late_minutes'] += $lateMinutes;
+            $summary['absence_days'] += $absenceDays;
+            $summary['employees_affected'] += $frequency > 0 ? 1 : 0;
+        }
+        usort($reportRows, static fn(array $left, array $right): int =>
+            $right['frequency'] <=> $left['frequency'] ?: strcmp($left['employee_name'], $right['employee_name'])
+        );
+
+        ViewRenderer::render('hr/attendance/frequency-report', [
+            'rows' => $reportRows,
+            'summary' => $summary,
+            'dateFrom' => $dateFrom,
+            'dateTo' => $dateTo,
+            'branches' => $pdo->query("SELECT branch_id, branch_name FROM branch WHERE status = 'Active' ORDER BY branch_name")->fetchAll(),
+            'branchId' => $branchId,
+            'search' => $search,
+            'activePage' => 'attendance',
+        ], 'Attendance Frequency Report');
+    }
+
     /**
      * @param list<array<string, mixed>> $employees
      * @param list<string> $dates
@@ -1045,6 +1229,12 @@ final class AttendanceController
     private function makeConnection(): Connection
     {
         return new Connection(require APP_ROOT . '/config/database.php');
+    }
+
+    private function isIsoDate(string $value): bool
+    {
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        return $parsed !== false && $parsed->format('Y-m-d') === $value;
     }
 
     private function adjustmentService(): AttendanceAdjustmentService

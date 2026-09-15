@@ -141,6 +141,7 @@ $router->add('PUT',  '/hr/schedules/{id}',          [ScheduleController::class, 
 // ---------------------------------------------------------------------------
 
 $router->add('GET',  '/hr/attendance',        [AttendanceController::class, 'index'],  ['HRHead']);
+$router->add('GET',  '/hr/attendance/frequency-report', [AttendanceController::class, 'frequencyReport'], ['HRHead']);
 $router->add('GET',  '/hr/attendance/import', [AttendanceController::class, 'import'], ['HRHead']);
 $router->add('POST', '/hr/attendance/import', [AttendanceController::class, 'upload'], ['HRHead']);
 $router->add('POST', '/hr/attendance/import/confirm', [AttendanceController::class, 'confirmImport'], ['HRHead']);
