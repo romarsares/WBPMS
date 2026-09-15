@@ -141,7 +141,7 @@ $router->add('PUT',  '/hr/schedules/{id}',          [ScheduleController::class, 
 // ---------------------------------------------------------------------------
 
 $router->add('GET',  '/hr/attendance',        [AttendanceController::class, 'index'],  ['HRHead']);
-$router->add('GET',  '/hr/attendance/frequency-report', [AttendanceController::class, 'frequencyReport'], ['HRHead']);
+$router->add('GET',  '/hr/attendance/frequency-report', [AttendanceController::class, 'frequencyReport'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/attendance/import', [AttendanceController::class, 'import'], ['HRHead']);
 $router->add('POST', '/hr/attendance/import', [AttendanceController::class, 'upload'], ['HRHead']);
 $router->add('POST', '/hr/attendance/import/confirm', [AttendanceController::class, 'confirmImport'], ['HRHead']);
@@ -201,6 +201,11 @@ $router->add('POST', '/hr/payroll/{id}/employees/{payrollId}/adjust', [PayrollCo
 $router->add('POST', '/hr/payroll/{id}/compute',     [PayrollController::class, 'compute'],  ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/submit',      [PayrollController::class, 'submit'],   ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/cancel',      [PayrollController::class, 'cancel'],   ['HRHead']);
+
+// Printable payroll documents. These use a neutral path because both HR and
+// the Business Owner may review the same source records.
+$router->add('GET',  '/payroll/{id}/timesheet', [PayrollController::class, 'printTimesheet'], ['HRHead', 'BusinessOwner']);
+$router->add('GET',  '/payroll/{id}/disbursement-summary', [PayrollController::class, 'disbursementSummary'], ['HRHead', 'BusinessOwner']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Reports  (REQ065–REQ073)

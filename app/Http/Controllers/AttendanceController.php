@@ -480,6 +480,7 @@ final class AttendanceController
             $right['frequency'] <=> $left['frequency'] ?: strcmp($left['employee_name'], $right['employee_name'])
         );
 
+        $isOwner = (AuthMiddleware::identity()['role_name'] ?? '') === 'BusinessOwner';
         ViewRenderer::render('hr/attendance/frequency-report', [
             'rows' => $reportRows,
             'summary' => $summary,
@@ -488,7 +489,9 @@ final class AttendanceController
             'branches' => $pdo->query("SELECT branch_id, branch_name FROM branch WHERE status = 'Active' ORDER BY branch_name")->fetchAll(),
             'branchId' => $branchId,
             'search' => $search,
-            'activePage' => 'attendance',
+            'activePage' => $isOwner ? 'reports' : 'attendance',
+            'backPath' => $isOwner ? '/hr/reports' : '/hr/attendance',
+            'backLabel' => $isOwner ? 'Back to Reports' : 'Back to Attendance',
         ], 'Attendance Frequency Report');
     }
 

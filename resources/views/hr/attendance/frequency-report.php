@@ -20,6 +20,8 @@ $dateFrom ??= '';
 $dateTo ??= '';
 $branchId ??= null;
 $search ??= '';
+$backPath ??= '/hr/attendance';
+$backLabel ??= 'Back to Attendance';
 $rangeLabel = $dateFrom !== '' && $dateTo !== ''
     ? Formatter::date($dateFrom) . ' – ' . Formatter::date($dateTo)
     : 'Selected period';
@@ -32,7 +34,7 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
         <p>Track tardiness and verified absences by employee for a selected period.</p>
     </div>
     <div class="report-actions no-print">
-        <a href="<?= $base ?>/hr/attendance" class="btn btn-secondary">Back to Attendance</a>
+        <a href="<?= $base ?><?= Formatter::escape($backPath) ?>" class="btn btn-secondary"><?= Formatter::escape($backLabel) ?></a>
         <button type="button" class="btn btn-primary" onclick="window.print()">Print Report</button>
     </div>
 </div>

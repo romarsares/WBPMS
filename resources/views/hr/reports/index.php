@@ -26,6 +26,7 @@
     $reportTypes = [
         ['label'=>'Payroll Summary',      'type'=>'payroll',     'icon'=>'₱'],
         ['label'=>'Attendance Report',    'type'=>'attendance',  'icon'=>'◷'],
+        ['label'=>'Attendance Frequency', 'type'=>'frequency',   'icon'=>'▥'],
         ['label'=>'Leave/Request Report', 'type'=>'requests',    'icon'=>'▤'],
         ['label'=>'Contributions Report', 'type'=>'contributions','icon'=>'♦'],
         ['label'=>'13th Month Pay',       'type'=>'13th_month',  'icon'=>'★'],
@@ -34,7 +35,9 @@
     foreach ($reportTypes as $rt): ?>
     <a href="<?= $rt['type'] === '13th_month'
         ? $base . '/hr/reports/13th-month'
-        : $base . '/hr/reports/' . htmlspecialchars($rt['type']) ?>"
+        : ($rt['type'] === 'frequency'
+            ? $base . '/hr/attendance/frequency-report'
+            : $base . '/hr/reports/' . htmlspecialchars($rt['type'])) ?>"
        class="card" style="text-decoration:none;display:flex;align-items:center;gap:.75rem;padding:1rem">
         <span style="font-size:1.5rem"><?= $rt['icon'] ?></span>
         <span style="font-weight:500"><?= htmlspecialchars($rt['label']) ?></span>

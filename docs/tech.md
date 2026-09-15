@@ -152,6 +152,10 @@ php -S 127.0.0.1:8080 -t public public/router.php
 Production runs through Nginx or Apache with PHP-FPM and `public/` as the
 document root; PHP's built-in server is not a production server.
 
+For a clean Windows 11 XAMPP installation, including the required Apache
+`FallbackResource /index.php` front-controller routing, see the
+[Fresh Windows 11 / XAMPP deployment guide](xampp-windows-deployment.md).
+
 ## Frozen MVP choices
 
 - PHP 8.5 and Composer 2; versions are locked in `composer.lock`.

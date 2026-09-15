@@ -130,6 +130,7 @@ device identifiers are retained for HR review.
 | [Requirements](docs/requirements.md) | User stories and acceptance criteria with original REQ/REQN traceability identifiers. |
 | [Design](docs/design.md) | Application architecture, service interfaces, reconciled data model, error handling, and testing strategy. |
 | [Technology stack](docs/tech.md) | Planned runtime, framework, database, integrations, and non-functional constraints. |
+| [Fresh Windows 11 / XAMPP deployment](docs/xampp-windows-deployment.md) | Step-by-step local or private-network setup with Apache, MariaDB/MySQL, Composer, migrations, seeders, and front-controller routing. |
 | [Implementation plan](docs/tasks.md) | Module-by-module implementation and testing checklist. |
 | [Employee lifecycle specification](docs/employee-lifecycle-archive-rehire-spec.md) | Proposed archive, rehire, account, historical-data, and scanned-document rules. |
 | [Two-developer task distribution](docs/two-developer-task-distribution.md) | Active P0 ownership, task IDs, handoffs, and deferred work for the current team. |

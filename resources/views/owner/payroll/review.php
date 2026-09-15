@@ -34,7 +34,11 @@ foreach ($deductions as $deduction) {
         <h1>Payroll Review — <?= htmlspecialchars($run['branch_name']) ?></h1>
         <p><?= htmlspecialchars($run['period_label']) ?> &nbsp;|&nbsp; <a href="<?= $base ?>/owner/payroll">← Back to Approvals</a></p>
     </div>
-    <span style="background:<?= $sc ?>;color:#fff;padding:4px 14px;border-radius:9999px;font-size:.875rem;align-self:center"><?= htmlspecialchars($run['status'] === 'PendingOwnerApproval' ? 'Pending Your Approval' : $run['status']) ?></span>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+        <a href="<?= $base ?>/payroll/<?= $runId ?>/timesheet" class="btn btn-secondary" style="font-size:.8rem">Cut-off Timesheet</a>
+        <a href="<?= $base ?>/payroll/<?= $runId ?>/disbursement-summary" class="btn btn-secondary" style="font-size:.8rem">Disbursement Summary</a>
+        <span style="background:<?= $sc ?>;color:#fff;padding:4px 14px;border-radius:9999px;font-size:.875rem"><?= htmlspecialchars($run['status'] === 'PendingOwnerApproval' ? 'Pending Your Approval' : $run['status']) ?></span>
+    </div>
 </div>
 
 <!-- Summary strip -->
