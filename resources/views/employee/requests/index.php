@@ -45,7 +45,7 @@ $statusBadge = static function (string $status): string {
         <div>
             <label style="font-size:.8rem;font-weight:500;color:#374151;display:block;margin-bottom:.25rem">Status</label>
             <select name="status" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
-                <option value="">All statuses</option>
+                <option value="">All</option>
                 <option value="Pending"   <?= $filterStatus === 'Pending'   ? 'selected' : '' ?>>Pending</option>
                 <option value="Approved"  <?= $filterStatus === 'Approved'  ? 'selected' : '' ?>>Approved</option>
                 <option value="Rejected"  <?= $filterStatus === 'Rejected'  ? 'selected' : '' ?>>Rejected</option>

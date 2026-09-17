@@ -46,7 +46,7 @@ $statusOptions = match ($type) {
         <div><label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Program</label><select name="program"><option value="">All programs</option><?php foreach (['SSS', 'PhilHealth', 'PagIBIG'] as $program): ?><option value="<?= $program ?>" <?= ($filters['program'] ?? '') === $program ? 'selected' : '' ?>><?= $program ?></option><?php endforeach; ?></select></div>
         <?php endif; ?>
         <?php if ($hasStatusFilter): ?>
-        <div><label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Status</label><select name="status"><option value="">All statuses</option><?php foreach ($statusOptions as $status): ?><option value="<?= $status ?>" <?= ($filters['status'] ?? '') === $status ? 'selected' : '' ?>><?= $status ?></option><?php endforeach; ?></select></div>
+        <div><label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Status</label><select name="status"><option value="">All</option><?php foreach ($statusOptions as $status): ?><option value="<?= $status ?>" <?= ($filters['status'] ?? '') === $status ? 'selected' : '' ?>><?= $status ?></option><?php endforeach; ?></select></div>
         <?php endif; ?>
         <?php if ($type !== 'payroll'): ?>
         <div><label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Employee</label><input type="search" name="employee_search" value="<?= Formatter::escape((string) ($filters['employee_search'] ?? '')) ?>" placeholder="Name or employee no."></div>

@@ -9,7 +9,15 @@ use Wbpms\Http\View\Formatter;
  * @var string   $base
  * @var string   $csrfField
  * @var array[]  $flash
+ * @var array[]  $positions       Active job positions for filter dropdown
+ * @var string   $filterPosition  Current position filter value
+ * @var string   $filterUsername  Current username filter value
+ * @var string   $filterStatus    Current status filter value
  */
+$positions      ??= [];
+$filterPosition ??= '';
+$filterUsername ??= '';
+$filterStatus   ??= '';
 ?>
 <div class="page-head">
     <div><h1>User Management</h1><p>System accounts and role assignments.</p></div>
@@ -29,8 +37,45 @@ use Wbpms\Http\View\Formatter;
     <div class="stat"><strong style="color:var(--bad)"><?= $archived ?></strong><span>Archived</span></div>
 </div>
 
-<div class="filterbar">
-    <div class="local-search-wrap">⌕<input placeholder="Search users..." oninput="filterRows(this,'usersTable')"></div>
+<!-- Filters -->
+<div class="card" style="padding:.9rem 1.25rem;margin-bottom:1.25rem">
+    <form method="GET" action="<?= $base ?>/users" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end">
+        <div>
+            <label style="font-size:.8rem;font-weight:500;color:#374151;display:block;margin-bottom:.25rem">Username</label>
+            <input
+                type="text"
+                name="username"
+                value="<?= Formatter::escape($filterUsername) ?>"
+                placeholder="Search username..."
+                style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem;width:180px"
+            >
+        </div>
+        <div>
+            <label style="font-size:.8rem;font-weight:500;color:#374151;display:block;margin-bottom:.25rem">Status</label>
+            <select name="status" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
+                <option value="">All</option>
+                <option value="active"   <?= $filterStatus === 'active'   ? 'selected' : '' ?>>Active</option>
+                <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                <option value="archived" <?= $filterStatus === 'archived' ? 'selected' : '' ?>>Archived</option>
+            </select>
+        </div>
+        <div>
+            <label style="font-size:.8rem;font-weight:500;color:#374151;display:block;margin-bottom:.25rem">Job Position</label>
+            <select name="position" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
+                <option value="">All positions</option>
+                <?php foreach ($positions as $pos): ?>
+                <option value="<?= Formatter::escape($pos['name']) ?>"
+                    <?= ($pos['name'] === $filterPosition) ? 'selected' : '' ?>>
+                    <?= Formatter::escape($pos['name']) ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Filter</button>
+        <?php if ($filterUsername !== '' || $filterStatus !== '' || $filterPosition !== ''): ?>
+        <a href="<?= $base ?>/users" class="btn btn-secondary">Clear</a>
+        <?php endif; ?>
+    </form>
 </div>
 
 <div class="panel table-wrap">

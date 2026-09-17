@@ -47,19 +47,30 @@ final class EmployeeController
         $statusInUrl = array_key_exists('status', $_GET);
         $status      = $statusInUrl ? (string) ($_GET['status'] ?? '') : 'active';
 
+        $position = trim((string) ($_GET['position'] ?? ''));
+
         $employees = $repo->findAll([
-            'search' => $search,
-            'branch' => $branch,
-            'status' => $status,
+            'search'   => $search,
+            'branch'   => $branch,
+            'status'   => $status,
+            'position' => $position,
         ]);
-        $branches = $repo->activeBranches();
+        $branches  = $repo->activeBranches();
+        $positions = $this->makeConnection()->pdo()->query(
+            "SELECT position_title AS name
+               FROM job_position
+              WHERE status = 'Active'
+              ORDER BY sort_order ASC, position_title ASC"
+        )->fetchAll(\PDO::FETCH_ASSOC);
 
         ViewRenderer::render('hr/employees/index', [
-            'employees'    => $employees,
-            'branches'     => $branches,
-            'search'       => $search,
-            'filterBranch' => $branch,
-            'filterStatus' => $status,
+            'employees'      => $employees,
+            'branches'       => $branches,
+            'positions'      => $positions,
+            'search'         => $search,
+            'filterBranch'   => $branch,
+            'filterStatus'   => $status,
+            'filterPosition' => $position,
         ], 'Employees');
     }
 

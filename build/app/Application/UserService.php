@@ -1,0 +1,604 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Wbpms\Application;
+
+use PDO;
+use PDOException;
+use RuntimeException;
+use Wbpms\Infrastructure\Database\Connection;
+
+/**
+ * UserService — application service for user account management.
+ *
+ * Implements REQ004–REQ008:
+ *   REQ004  List users with role and status filters
+ *   REQ005  Create a user account (HR Head or Business Owner initiates)
+ *   REQ006  Update username, email, role assignment
+ *   REQ007  Activate / Deactivate a user (toggle Active ↔ Inactive)
+ *   REQ008  Archive a user (Archived — soft delete, never hard delete)
+ *
+ * Business rules:
+ *   - Usernames and account_email must be unique across the users table.
+ *   - Passwords are hashed with password_hash(PASSWORD_DEFAULT).
+ *   - An Archived user cannot be re-activated; status transitions are
+ *     Active → Inactive → Active (toggle) and any → Archived (one-way).
+ *   - Employee-role accounts require employee_id. Unlinking an existing
+ *     Employee account automatically deactivates it.
+ *   - All mutations are audited via audit_logs when an acting_user_id is supplied.
+ *
+ * No SQL belongs in controllers; all queries live here.
+ */
+final class UserService
+{
+    public function __construct(private Connection $connection) {}
+
+    // -----------------------------------------------------------------------
+    // REQ004 — List
+    // -----------------------------------------------------------------------
+
+    /**
+     * Return all non-archived users with their role name.
+     * Pass $includeArchived = true to include Archived rows (for admin view).
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function list(bool $includeArchived = false): array
+    {
+        $sql = "SELECT u.user_id, u.username, u.account_email, u.status,
+                       u.employee_id, u.created_at, u.updated_at,
+                       r.role_id, r.role_name,
+                       CONCAT(e.last_name, ', ', e.first_name) AS employee_name
+                  FROM users u
+                  JOIN role r   ON r.role_id = u.role_id
+                  LEFT JOIN employee e ON e.employee_id = u.employee_id";
+
+        if (!$includeArchived) {
+            $sql .= " WHERE u.status != 'Archived'";
+        }
+
+        $sql .= " ORDER BY u.created_at DESC";
+
+        return $this->connection->pdo()->query($sql)->fetchAll();
+    }
+
+    // -----------------------------------------------------------------------
+    // Requirement 13 — Auto-provision an Employee user account
+    // -----------------------------------------------------------------------
+
+    /**
+     * Derive a unique username from first and last name.
+     *
+     * Format: firstname.lastname (lowercase ASCII, spaces/hyphens stripped).
+     * If the base candidate is taken, appends an incrementing suffix:
+     *   juan.delacruz → juan.delacruz2 → juan.delacruz3 …
+     *
+     * Called by EmployeeController::store() before the transaction opens.
+     */
+    public function deriveUsername(string $firstName, string $lastName): string
+    {
+        $slug = static fn(string $s): string =>
+            preg_replace(
+                '/[^a-z0-9.]/',
+                '',
+                str_replace([' ', '-', "'"], '', strtolower(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s))
+            ) ?? '';
+
+        $base = $slug($firstName) . '.' . $slug($lastName);
+        if ($base === '.') {
+            $base = 'employee';
+        }
+
+        // Trim to fit column limit (50) leaving room for a suffix
+        $base = substr($base, 0, 45);
+
+        $pdo  = $this->connection->pdo();
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE username = :u");
+
+        $candidate = $base;
+        $suffix    = 2;
+        while (true) {
+            $stmt->execute([':u' => $candidate]);
+            if ((int) $stmt->fetchColumn() === 0) {
+                break;
+            }
+            $candidate = $base . $suffix;
+            $suffix++;
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * Generate a cryptographically random temporary password.
+     *
+     * Produces a 12-character mixed-case alphanumeric string that satisfies
+     * the minimum 8-character policy enforced by validateCreateInput().
+     */
+    public function generateTemporaryPassword(): string
+    {
+        $chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        $len   = strlen($chars);
+        $out   = '';
+        for ($i = 0; $i < 12; $i++) {
+            $out .= $chars[random_int(0, $len - 1)];
+        }
+        return $out;
+    }
+
+    /**
+     * Provision an Employee user account inside an already-open transaction.
+     *
+     * Must be called with the *same* PDO connection that owns the outer
+     * transaction so that employee creation + account creation are atomic.
+     *
+     * Returns the new user_id.
+     *
+     * Requirement 13, AC1–AC4, AC7, AC11.
+     *
+     * @throws RuntimeException on role lookup failure or duplicate username
+     */
+    public function provisionForEmployee(
+        PDO    $pdo,
+        int    $employeeId,
+        string $username,
+        string $temporaryPassword,
+        int    $actingUserId
+    ): int {
+        // Resolve the Employee role_id
+        $roleStmt = $pdo->prepare("SELECT role_id FROM role WHERE role_name = 'Employee' LIMIT 1");
+        $roleStmt->execute();
+        $roleId = $roleStmt->fetchColumn();
+        if ($roleId === false) {
+            throw new RuntimeException("Role 'Employee' not found in the role table.");
+        }
+        $roleId = (int) $roleId;
+
+        // Guard: employee must not already have an active account
+        $dupStmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM users WHERE employee_id = :emp AND status != 'Archived'"
+        );
+        $dupStmt->execute([':emp' => $employeeId]);
+        if ((int) $dupStmt->fetchColumn() > 0) {
+            throw new RuntimeException('This employee already has an active user account.');
+        }
+
+        $hash = password_hash($temporaryPassword, PASSWORD_DEFAULT);
+
+        $ins = $pdo->prepare(
+            "INSERT INTO users
+                (employee_id, role_id, username, account_email,
+                 password_hash, status, requires_password_change)
+             VALUES
+                (:emp, :role, :user, :email,
+                 :pwd, 'Active', 1)"
+        );
+        $ins->execute([
+            ':emp'   => $employeeId,
+            ':role'  => $roleId,
+            ':user'  => $username,
+            // account_email is required (NOT NULL unique); use a system placeholder
+            // so HR can supply a real address later via User Management.
+            ':email' => 'noemail+emp' . $employeeId . '@lde.local',
+            ':pwd'   => $hash,
+        ]);
+
+        $newUserId = (int) $pdo->lastInsertId();
+
+        // Audit inside the same transaction
+        $pdo->prepare(
+            "INSERT INTO audit_logs
+                (user_id, event_type, action_performed, table_affected,
+                 record_id, description, action_at)
+             VALUES
+                (:uid, 'user_provisioned', 'user_provisioned', 'users',
+                 :rid, :desc, NOW())"
+        )->execute([
+            ':uid'  => $actingUserId,
+            ':rid'  => $newUserId,
+            ':desc' => "Auto-provisioned Employee account '{$username}' for employee_id={$employeeId}",
+        ]);
+
+        return $newUserId;
+    }
+
+    /**
+     * Clear the requires_password_change flag after the employee sets their
+     * own password.  Called by AuthController::changePassword().
+     *
+     * Requirement 13, AC6.
+     */
+    public function clearPasswordChangeFlag(int $userId): void
+    {
+        $this->connection->pdo()
+            ->prepare("UPDATE users SET requires_password_change = 0 WHERE user_id = :id")
+            ->execute([':id' => $userId]);
+    }
+
+    // -----------------------------------------------------------------------
+    // REQ005 — Create
+    // -----------------------------------------------------------------------
+
+    /**
+     * Create a new user account.
+     *
+     * @param array{
+     *   username:       string,
+     *   account_email:  string,
+     *   password:       string,
+     *   role_id:        int,
+     *   employee_id?:   int|null,
+     * } $data
+     *
+     * @throws RuntimeException on duplicate username/email or invalid role
+     */
+    public function create(array $data, int $actingUserId): int
+    {
+        $username     = trim($data['username'] ?? '');
+        $email        = trim($data['account_email'] ?? '');
+        $password     = $data['password'] ?? '';
+        $roleId       = (int) ($data['role_id'] ?? 0);
+        $employeeId   = isset($data['employee_id']) && $data['employee_id'] !== ''
+                        ? (int) $data['employee_id'] : null;
+
+        $this->validateCreateInput($username, $email, $password, $roleId);
+        $this->assertUniqueUsername($username);
+        $this->assertUniqueEmail($email);
+        $roleName = $this->roleNameForId($roleId);
+        if (AuthenticationPolicy::isUnlinkedEmployee($roleName, $employeeId)) {
+            throw new RuntimeException('An Employee account must be linked to an employee profile.');
+        }
+        if ($employeeId !== null) {
+            $this->assertEmployeeNotLinked($employeeId);
+        }
+
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+
+        $userId = $this->connection->transaction(function (PDO $pdo) use (
+            $username, $email, $hash, $roleId, $employeeId, $actingUserId
+        ): int {
+            $stmt = $pdo->prepare(
+                "INSERT INTO users (employee_id, role_id, username, account_email, password_hash, status)
+                 VALUES (:emp, :role, :user, :email, :pwd, 'Active')"
+            );
+            $stmt->execute([
+                ':emp'   => $employeeId,
+                ':role'  => $roleId,
+                ':user'  => $username,
+                ':email' => $email,
+                ':pwd'   => $hash,
+            ]);
+            $newId = (int) $pdo->lastInsertId();
+
+            $this->insertAudit($pdo, $actingUserId, 'user_created', 'users', $newId,
+                "Created user '{$username}' with role_id={$roleId}");
+
+            return $newId;
+        });
+
+        return $userId;
+    }
+
+    // -----------------------------------------------------------------------
+    // REQ006 — Update
+    // -----------------------------------------------------------------------
+
+    /**
+     * Update username, email, and/or role for an existing user.
+     *
+     * @param array{
+     *   username?:      string,
+     *   account_email?: string,
+     *   role_id?:       int,
+     *   employee_id?:   int|null,
+     * } $data
+     *
+     * @throws RuntimeException when user not found, duplicate, or invalid role
+     */
+    public function update(int $userId, array $data, int $actingUserId): void
+    {
+        $user = $this->findOrFail($userId);
+
+        $username   = trim($data['username']      ?? $user['username']);
+        $email      = trim($data['account_email'] ?? $user['account_email']);
+        $roleId     = isset($data['role_id']) ? (int) $data['role_id'] : (int) $user['role_id'];
+        $employeeId = array_key_exists('employee_id', $data)
+                      ? ($data['employee_id'] !== '' && $data['employee_id'] !== null
+                         ? (int) $data['employee_id'] : null)
+                      : ($user['employee_id'] !== null ? (int) $user['employee_id'] : null);
+
+        if ($username === '') {
+            throw new RuntimeException('Username cannot be empty.');
+        }
+        if ($email === '') {
+            throw new RuntimeException('Email cannot be empty.');
+        }
+
+        if ($username !== $user['username']) {
+            $this->assertUniqueUsername($username, $userId);
+        }
+        if ($email !== $user['account_email']) {
+            $this->assertUniqueEmail($email, $userId);
+        }
+        $roleName = $this->roleNameForId($roleId);
+        $status   = (string) $user['status'];
+        if (AuthenticationPolicy::isUnlinkedEmployee($roleName, $employeeId)) {
+            if ((string) $user['role_name'] !== 'Employee') {
+                throw new RuntimeException('An Employee account must be linked to an employee profile.');
+            }
+            $status = 'Inactive';
+        }
+        if ($employeeId !== null && $employeeId !== ($user['employee_id'] !== null ? (int) $user['employee_id'] : null)) {
+            $this->assertEmployeeNotLinked($employeeId, $userId);
+        }
+
+        $this->connection->transaction(function (PDO $pdo) use (
+            $userId, $username, $email, $roleId, $employeeId, $status, $actingUserId
+        ): void {
+            $stmt = $pdo->prepare(
+                "UPDATE users
+                    SET username = :user, account_email = :email,
+                        role_id  = :role, employee_id   = :emp, status = :status
+                  WHERE user_id  = :id"
+            );
+            $stmt->execute([
+                ':user'  => $username,
+                ':email' => $email,
+                ':role'  => $roleId,
+                ':emp'   => $employeeId,
+                ':status'=> $status,
+                ':id'    => $userId,
+            ]);
+
+            $this->insertAudit($pdo, $actingUserId, 'user_updated', 'users', $userId,
+                "Updated user_id={$userId}: username='{$username}', role_id={$roleId}, status='{$status}'");
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // REQ007 — Toggle status (Active ↔ Inactive)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Toggle a user's status between Active and Inactive.
+     * Archived users cannot be toggled.
+     *
+     * @throws RuntimeException when user is Archived or not found
+     */
+    public function toggleStatus(int $userId, int $actingUserId): string
+    {
+        $user = $this->findOrFail($userId);
+
+        if ($user['status'] === 'Archived') {
+            throw new RuntimeException('Archived users cannot be activated or deactivated.');
+        }
+
+        $newStatus = $user['status'] === 'Active' ? 'Inactive' : 'Active';
+
+        if (
+            $newStatus === 'Active'
+            && AuthenticationPolicy::isUnlinkedEmployee(
+                (string) $user['role_name'],
+                $user['employee_id'] !== null ? (int) $user['employee_id'] : null
+            )
+        ) {
+            throw new RuntimeException('Link this Employee account to an employee profile before activating it.');
+        }
+
+        $this->connection->transaction(function (PDO $pdo) use ($userId, $newStatus, $actingUserId): void {
+            $pdo->prepare("UPDATE users SET status = :s WHERE user_id = :id")
+                ->execute([':s' => $newStatus, ':id' => $userId]);
+
+            $this->insertAudit($pdo, $actingUserId, 'user_status_changed', 'users', $userId,
+                "Status changed to '{$newStatus}' for user_id={$userId}");
+        });
+
+        return $newStatus;
+    }
+
+    // -----------------------------------------------------------------------
+    // REQ008 — Archive
+    // -----------------------------------------------------------------------
+
+    /**
+     * Archive a user account (soft delete — one-way, cannot be undone via UI).
+     *
+     * @throws RuntimeException when user is already Archived
+     */
+    public function archive(int $userId, int $actingUserId): void
+    {
+        $user = $this->findOrFail($userId);
+
+        if ($user['status'] === 'Archived') {
+            throw new RuntimeException('User is already archived.');
+        }
+
+        $this->connection->transaction(function (PDO $pdo) use ($userId, $actingUserId): void {
+            $pdo->prepare("UPDATE users SET status = 'Archived' WHERE user_id = :id")
+                ->execute([':id' => $userId]);
+
+            $this->insertAudit($pdo, $actingUserId, 'user_archived', 'users', $userId,
+                "Archived user_id={$userId}");
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Lookup helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Return a single user row or throw if not found.
+     *
+     * @return array<string,mixed>
+     * @throws RuntimeException
+     */
+    public function findOrFail(int $userId): array
+    {
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT u.user_id, u.username, u.account_email, u.status,
+                    u.employee_id, u.role_id, u.created_at,
+                    r.role_name
+               FROM users u
+               JOIN role r ON r.role_id = u.role_id
+              WHERE u.user_id = :id"
+        );
+        $stmt->execute([':id' => $userId]);
+        $row = $stmt->fetch();
+
+        if ($row === false) {
+            throw new RuntimeException("User #{$userId} not found.");
+        }
+
+        return $row;
+    }
+
+    /**
+     * Return all roles for select dropdowns.
+     *
+     * @return list<array{role_id: int, role_name: string}>
+     */
+    public function roles(): array
+    {
+        return $this->connection->pdo()
+            ->query("SELECT role_id, role_name FROM role ORDER BY role_name")
+            ->fetchAll();
+    }
+
+    /**
+     * Return employees that are not yet linked to a user account (for create form).
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function unlinkedEmployees(): array
+    {
+        return $this->connection->pdo()->query(
+            "SELECT e.employee_id,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    e.employee_number
+               FROM employee e
+              WHERE e.status != 'Archived'
+                AND NOT EXISTS (
+                    SELECT 1 FROM users u
+                    WHERE u.employee_id = e.employee_id
+                      AND u.status != 'Archived'
+                )
+              ORDER BY e.last_name, e.first_name"
+        )->fetchAll();
+    }
+
+    // -----------------------------------------------------------------------
+    // Private guards
+    // -----------------------------------------------------------------------
+
+    private function validateCreateInput(
+        string $username, string $email, string $password, int $roleId
+    ): void {
+        if ($username === '') {
+            throw new RuntimeException('Username is required.');
+        }
+        if (strlen($username) > 50) {
+            throw new RuntimeException('Username must be 50 characters or fewer.');
+        }
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new RuntimeException('A valid email address is required.');
+        }
+        if (strlen($password) < 8) {
+            throw new RuntimeException('Password must be at least 8 characters.');
+        }
+        if ($roleId <= 0) {
+            throw new RuntimeException('A valid role must be selected.');
+        }
+    }
+
+    private function assertUniqueUsername(string $username, ?int $excludeId = null): void
+    {
+        $sql  = "SELECT COUNT(*) FROM users WHERE username = :u";
+        $bind = [':u' => $username];
+        if ($excludeId !== null) {
+            $sql  .= " AND user_id != :id";
+            $bind[':id'] = $excludeId;
+        }
+        $count = (int) $this->connection->pdo()->prepare($sql)->execute($bind) &&
+                 ($this->connection->pdo()->prepare($sql)->execute($bind) ?: 0);
+
+        // Re-query cleanly
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($bind);
+        if ((int) $stmt->fetchColumn() > 0) {
+            throw new RuntimeException("Username '{$username}' is already taken.");
+        }
+    }
+
+    private function assertUniqueEmail(string $email, ?int $excludeId = null): void
+    {
+        $sql  = "SELECT COUNT(*) FROM users WHERE account_email = :e";
+        $bind = [':e' => $email];
+        if ($excludeId !== null) {
+            $sql  .= " AND user_id != :id";
+            $bind[':id'] = $excludeId;
+        }
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($bind);
+        if ((int) $stmt->fetchColumn() > 0) {
+            throw new RuntimeException("Email '{$email}' is already registered.");
+        }
+    }
+
+    private function roleNameForId(int $roleId): string
+    {
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT role_name FROM role WHERE role_id = :id"
+        );
+        $stmt->execute([':id' => $roleId]);
+        $roleName = $stmt->fetchColumn();
+        if ($roleName === false) {
+            throw new RuntimeException("Role #{$roleId} does not exist.");
+        }
+
+        return (string) $roleName;
+    }
+
+    private function assertEmployeeNotLinked(int $employeeId, ?int $excludeUserId = null): void
+    {
+        $sql  = "SELECT COUNT(*) FROM users WHERE employee_id = :emp AND status != 'Archived'";
+        $bind = [':emp' => $employeeId];
+        if ($excludeUserId !== null) {
+            $sql  .= " AND user_id != :uid";
+            $bind[':uid'] = $excludeUserId;
+        }
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($bind);
+        if ((int) $stmt->fetchColumn() > 0) {
+            throw new RuntimeException('This employee already has an active user account.');
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Audit helper
+    // -----------------------------------------------------------------------
+
+    private function insertAudit(
+        PDO    $pdo,
+        int    $actingUserId,
+        string $eventType,
+        string $table,
+        int    $recordId,
+        string $description
+    ): void {
+        $pdo->prepare(
+            "INSERT INTO audit_logs
+                (user_id, event_type, action_performed, table_affected,
+                 record_id, description, action_at)
+             VALUES
+                (:uid, :evt, :act, :tbl, :rid, :desc, NOW())"
+        )->execute([
+            ':uid'  => $actingUserId,
+            ':evt'  => $eventType,
+            ':act'  => $eventType,
+            ':tbl'  => $table,
+            ':rid'  => $recordId,
+            ':desc' => $description,
+        ]);
+    }
+}

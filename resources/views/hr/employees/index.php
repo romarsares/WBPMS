@@ -11,22 +11,27 @@ use Wbpms\Http\View\Formatter;
  *     employee_number: string,
  *     last_name: string,
  *     first_name: string,
+ *     position: string,
  *     branch_name: string,
  *     schedule_name: string,
  *     status: string,
  *     effective_from: string
  * }> $employees
- * @var string $search         Current search query
- * @var string $filterBranch   Current branch filter (id as string, or '')
- * @var string $filterStatus   Current status filter ('active'|'inactive'|'')
- * @var list<array{id:int,name:string}> $branches   For filter dropdown
+ * @var string $search           Current search query
+ * @var string $filterBranch     Current branch filter (id as string, or '')
+ * @var string $filterStatus     Current status filter ('active'|'inactive'|'')
+ * @var string $filterPosition   Current position filter (position_title, or '')
+ * @var list<array{id:int,name:string}> $branches     For branch filter dropdown
+ * @var list<array{name:string}>        $positions    For position filter dropdown
  */
 
-$employees    ??= [];
-$search       ??= '';
-$filterBranch ??= '';
-$filterStatus ??= '';
-$branches     ??= [];
+$employees      ??= [];
+$search         ??= '';
+$filterBranch   ??= '';
+$filterStatus   ??= '';
+$filterPosition ??= '';
+$branches       ??= [];
+$positions      ??= [];
 ?>
 
 <div class="page-header">
@@ -60,16 +65,28 @@ $branches     ??= [];
             </select>
         </div>
         <div>
+            <label style="font-size:.8rem;font-weight:500;color:#374151;display:block;margin-bottom:.25rem">Job Position</label>
+            <select name="position" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
+                <option value="">All positions</option>
+                <?php foreach ($positions as $pos): ?>
+                <option value="<?= Formatter::escape($pos['name']) ?>"
+                    <?= ($pos['name'] === $filterPosition) ? 'selected' : '' ?>>
+                    <?= Formatter::escape($pos['name']) ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div>
             <label style="font-size:.8rem;font-weight:500;color:#374151;display:block;margin-bottom:.25rem">Status</label>
             <select name="status" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
-                <option value="">All statuses</option>
+                <option value="">All</option>
                 <option value="active"   <?= $filterStatus === 'active'   ? 'selected' : '' ?>>Active</option>
                 <option value="inactive" <?= $filterStatus === 'inactive' ? 'selected' : '' ?>>Inactive</option>
                 <option value="archived" <?= $filterStatus === 'archived' ? 'selected' : '' ?>>Archived</option>
             </select>
         </div>
         <button type="submit" class="btn btn-secondary">Filter</button>
-        <?php if ($search !== '' || $filterBranch !== '' || $filterStatus !== ''): ?>
+        <?php if ($search !== '' || $filterBranch !== '' || $filterPosition !== '' || $filterStatus !== ''): ?>
         <a href="<?= $base ?>/hr/employees" class="btn btn-secondary">Clear</a>
         <?php endif; ?>
     </form>
@@ -87,6 +104,7 @@ $branches     ??= [];
             <tr>
                 <th>Employee No.</th>
                 <th>Name</th>
+                <th>Position</th>
                 <th>Branch</th>
                 <th>Schedule</th>
                 <th>Effective From</th>
@@ -111,6 +129,7 @@ $branches     ??= [];
                     <?= Formatter::escape($emp['last_name']) ?>, <?= Formatter::escape($emp['first_name']) ?>
                 </a>
             </td>
+            <td><?= Formatter::escape($emp['position'] ?? '—') ?></td>
             <td><?= Formatter::escape($emp['branch_name']) ?></td>
             <td><?= Formatter::escape($emp['schedule_name']) ?></td>
             <td><?= Formatter::date($emp['effective_from']) ?></td>

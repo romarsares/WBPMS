@@ -185,15 +185,17 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
     /**
      * Return a paginated list of employees with their current branch and schedule.
      *
-     * Applies optional search (name / employee_number), branch filter, and
-     * status filter.  Returns rows matching the shape expected by the index view.
+     * Applies optional search (name / employee_number), branch filter, status
+     * filter, and position filter.  Returns rows matching the shape expected by
+     * the index view.
      *
-     * @param  array{search?: string, branch?: string|int, status?: string} $filters
+     * @param  array{search?: string, branch?: string|int, status?: string, position?: string} $filters
      * @return list<array{
      *   id: int,
      *   employee_number: string,
      *   last_name: string,
      *   first_name: string,
+     *   position: string,
      *   branch_name: string,
      *   schedule_name: string,
      *   status: string,
@@ -219,6 +221,13 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
             $params[':branch_id'] = (int) $branchId;
         }
 
+        // Position filter (exact match against employee.position)
+        $position = trim((string) ($filters['position'] ?? ''));
+        if ($position !== '') {
+            $where[]             = 'e.position = :position';
+            $params[':position'] = $position;
+        }
+
         // Search by name or employee number
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
@@ -236,6 +245,7 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                 e.employee_number,
                 e.last_name,
                 e.first_name,
+                COALESCE(e.position, '—')        AS position,
                 COALESCE(b.branch_name, '—')     AS branch_name,
                 COALESCE(
                     CONCAT(ws.work_start_time, ' – ', ws.work_end_time),

@@ -39,28 +39,59 @@ final class UserService
     // -----------------------------------------------------------------------
 
     /**
-     * Return all non-archived users with their role name.
-     * Pass $includeArchived = true to include Archived rows (for admin view).
+     * Return all users with their role name.
      *
+     * @param bool   $includeArchived  Include Archived rows (for admin view).
+     * @param string $position         Restrict to users linked to employees with this position title.
+     * @param string $username         LIKE filter on u.username (partial match).
+     * @param string $status           Exact filter on u.status ('Active'|'Inactive'|'Archived'|'').
      * @return list<array<string,mixed>>
      */
-    public function list(bool $includeArchived = false): array
-    {
+    public function list(
+        bool   $includeArchived = false,
+        string $position        = '',
+        string $username        = '',
+        string $status          = '',
+    ): array {
+        $params = [];
+        $where  = [];
+
+        if (!$includeArchived && $status === '') {
+            // No explicit status filter — hide archived by default
+            $where[] = "u.status != 'Archived'";
+        }
+
+        if ($status !== '') {
+            $where[]          = 'u.status = :status';
+            $params[':status'] = ucfirst(strtolower($status));
+        }
+
+        if ($username !== '') {
+            $where[]             = 'u.username LIKE :username';
+            $params[':username'] = '%' . $username . '%';
+        }
+
+        if ($position !== '') {
+            $where[]             = 'e.position = :position';
+            $params[':position'] = $position;
+        }
+
+        $whereClause = $where !== [] ? 'WHERE ' . implode(' AND ', $where) : '';
+
         $sql = "SELECT u.user_id, u.username, u.account_email, u.status,
                        u.employee_id, u.created_at, u.updated_at,
                        r.role_id, r.role_name,
                        CONCAT(e.last_name, ', ', e.first_name) AS employee_name
                   FROM users u
                   JOIN role r   ON r.role_id = u.role_id
-                  LEFT JOIN employee e ON e.employee_id = u.employee_id";
+                  LEFT JOIN employee e ON e.employee_id = u.employee_id
+                {$whereClause}
+                 ORDER BY u.created_at DESC";
 
-        if (!$includeArchived) {
-            $sql .= " WHERE u.status != 'Archived'";
-        }
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($params);
 
-        $sql .= " ORDER BY u.created_at DESC";
-
-        return $this->connection->pdo()->query($sql)->fetchAll();
+        return $stmt->fetchAll();
     }
 
     // -----------------------------------------------------------------------

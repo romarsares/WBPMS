@@ -105,11 +105,29 @@ final class UserController
     {
         [$service, $identity, $base, $csrfField, $flash] = $this->setup();
 
-        $rows     = $service->list(includeArchived: true);
+        $filterPosition = trim((string) ($_GET['position'] ?? ''));
+        $filterUsername = trim((string) ($_GET['username'] ?? ''));
+        $filterStatus   = trim((string) ($_GET['status']   ?? ''));
+
+        $rows = $service->list(
+            includeArchived: true,
+            position:        $filterPosition,
+            username:        $filterUsername,
+            status:          $filterStatus,
+        );
+
         $total    = count($rows);
         $active   = count(array_filter($rows, fn($r) => $r['status'] === 'Active'));
         $inactive = count(array_filter($rows, fn($r) => $r['status'] === 'Inactive'));
         $archived = count(array_filter($rows, fn($r) => $r['status'] === 'Archived'));
+
+        // Load active positions for the filter dropdown
+        $positions = $this->pdo()->query(
+            "SELECT position_title AS name
+               FROM job_position
+              WHERE status = 'Active'
+              ORDER BY sort_order ASC, position_title ASC"
+        )->fetchAll(\PDO::FETCH_ASSOC);
 
         $title      = 'User Management';
         $activePage = 'users';
