@@ -408,6 +408,10 @@ final class UserService
      */
     public function archive(int $userId, int $actingUserId): void
     {
+        if ($userId === $actingUserId) {
+            throw new RuntimeException('You cannot archive your own account.');
+        }
+
         $user = $this->findOrFail($userId);
 
         if ($user['status'] === 'Archived') {

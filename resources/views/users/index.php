@@ -74,7 +74,8 @@ use Wbpms\Http\View\Formatter;
                             </button>
                         </form>
 
-                        <!-- Archive -->
+                        <!-- Archive: self-archiving is prohibited to prevent lockout. -->
+                        <?php if ((int) $r['user_id'] !== $currentUserId): ?>
                         <form method="POST"
                               action="<?= $base ?>/users/<?= (int)$r['user_id'] ?>/archive"
                               style="display:inline"
@@ -82,6 +83,7 @@ use Wbpms\Http\View\Formatter;
                             <?= $csrfField ?>
                             <button type="submit" class="btn-danger btn-sm">Archive</button>
                         </form>
+                        <?php endif; ?>
                         <?php endif; ?>
 
                         <!-- Reset Password — HRHead (Employee accounts only) + BusinessOwner (any account) -->

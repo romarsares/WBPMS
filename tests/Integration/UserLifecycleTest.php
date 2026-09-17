@@ -303,6 +303,17 @@ final class UserLifecycleTest extends IntegrationTestCase
         $this->assertSame('Archived', $service->findOrFail($userId)['status']);
     }
 
+    /** Administrative accounts must not be able to remove their own access. */
+    public function testArchiveOwnAccountThrows(): void
+    {
+        $service = $this->buildService();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('You cannot archive your own account.');
+
+        $service->archive($this->actorId, $this->actorId);
+    }
+
     /**
      * REQ008 guard: archiving an already-archived user throws.
      */

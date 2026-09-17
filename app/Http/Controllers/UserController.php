@@ -116,6 +116,7 @@ final class UserController
         $notifCount = 0;
         $displayName = $identity['display_name'] ?? $identity['username'];
         $roleName    = $identity['role_name'];
+        $currentUserId = (int) ($identity['user_id'] ?? 0);
 
         ob_start();
         require APP_ROOT . '/resources/views/users/index.php';
