@@ -40,7 +40,7 @@ records.
 
 | Role | Responsibilities |
 |---|---|
-| **Business Owner** | Reviews and approves/returns payroll submitted by HR Head; monitors payroll costs and financial reports across branches. |
+| **Business Owner** | Reviews and approves or returns payroll submitted by HR Head; approves or cancels any employee request (leave, overtime, cash advance); monitors payroll costs and financial reports across branches. [HR interview 2026-09-21] |
 | **HR Head** | Manages employees, attendance, schedules, requests (leave/overtime/cash advance), salary structures, deductions/contributions, payroll computation, and report generation. |
 | **Employee** | Views own attendance, work schedule, and payslips; submits and tracks leave, overtime, and cash advance requests. |
 | **Developer** | Builds, maintains, and secures the system (not an in-app role, but a maintenance stakeholder). |
@@ -59,7 +59,7 @@ to it.
    daily-log export; the system expands its date/time matrix into preserved
    punches and a per-employee timesheet, with manual adjustment and
    hours/late/undertime/overtime computation)
-7. Request Management (leave, overtime, cash advance — submit/update/cancel/approve/reject)
+7. Request Management (leave, overtime, cash advance — submit/update/cancel/approve/cancel by HR Head or Business Owner)
 8. Payroll Management (salary computation, deductions, 13th-month pay, payslip generation, owner approval workflow)
 9. Manage Salary (salary structures, daily rates, historical rates)
 10. Benefits & Deductions (SSS, PhilHealth, Pag-IBIG computation and records)
@@ -68,8 +68,7 @@ to it.
 
 ## Key business rules to preserve in any implementation
 
-- Only the HR Head manages payroll, attendance adjustments, and approves
-  leave/cash advance/overtime requests.
+- Only the HR Head manages payroll and attendance adjustments. The HR Head and the Business Owner may both approve or cancel employee requests (leave, overtime, cash advance). [HR interview 2026-09-21]
 - The Business Owner is the final approver of a completed payroll run
   (review → approve or return for revision).
 - Employees get **four paid sick leaves**; a leave request must be blocked
@@ -78,6 +77,10 @@ to it.
   requests + government contribution brackets — never entered by hand.
 - Dates use `MM/DD/YY`, time uses 24-hour format, and English is the system
   language (per non-functional requirements).
+- Login uses email address as the account credential; no separate username field. [HR interview 2026-09-21]
+- Working week is configurable; current configurations are Sunday–Thursday (5 days) or Friday–Thursday (6 days) with Saturday as rest day. [HR interview 2026-09-21]
+- Archive is triggered by employee separation and is reversible (rehire/unarchive workflow). [HR interview 2026-09-21]
+- Declined requests carry status `Cancelled`; there is no separate `Rejected` status. [HR interview 2026-09-21]
 
 ## Out of scope (for now)
 

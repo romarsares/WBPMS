@@ -278,6 +278,30 @@ final class OwnerController
         $this->redirect('/owner/requests');
     }
 
+    /**
+     * POST /owner/requests/{id}/cancel
+     * Owner directly cancels any active request (Pending, HRApproved, or Returned).
+     *
+     * [HR interview 2026-09-21] Owner may cancel any request outright.
+     *
+     * @param array<string, string> $params
+     */
+    public function requestCancel(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $identity = AuthMiddleware::identity();
+        $note     = trim((string) ($_POST['owner_notes'] ?? ''));
+
+        try {
+            $this->makeRequestService()->ownerCancel($id, (int) ($identity['user_id'] ?? 0), $note);
+            ViewRenderer::flash('Request cancelled.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/owner/requests');
+    }
+
     // =========================================================================
     // Private helpers
     // =========================================================================

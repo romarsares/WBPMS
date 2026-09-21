@@ -26,7 +26,7 @@ $recentPayslips   ??= [];
 $recentRequests   ??= [];
 
 $reqStatusBadge = static function (string $status): string {
-    $map = ['Pending' => 'badge-yellow', 'Approved' => 'badge-green', 'Rejected' => 'badge-red', 'Cancelled' => 'badge-gray'];
+    $map = ['Pending' => 'badge-yellow', 'Approved' => 'badge-green', 'Cancelled' => 'badge-gray'];
     return '<span class="badge ' . ($map[$status] ?? 'badge-gray') . '">'
         . htmlspecialchars($status, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span>';
 };
@@ -56,11 +56,6 @@ $reqStatusBadge = static function (string $status): string {
         <div class="stat-label">Pending Requests</div>
         <div class="stat-value" style="<?= $pendingRequests > 0 ? 'color:#b45309' : '' ?>"><?= $pendingRequests ?></div>
         <div class="stat-sub"><a href="<?= $base ?>/employee/requests">View →</a></div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">HR Notices</div>
-        <div class="stat-value" style="<?= $unacknowledgedNotices > 0 ? 'color:#b45309' : '' ?>"><?= $unacknowledgedNotices ?></div>
-        <div class="stat-sub"><a href="<?= $base ?>/employee/notices">View notices</a></div>
     </div>
 </div>
 
@@ -132,13 +127,4 @@ $reqStatusBadge = static function (string $status): string {
 
 </div>
 
-<!-- Quick links -->
-<div class="card" style="margin-top:1.5rem">
-    <strong style="font-size:.9rem;display:block;margin-bottom:.75rem;color:#374151">Quick Actions</strong>
-    <div style="display:flex;flex-wrap:wrap;gap:.65rem">
-        <a href="<?= $base ?>/employee/attendance"  class="btn btn-secondary">View Attendance</a>
-        <a href="<?= $base ?>/employee/notices"     class="btn btn-secondary">HR Notices</a>
-        <a href="<?= $base ?>/employee/requests/new" class="btn btn-primary">Submit Request</a>
-        <a href="<?= $base ?>/employee/payslips"    class="btn btn-secondary">My Payslips</a>
-    </div>
-</div>
+

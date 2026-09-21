@@ -23,7 +23,6 @@ $statusColors = [
     'Pending'    => '#f59e0b',
     'HRApproved' => '#6366f1',
     'Approved'   => '#10b981',
-    'Rejected'   => '#ef4444',
     'Returned'   => '#f97316',
     'Cancelled'  => '#6b7280',
 ];
@@ -31,7 +30,6 @@ $statusLabels = [
     'Pending'    => 'Pending',
     'HRApproved' => 'Awaiting Owner Approval',
     'Approved'   => 'Approved',
-    'Rejected'   => 'Rejected',
     'Returned'   => 'Returned to HR',
     'Cancelled'  => 'Cancelled',
 ];
@@ -177,24 +175,24 @@ $statusLabel = $statusLabels[$status] ?? $status;
             The Business Owner will review and give the final decision.
         </p>
 
-        <!-- HR reject -->
+        <!-- HR cancel -->
         <form method="POST"
-              action="<?= $base ?>/hr/requests/<?= (int) $request['request_id'] ?>/reject"
-              onsubmit="return confirm('Reject this request?')">
+              action="<?= $base ?>/hr/requests/<?= (int) $request['request_id'] ?>/cancel"
+              onsubmit="return confirm('Cancel this request?')">
             <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
             <div style="margin-bottom:.75rem">
                 <label for="review_notes"
                        style="display:block;font-weight:500;font-size:.875rem;margin-bottom:.3rem">
-                    Rejection note <span style="color:#ef4444">*</span>
+                    Cancellation note <span style="color:#ef4444">*</span>
                 </label>
                 <textarea id="review_notes" name="review_notes" rows="3"
-                          placeholder="Required reason for rejection…"
+                          placeholder="Required reason for cancellation…"
                           style="width:100%;padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem;resize:vertical"
                           required></textarea>
             </div>
             <button type="submit" class="btn btn-danger"
-                    style="width:100%;background:#ef4444;color:#fff;border:none;padding:.5rem 1rem;border-radius:6px;cursor:pointer;font-size:.875rem">
-                ✗ Reject Request
+                    style="width:100%;background:#6b7280;color:#fff;border:none;padding:.5rem 1rem;border-radius:6px;cursor:pointer;font-size:.875rem">
+                ✗ Cancel Request
             </button>
         </form>
 

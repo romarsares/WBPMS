@@ -178,12 +178,14 @@ final class EmployeeController
                 }
 
                 // Auto-provision the Employee login account (Requirement 13).
+                // Login credential is the employee's email address (not username).
                 $userService->provisionForEmployee(
                     $pdo,
                     $employeeId,
                     $username,
                     $tempPwd,
-                    $actorId
+                    $actorId,
+                    $data['email']
                 );
 
                 $provisionedUsername = $username;
@@ -207,11 +209,11 @@ final class EmployeeController
         }
 
         // Show credentials exactly once — HR must relay these to the employee.
-        // Requirement 13, AC7: display username + temporary password in a
+        // Requirement 13, AC7: display email + temporary password in a
         // dismissible confirmation screen; do NOT persist the plain password.
         ViewRenderer::render('hr/employees/created', [
             'employeeName' => trim($data['first_name'] . ' ' . $data['last_name']),
-            'username'     => $provisionedUsername,
+            'accountEmail' => $data['email'],
             'tempPassword' => $tempPwd,
         ], 'Employee Created');
     }
@@ -627,6 +629,14 @@ final class EmployeeController
         if ($data['email'] !== '' && $repo !== null
             && $repo->emailExists($data['email'], $currentEmployeeId)) {
             $errors['email'] = 'This email address is already assigned to another employee.';
+        }
+
+        if (!$isEdit && $data['email'] === '') {
+            $errors['email'] = 'Email address is required.';
+        }
+
+        if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = 'Please enter a valid email address.';
         }
 
         if ($data['first_name'] === '') {

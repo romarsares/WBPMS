@@ -40,6 +40,8 @@ workflow.
 
 ## 3. Archive workflow
 
+> **Archive trigger (HR interview 2026-09-21):** Employee archiving is triggered by employment separation. The HR Head records the separation outcome on the employee record and then initiates the archive workflow. Archiving is not a manual arbitrary action — it must follow a recorded separation event. The archive option is only available for employees in `Separated` or `Inactive` state.
+
 ### Preconditions
 
 1. The HR Head selects an employee and records the last working date, reason,
@@ -80,6 +82,8 @@ Those behaviours would destroy evidence or create an incorrect financial
 state.
 
 ## 4. Rehire / unarchive workflow
+
+> **Unarchive is supported (HR interview 2026-09-21):** Archived employees may be rehired/unarchived. The rehire workflow below is the supported unarchive path. No separate standalone "unarchive" button exists; rehire is the only path back to `Active` status from `Archived`.
 
 A rehire is a new employment episode for the same person, not a new employee
 record. The existing `employee_id`, employee number, historic attendance,
@@ -183,6 +187,13 @@ or deleted.
    new document record and preserve the prior file's metadata and audit trail.
 7. IF an upload fails type, size, signature, authorization, or malware-scan
    validation, THEN no document metadata or file SHALL become available.
+8. WHEN an employee is separated THEN the HR Head SHALL be required to record
+   the separation before initiating archive; the system SHALL enforce that the
+   archive action is only available for employees in `Separated` or `Inactive`
+   state. [HR interview 2026-09-21]
+9. WHEN an archived employee is rehired THEN this is the unarchive path; the
+   system SHALL reactivate the employee identity and create new employment
+   episode records. [HR interview 2026-09-21]
 
 ## 8. Implementation sequence
 

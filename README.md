@@ -219,11 +219,11 @@ After running migrations and seeders (`vendor/bin/phinx migrate` then
 `vendor/bin/phinx seed:run`), the following synthetic accounts are available
 for local development and testing. **Never use these in production.**
 
-| Role | Username | Password |
+| Role | Email | Password |
 |---|---|---|
-| Business Owner | `owner` | `owner-demo-pass` |
-| HR Head | `hrhead` | `hrhead-demo-pass` |
-| Employee | `employee` | `employee-demo-pass` |
+| Business Owner | `owner@demo.test` | `owner-demo-pass` |
+| HR Head | `hrhead@demo.test` | `hrhead-demo-pass` |
+| Employee | `employee@demo.test` | `employee-demo-pass` |
 
 Passwords are hashed with `password_hash(PASSWORD_DEFAULT)` at seed time.
 Change or remove these accounts before deploying to any shared or production

@@ -13,7 +13,7 @@ $fmt = fn(int $m) => intdiv($m,60).'h '.str_pad((string)($m%60),2,'0',STR_PAD_LE
     <div class="stat"><strong style="color:var(--ok)"><?= $fmt($totalOT) ?></strong><span>Total Overtime</span></div>
 </div>
 <div class="filterbar">
-    <div class="local-search-wrap">⌕<input placeholder="Filter by date..." oninput="filterRows(this,'attTable')"></div>
+    <div class="local-search-wrap">⌕<input id="attSearch" placeholder="Filter by date..." oninput="filterRows(this,'attTable')"></div>
 </div>
 <div class="panel table-wrap">
     <table id="attTable">
@@ -36,14 +36,42 @@ $fmt = fn(int $m) => intdiv($m,60).'h '.str_pad((string)($m%60),2,'0',STR_PAD_LE
                 <td><?= (int)$r['undertime_minutes'] > 0 ? '<span style="color:var(--wait)">'.$fmt((int)$r['undertime_minutes']).'</span>' : '—' ?></td>
                 <td><?= (int)$r['overtime_minutes']  > 0 ? '<span style="color:var(--ok)">'.$fmt((int)$r['overtime_minutes']).'</span>'   : '—' ?></td>
                 <td>
-                    <?php if ($r['is_incomplete']): ?>
-                        <span class="badge bad">Incomplete</span>
-                    <?php else: ?>
-                        <span class="badge ok">OK</span>
-                    <?php endif; ?>
+                    <?php
+                    if ($r['is_incomplete']) {
+                        echo '<span class="badge bad">Incomplete</span>';
+                    } elseif ((int)$r['late_minutes'] > 0) {
+                        echo '<span class="badge wait">Late</span>';
+                    } elseif ((int)$r['overtime_minutes'] > 0) {
+                        echo '<span class="badge ok">Complete + OT</span>';
+                    } else {
+                        echo '<span class="badge ok">Complete</span>';
+                    }
+                    ?>
                 </td>
             </tr>
         <?php endforeach; endif; ?>
         </tbody>
     </table>
 </div>
+
+<script>
+// Auto-clear the searchbar when navigating away, so returning to this page
+// shows all records without a stale filter. [HR interview 2026-09-21]
+(function () {
+    var searchEl = document.getElementById('attSearch');
+    if (!searchEl) return;
+
+    // Clear on page unload (navigating away)
+    window.addEventListener('pagehide', function () {
+        searchEl.value = '';
+    });
+
+    // Also clear on page show in case the browser restores the page from cache
+    window.addEventListener('pageshow', function (e) {
+        if (e.persisted) {
+            searchEl.value = '';
+            filterRows(searchEl, 'attTable');
+        }
+    });
+})();
+</script>

@@ -418,6 +418,35 @@ final class RequestService
     }
 
     /**
+     * Owner directly cancels any active request (Pending, HRApproved, or Returned).
+     *
+     * [HR interview 2026-09-21] The Owner may cancel any employee request outright
+     * without going through the HR return workflow.
+     *
+     * @throws RuntimeException when not found, not in a cancellable status, or note is empty
+     */
+    public function ownerCancel(int $requestId, int $actingUserId, string $note): void
+    {
+        $row = $this->findOrFail($requestId);
+
+        if (!in_array($row['status'], ['Pending', 'HRApproved', 'Returned'], true)) {
+            throw new RuntimeException('Only Pending, HR-approved, or Returned requests can be cancelled.');
+        }
+
+        $this->connection->transaction(function (PDO $pdo) use ($requestId, $actingUserId, $note): void {
+            $pdo->prepare(
+                "UPDATE request
+                    SET status            = 'Cancelled',
+                        owner_reviewed_by = :owner,
+                        owner_reviewed_at = NOW(),
+                        owner_notes       = :note,
+                        updated_at        = NOW()
+                  WHERE request_id = :id"
+            )->execute([':owner' => $actingUserId, ':note' => trim($note), ':id' => $requestId]);
+        });
+    }
+
+    /**
      * Owner returns an HRApproved request to HR for revision.
      *
      * Status becomes Returned so HR can address the feedback and re-submit
@@ -450,32 +479,43 @@ final class RequestService
     }
 
     /**
-     * Reject a Pending or HRApproved request with a note (HR or Owner action — REQ035).
+     * Cancel a request with a note (HR or Owner action).
      *
-     * @throws RuntimeException when not found, not in a rejectable status, or note is empty
+     * HR may cancel any Pending, HRApproved, or Returned request.
+     * Owner may cancel any Pending, HRApproved, or Returned request.
+     *
+     * @throws RuntimeException when not found, not in a cancellable status, or note is empty
      */
-    public function reject(int $requestId, int $actingUserId, string $note): void
+    public function cancelRequest(int $requestId, int $actingUserId, string $note): void
     {
         $row = $this->findOrFail($requestId);
 
         if (!in_array($row['status'], ['Pending', 'HRApproved', 'Returned'], true)) {
-            throw new RuntimeException('Only Pending, HR-approved, or Returned requests can be rejected.');
+            throw new RuntimeException('Only Pending, HR-approved, or Returned requests can be cancelled.');
         }
         if (trim($note) === '') {
-            throw new RuntimeException('A rejection note is required.');
+            throw new RuntimeException('A cancellation note is required.');
         }
 
         $this->connection->transaction(function (PDO $pdo) use ($requestId, $actingUserId, $note): void {
             $pdo->prepare(
                 "UPDATE request
-                    SET status       = 'Rejected',
+                    SET status       = 'Cancelled',
                         reviewed_by  = :reviewer,
                         reviewed_at  = NOW(),
                         review_notes = :note,
                         updated_at   = NOW()
                   WHERE request_id   = :id"
-            )->execute([':reviewer' => $actingUserId, ':note' => $note, ':id' => $requestId]);
+            )->execute([':reviewer' => $actingUserId, ':note' => trim($note), ':id' => $requestId]);
         });
+    }
+
+    /**
+     * @deprecated Use cancelRequest() instead. Kept for backwards compatibility.
+     */
+    public function reject(int $requestId, int $actingUserId, string $note): void
+    {
+        $this->cancelRequest($requestId, $actingUserId, $note);
     }
 
     /**
@@ -503,7 +543,9 @@ final class RequestService
     }
 
     /**
-     * List requests awaiting Owner final approval (status = HRApproved).
+     * List all requests the Owner can act on (Pending, HRApproved, or Returned).
+     *
+     * [HR interview 2026-09-21] Owner can approve or cancel any active request.
      *
      * @return list<array<string,mixed>>
      */
@@ -521,9 +563,9 @@ final class RequestService
                FROM request r
                JOIN employee e      ON e.employee_id      = r.employee_id
                JOIN request_type rt ON rt.request_type_id = r.request_type_id
-              WHERE r.status = 'HRApproved'
+              WHERE r.status IN ('Pending', 'HRApproved', 'Returned')
                 AND r.archived_at IS NULL
-              ORDER BY r.reviewed_at ASC"
+              ORDER BY r.submitted_at ASC"
         );
         return $stmt ? $stmt->fetchAll() : [];
     }

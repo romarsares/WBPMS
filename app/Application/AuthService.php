@@ -31,12 +31,12 @@ final class AuthService
     }
 
     /**
-     * Attempt to authenticate a user by username and password.
+     * Attempt to authenticate a user by email and password.
      *
      * Returns an array with the authenticated user's data on success,
      * or null on failure. Writes an audit row in both cases.
      *
-     * @param  string $username          The submitted username
+     * @param  string $email             The submitted email address
      * @param  string $plainPassword     The submitted password (never stored/logged)
      * @param  string $requestId         Request UUID for audit correlation
      * @param  string $ipAddress         Remote IP address
@@ -44,7 +44,7 @@ final class AuthService
      * @return array{user_id: int, username: string, role_name: string, employee_id: int|null, requires_password_change: bool}|null
      */
     public function attemptLogin(
-        string $username,
+        string $email,
         string $plainPassword,
         string $requestId = '',
         string $ipAddress = '',
@@ -52,16 +52,16 @@ final class AuthService
     ): ?array {
         $pdo = $this->connection->pdo();
 
-        // Fetch user + role in a single query
+        // Fetch user + role by email (account_email column)
         $stmt = $pdo->prepare(
-            'SELECT u.user_id, u.username, u.password_hash, u.status,
+            'SELECT u.user_id, u.username, u.account_email, u.password_hash, u.status,
                     u.employee_id, u.requires_password_change, r.role_name
              FROM users u
              JOIN role r ON r.role_id = u.role_id
-             WHERE u.username = :username
+             WHERE u.account_email = :email
              LIMIT 1'
         );
-        $stmt->execute([':username' => $username]);
+        $stmt->execute([':email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         $actionAt = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s');
@@ -75,7 +75,7 @@ final class AuthService
                 'login_attempt',
                 null,
                 null,
-                $username,          // attempted_identifier
+                $email,             // attempted_identifier
                 $requestId,
                 $ipAddress,
                 $userAgent,
@@ -118,7 +118,7 @@ final class AuthService
                 'login_attempt',
                 null,
                 null,
-                $username,
+                $email,
                 $requestId,
                 $ipAddress,
                 $userAgent,

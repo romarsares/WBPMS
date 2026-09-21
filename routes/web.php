@@ -42,6 +42,15 @@ $router->add('GET', '/health', [HealthController::class, 'index'], []);
 $router->add('GET',  '/login',         [AuthController::class, 'showLogin'],    []);
 $router->add('POST', '/login',         [AuthController::class, 'login'],        []);
 
+// Forgot / reset password (REQ002)
+// Note: /forgot-password/sent must be registered before /forgot-password to
+// avoid any potential prefix collision in future router extensions.
+$router->add('GET',  '/forgot-password/sent', [AuthController::class, 'showResetLinkSent'], []);
+$router->add('GET',  '/forgot-password',      [AuthController::class, 'showForgotPassword'], []);
+$router->add('POST', '/forgot-password',      [AuthController::class, 'sendResetLink'],      []);
+$router->add('GET',  '/reset-password',       [AuthController::class, 'showResetPassword'],  []);
+$router->add('POST', '/reset-password',       [AuthController::class, 'resetPassword'],      []);
+
 // ---------------------------------------------------------------------------
 // Shared authenticated routes
 // ---------------------------------------------------------------------------
@@ -67,8 +76,8 @@ $router->add('GET', '/owner/dashboard', [DashboardController::class, 'ownerDashb
 $router->add('GET',  '/users',              [UserController::class, 'index'],         ['BusinessOwner', 'HRHead']);
 $router->add('GET',  '/users/create',       [UserController::class, 'create'],        ['BusinessOwner']);
 $router->add('POST', '/users',              [UserController::class, 'store'],         ['BusinessOwner']);
-$router->add('GET',  '/users/{id}/edit',    [UserController::class, 'edit'],          ['BusinessOwner']);
-$router->add('POST', '/users/{id}',         [UserController::class, 'update'],        ['BusinessOwner']);
+$router->add('GET',  '/users/{id}/edit',    [UserController::class, 'edit'],          ['BusinessOwner', 'HRHead']);
+$router->add('PUT',  '/users/{id}',         [UserController::class, 'update'],        ['BusinessOwner', 'HRHead']);
 $router->add('POST', '/users/{id}/toggle',  [UserController::class, 'toggle'],        ['BusinessOwner']);
 $router->add('POST', '/users/{id}/archive', [UserController::class, 'archive'],       ['BusinessOwner']);
 $router->add('POST', '/users/{id}/reset-password', [UserController::class, 'resetPassword'], ['BusinessOwner', 'HRHead']);
@@ -91,6 +100,7 @@ $router->add('GET',  '/owner/requests',                  [OwnerController::class
 $router->add('GET',  '/owner/requests/{id}',             [OwnerController::class, 'requestShow'],    ['BusinessOwner']);
 $router->add('POST', '/owner/requests/{id}/approve',     [OwnerController::class, 'requestApprove'], ['BusinessOwner']);
 $router->add('POST', '/owner/requests/{id}/return',      [OwnerController::class, 'requestReturn'],  ['BusinessOwner']);
+$router->add('POST', '/owner/requests/{id}/cancel',      [OwnerController::class, 'requestCancel'],  ['BusinessOwner']);
 
 // ---------------------------------------------------------------------------
 // HR Head — dashboard
@@ -160,7 +170,8 @@ $router->add('GET',  '/hr/requests/new',          [RequestsController::class, 'c
 $router->add('POST', '/hr/requests',              [RequestsController::class, 'store'],   ['HRHead']);
 $router->add('GET',  '/hr/requests/{id}',         [RequestsController::class, 'show'],    ['HRHead']);
 $router->add('POST', '/hr/requests/{id}/approve', [RequestsController::class, 'approve'], ['HRHead']);
-$router->add('POST', '/hr/requests/{id}/reject',  [RequestsController::class, 'reject'],  ['HRHead']);
+$router->add('POST', '/hr/requests/{id}/cancel',  [RequestsController::class, 'cancel'],  ['HRHead']);
+$router->add('POST', '/hr/requests/{id}/reject',  [RequestsController::class, 'reject'],  ['HRHead']); // deprecated alias
 $router->add('POST', '/hr/requests/{id}/archive', [RequestsController::class, 'archive'], ['HRHead']);
 
 // ---------------------------------------------------------------------------

@@ -6,6 +6,7 @@
  *
  * Variables injected by AuthController::showLogin():
  *   string|null $error      — authentication error message
+ *   string|null $success    — success message (e.g., after password reset)
  *   string      $csrfField  — hidden CSRF input HTML
  */
 
@@ -30,6 +31,12 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
     <h1>Light Diamond</h1>
     <p class="login-sub">Enterprises Payroll &amp; Employee Management System</p>
 
+    <?php if (!empty($success)): ?>
+        <div class="alert success" role="alert">
+            <?= htmlspecialchars((string) $success, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+        </div>
+    <?php endif; ?>
+
     <?php if (!empty($error)): ?>
         <div class="alert error" role="alert">
             <?= htmlspecialchars((string) $error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
@@ -39,15 +46,15 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
     <form method="POST" action="<?= $base ?>/login" autocomplete="off" novalidate>
         <?= $csrfField ?>
 
-        <label for="username">Username</label>
+        <label for="email">Email Address</label>
         <input type="text"
-               id="username"
-               name="username"
-               value="<?= htmlspecialchars((string) ($_POST['username'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
-               autocomplete="username"
+               id="email"
+               name="email"
+               value="<?= htmlspecialchars((string) ($_POST['email'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+               autocomplete="email"
                required
                autofocus
-               placeholder="Enter your username">
+               placeholder="Enter your email address">
 
         <label for="password">Password</label>
         <div class="login-pwd-wrap">
@@ -69,6 +76,15 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
         <button type="submit" class="btn btn-primary btn-full">
             Login
         </button>
+
+        <p style="text-align:center;margin:.85rem 0 0;font-size:.875rem">
+            <a href="<?= $base ?>/forgot-password"
+               style="color:#d95b08;text-decoration:underline;font-weight:500"
+               onmouseover="this.style.color='#c0510a'"
+               onmouseout="this.style.color='#d95b08'">
+                Forgot your password?
+            </a>
+        </p>
     </form>
 
     <p class="login-footer">

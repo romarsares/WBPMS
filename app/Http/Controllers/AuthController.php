@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Wbpms\Http\Controllers;
 
 use Wbpms\Application\AuthService;
+use Wbpms\Application\PasswordResetService;
 use Wbpms\Application\UnlinkedEmployeeAccountException;
 use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\Middleware\CsrfMiddleware;
 use Wbpms\Infrastructure\Database\Connection;
+use Wbpms\Infrastructure\Mail\Mailer;
 use Wbpms\Infrastructure\Session\DatabaseSessionHandler;
 
 /**
@@ -48,6 +50,9 @@ final class AuthController
               ?? null;
         unset($_SESSION['_login_error'], $_SESSION['_flash_error']);
 
+        $success = $_SESSION['_login_success'] ?? null;
+        unset($_SESSION['_login_success']);
+
         $csrfField = CsrfMiddleware::field();
 
         http_response_code(200);
@@ -67,12 +72,12 @@ final class AuthController
 
         // CSRF was already verified by the Router before this method is called.
 
-        $username = trim((string) ($_POST['username'] ?? ''));
+        $username = trim((string) ($_POST['email'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
 
         // Basic input presence check — defer full validation to AuthService
         if ($username === '' || $password === '') {
-            $_SESSION['_login_error'] = 'Username and password are required.';
+            $_SESSION['_login_error'] = 'Email and password are required.';
             $this->redirect('/login');
 
             return;
@@ -97,7 +102,7 @@ final class AuthController
 
         if ($identity === null) {
             // Generic error — do not reveal whether username or password was wrong
-            $_SESSION['_login_error'] = 'Invalid username or password.';
+            $_SESSION['_login_error'] = 'Invalid email or password.';
             $this->redirect('/login');
 
             return;
@@ -218,6 +223,181 @@ final class AuthController
         $_SESSION['_auth']['requires_password_change'] = false;
 
         $this->redirectToDashboard($identity['role_name']);
+    }
+
+    // -----------------------------------------------------------------------
+    // Forgot / reset password  (REQ002)
+    // -----------------------------------------------------------------------
+
+    /**
+     * GET /forgot-password — render the email-entry form.
+     *
+     * @param array<string, string> $params
+     */
+    public function showForgotPassword(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+
+        // Authenticated users have no need for this page.
+        if (AuthMiddleware::identity() !== null) {
+            $identity = AuthMiddleware::identity();
+            $this->redirectToDashboard((string) $identity['role_name']);
+            return;
+        }
+
+        $error     = $_SESSION['_forgot_error'] ?? null;
+        unset($_SESSION['_forgot_error']);
+
+        $csrfField = CsrfMiddleware::field();
+
+        http_response_code(200);
+        header('Content-Type: text/html; charset=utf-8');
+        require APP_ROOT . '/resources/views/auth/forgot-password.php';
+    }
+
+    /**
+     * POST /forgot-password — validate the email and dispatch the reset link.
+     *
+     * Always redirects to the "sent" confirmation page regardless of whether
+     * the address exists, to prevent account-existence enumeration.
+     *
+     * @param array<string, string> $params
+     */
+    public function sendResetLink(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+
+        $email = trim((string) ($_POST['email'] ?? ''));
+
+        if ($email === '') {
+            $_SESSION['_forgot_error'] = 'Please enter your email address.';
+            $this->redirect('/forgot-password');
+            return;
+        }
+
+        // Basic format sanity check — not exhaustive; we just need something plausible.
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['_forgot_error'] = 'Please enter a valid email address.';
+            $this->redirect('/forgot-password');
+            return;
+        }
+
+        $connection = $this->makeConnection();
+        $mailer     = new Mailer();
+        $service    = new PasswordResetService($connection, $mailer);
+        $baseUrl    = (string) ($_ENV['APP_BASE_URL'] ?? '');
+
+        // Silently ignore the return value — we show the same success page
+        // regardless so attackers cannot enumerate registered addresses.
+        $service->initiateReset($email, $baseUrl);
+
+        $this->redirect('/forgot-password/sent');
+    }
+
+    /**
+     * GET /forgot-password/sent — confirmation page after submitting the form.
+     *
+     * @param array<string, string> $params
+     */
+    public function showResetLinkSent(array $params = []): void
+    {
+        http_response_code(200);
+        header('Content-Type: text/html; charset=utf-8');
+        require APP_ROOT . '/resources/views/auth/forgot-password-sent.php';
+    }
+
+    /**
+     * GET /reset-password — render the new-password form.
+     *
+     * Validates the token from the query string. Shows an error inside the
+     * form if the token is missing, invalid, or expired.
+     *
+     * @param array<string, string> $params
+     */
+    public function showResetPassword(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+
+        $rawToken = (string) ($_GET['token'] ?? '');
+
+        $connection = $this->makeConnection();
+        $mailer     = new Mailer();
+        $service    = new PasswordResetService($connection, $mailer);
+
+        $userId = $rawToken !== '' ? $service->validateToken($rawToken) : null;
+
+        // Show an error inline if the token is bad, but still render the page
+        // so the user gets a clear explanation rather than a blank redirect.
+        $error = null;
+        if ($rawToken === '' || $userId === null) {
+            $error = 'This password reset link is invalid or has expired. '
+                   . 'Please request a new one.';
+            $rawToken = '';   // Don't pass a bad token through the form.
+        }
+
+        // Also pick up any error flashed by a previous POST (e.g., passwords didn't match).
+        if ($error === null && isset($_SESSION['_reset_error'])) {
+            $error = $_SESSION['_reset_error'];
+        }
+        unset($_SESSION['_reset_error']);
+
+        $token      = $rawToken;
+        $csrfField  = CsrfMiddleware::field();
+
+        http_response_code(200);
+        header('Content-Type: text/html; charset=utf-8');
+        require APP_ROOT . '/resources/views/auth/reset-password.php';
+    }
+
+    /**
+     * POST /reset-password — consume the token and set the new password.
+     *
+     * @param array<string, string> $params
+     */
+    public function resetPassword(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+
+        $rawToken = (string) ($_POST['token']            ?? '');
+        $password = (string) ($_POST['password']         ?? '');
+        $confirm  = (string) ($_POST['password_confirm'] ?? '');
+
+        // Validate inputs before touching the database.
+        if ($rawToken === '') {
+            $this->redirect('/forgot-password');
+            return;
+        }
+
+        if (strlen($password) < 8) {
+            $_SESSION['_reset_error'] = 'Password must be at least 8 characters.';
+            $this->redirect('/reset-password?token=' . urlencode($rawToken));
+            return;
+        }
+
+        if ($password !== $confirm) {
+            $_SESSION['_reset_error'] = 'Passwords do not match.';
+            $this->redirect('/reset-password?token=' . urlencode($rawToken));
+            return;
+        }
+
+        $connection = $this->makeConnection();
+        $mailer     = new Mailer();
+        $service    = new PasswordResetService($connection, $mailer);
+
+        if (!$service->consumeToken($rawToken, $password)) {
+            // Token invalid or expired — show the reset form with an error.
+            $_SESSION['_reset_error'] =
+                'This password reset link is invalid or has expired. '
+                . 'Please request a new one.';
+            $this->redirect('/reset-password?token=' . urlencode($rawToken));
+            return;
+        }
+
+        // Success — redirect to login with a flash message.
+        $_SESSION['_login_success'] =
+            'Your password has been reset. You can now log in with your new password.';
+
+        $this->redirect('/login');
     }
 
     // -----------------------------------------------------------------------

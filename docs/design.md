@@ -51,7 +51,7 @@ gates controller actions:
 | View own dashboard | ✅ | ✅ | ✅ |
 | Manage users | ✅ (grant) | ✅ | ❌ |
 | Manage employees/attendance/schedules | ❌ | ✅ | ❌ (read-own only) |
-| Approve/reject leave, overtime, cash advance | ❌ | ✅ | ❌ |
+| Approve or cancel leave, overtime, cash advance requests | ✅ | ✅ | ❌ |
 | Submit requests | ❌ | ❌ | ✅ |
 | Compute/submit payroll | ❌ | ✅ | ❌ |
 | Approve/return payroll | ✅ | ❌ | ❌ |
@@ -65,6 +65,7 @@ gates controller actions:
 - `requestPasswordReset(accountEmail): void` → stores a hashed, expiring OTP
 - `verifyOtpAndReset(email, otp, newPassword): void`
 - Enforces REQ001, REQ002, REQN007, REQN011.
+- Login credential is email address; no username field exists on the login form. [HR interview 2026-09-21]
 
 ### UserService
 - `listUsers(filters): User[]`
@@ -172,7 +173,8 @@ overtime_minutes   = max(0, worked_minutes - schedule.standard_minutes)
 - `checkLeaveBalance(employeeId): number` — blocks submission per REQ078
   (4 paid sick leaves/year default).
 - `updateOrCancel(requestId, data)` — only while `status = Pending`.
-- `review(requestId, decision: Approved|Rejected, reviewerId): void`
+- `review(requestId, decision: Approved|Cancelled, reviewerId): void`
+  — available to HR Head and Business Owner. [HR interview 2026-09-21]
 - `archive(requestId): void`
 - `listByStatus/type/employee(filters): Request[]`
 - Implements REQ032–REQ046, REQ076–REQ080.

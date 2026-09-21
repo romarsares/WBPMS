@@ -15,14 +15,17 @@ use Wbpms\Infrastructure\Database\Connection;
  *
  * Routes:
  *   GET    /users                → index()        — list all users
- *   GET    /users/create         → create()       — show create form
- *   POST   /users                → store()        — persist new user
- *   GET    /users/{id}/edit      → edit()         — show edit form
- *   POST   /users/{id}  (_method=PUT)  → update() — persist edits
- *   POST   /users/{id}/toggle         → toggle()  — activate/deactivate
- *   POST   /users/{id}/archive        → archive() — archive
+ *   GET    /users/create         → create()       — show create form (Owner only)
+ *   POST   /users                → store()        — persist new user (Owner only)
+ *   GET    /users/{id}/edit      → edit()         — show edit form (Owner + HRHead)
+ *   POST   /users/{id}  (_method=PUT)  → update() — persist edits (Owner + HRHead)
+ *   POST   /users/{id}/toggle         → toggle()  — activate/deactivate (Owner only)
+ *   POST   /users/{id}/archive        → archive() — archive (Owner only)
  *
- * REQ004–REQ008.  All mutations are role-guarded to BusinessOwner.
+ * HRHead edit scope: HRHead may only edit Employee-role accounts.
+ * BusinessOwner edit scope: may edit any account.
+ *
+ * REQ004–REQ008.
  */
 final class UserController
 {
@@ -79,14 +82,16 @@ final class UserController
         $conn->pdo()->prepare(
             "INSERT INTO audit_logs
                 (user_id, event_type, action_performed, table_affected,
-                 record_id, description, action_at)
+                 record_id, description, action_at, created_at)
              VALUES
                 (:uid, 'password_reset', 'password_reset', 'users',
-                 :rid, :desc, NOW())"
+                 :rid, :desc, :action_at, :created_at)"
         )->execute([
-            ':uid'  => $actorId,
-            ':rid'  => $userId,
-            ':desc' => "Password reset by {$actorRole} (user_id={$actorId}) for user '{$user['username']}'",
+            ':uid'       => $actorId,
+            ':rid'       => $userId,
+            ':desc'      => "Password reset by {$actorRole} (user_id={$actorId}) for user '{$user['username']}'",
+            ':action_at' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
+            ':created_at'=> (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
         ]);
 
         \Wbpms\Http\View\ViewRenderer::render('users/reset-password-done', [
@@ -221,6 +226,14 @@ final class UserController
             return;
         }
 
+        // HRHead may only edit Employee-role accounts.
+        $actorRole = (string) ($identity['role_name'] ?? '');
+        if ($actorRole === 'HRHead' && ($user['role_name'] ?? '') !== 'Employee') {
+            $_SESSION['_flash'][] = ['error', 'HR Head may only edit Employee accounts.'];
+            $this->redirect('/users');
+            return;
+        }
+
         $roles     = $service->roles();
         $employees = $service->unlinkedEmployees();
         // Include the user's current employee link so it appears in the list
@@ -262,7 +275,29 @@ final class UserController
     public function update(array $params = []): void
     {
         [$service, $identity, $base, $csrfField, $flash] = $this->setup();
-        $userId = (int) ($params['id'] ?? 0);
+        $userId    = (int) ($params['id'] ?? 0);
+        $actorRole = (string) ($identity['role_name'] ?? '');
+
+        // Verify the target user exists before checking scope.
+        try {
+            $targetUser = $service->findOrFail($userId);
+        } catch (RuntimeException) {
+            $this->notFound();
+            return;
+        }
+
+        // HRHead may only update Employee-role accounts.
+        if ($actorRole === 'HRHead' && ($targetUser['role_name'] ?? '') !== 'Employee') {
+            $_SESSION['_flash'][] = ['error', 'HR Head may only edit Employee accounts.'];
+            $this->redirect('/users');
+            return;
+        }
+
+        // HRHead cannot change the role of any account — strip the field
+        // so UserService.update() keeps the existing role unchanged.
+        if ($actorRole === 'HRHead') {
+            unset($_POST['role_id']);
+        }
 
         try {
             $service->update($userId, $_POST, (int) $identity['user_id']);

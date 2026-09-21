@@ -175,7 +175,8 @@ final class UserService
         int    $employeeId,
         string $username,
         string $temporaryPassword,
-        int    $actingUserId
+        int    $actingUserId,
+        string $accountEmail = ''
     ): int {
         // Resolve the Employee role_id
         $roleStmt = $pdo->prepare("SELECT role_id FROM role WHERE role_name = 'Employee' LIMIT 1");
@@ -209,9 +210,9 @@ final class UserService
             ':emp'   => $employeeId,
             ':role'  => $roleId,
             ':user'  => $username,
-            // account_email is required (NOT NULL unique); use a system placeholder
-            // so HR can supply a real address later via User Management.
-            ':email' => 'noemail+emp' . $employeeId . '@lde.local',
+            // Use the employee's real email as the login credential.
+            // Falls back to a unique system placeholder only if somehow empty.
+            ':email' => $accountEmail !== '' ? $accountEmail : ('noemail+emp' . $employeeId . '@lde.local'),
             ':pwd'   => $hash,
         ]);
 

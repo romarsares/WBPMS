@@ -5,25 +5,25 @@
 
 /* ---- Design tokens ---- */
 :root {
-    /* Core palette */
-    --bg:          #f0f2f5;
+    /* Core palette — matched to LDE logo copper/bronze (#C97B3F) */
+    --bg:          #f5f1ed;
     --panel:       #ffffff;
-    --sidebar-bg:  #1e2a3b;
-    --sidebar-dark:#162130;
-    --accent:      #d95b08;
-    --accent-hover:#c0510a;
-    --accent-light:#fff3ed;
+    --sidebar-bg:  #2c1f14;
+    --sidebar-dark:#1e1409;
+    --accent:      #c97b3f;
+    --accent-hover:#b5692e;
+    --accent-light:#fdf0e6;
 
     /* Text */
-    --ink:         #1a1d23;
-    --ink-2:       #374151;
-    --muted:       #6b7280;
-    --muted-light: #9ca3af;
+    --ink:         #1a1410;
+    --ink-2:       #3d2f22;
+    --muted:       #7a6655;
+    --muted-light: #a8907c;
 
     /* Borders & surfaces */
-    --line:        #e5e7eb;
-    --line-strong: #d1d5db;
-    --surface-2:   #f9fafb;
+    --line:        #e8ddd3;
+    --line-strong: #d4c4b5;
+    --surface-2:   #faf7f4;
 
     /* Status colours */
     --ok:          #16a34a;
@@ -82,7 +82,7 @@ img { display: block; max-width: 100%; }
 .sidebar {
     width: 260px;
     background: var(--sidebar-bg);
-    color: #e2e8f0;
+    color: #f0e8df;
     display: flex;
     flex-direction: column;
     position: fixed;
@@ -111,8 +111,8 @@ img { display: block; max-width: 100%; }
     padding: 3px;
     flex-shrink: 0;
 }
-.brand b   { display: block; font-size: 15px; font-weight: 700; color: #f1f5f9; letter-spacing: .01em; }
-.brand span { display: block; font-size: 12px; color: #94a3b8; font-weight: 400; margin-top: 1px; }
+.brand b   { display: block; font-size: 15px; font-weight: 700; color: #fdf5ee; letter-spacing: .01em; }
+.brand span { display: block; font-size: 12px; color: #c4a882; font-weight: 400; margin-top: 1px; }
 
 /* Nav */
 .sidebar nav {
@@ -129,18 +129,18 @@ img { display: block; max-width: 100%; }
     border-radius: var(--radius-sm);
     font-size: 14px;
     font-weight: 500;
-    color: #94a3b8;
+    color: #c4a882;
     transition: background var(--transition), color var(--transition);
     position: relative;
 }
 
 .sidebar nav a:hover {
     background: rgba(255,255,255,.07);
-    color: #e2e8f0;
+    color: #f0e8df;
 }
 
 .sidebar nav a.active {
-    background: rgba(217, 91, 8, .18);
+    background: rgba(201, 123, 63, .22);
     color: #fff;
     font-weight: 600;
 }
@@ -173,7 +173,7 @@ img { display: block; max-width: 100%; }
     gap: 3px;
     flex-shrink: 0;
 }
-.side-user b    { font-size: 14px; font-weight: 600; color: #f1f5f9; }
+.side-user b    { font-size: 14px; font-weight: 600; color: #fdf5ee; }
 .side-user span { font-size: 12px; color: #64748b; margin-bottom: 10px; display: block; }
 
 .side-user-logout,
@@ -588,7 +588,7 @@ button.btn-secondary:hover {
 .badge.badge-yellow { background: var(--wait-bg); color: var(--wait-text); }
 .badge.badge-blue   { background: var(--info-bg); color: var(--info-text); }
 .badge.off,
-.badge.badge-gray   { background: #f3f4f6;        color: #6b7280; }
+.badge.badge-gray   { background: #f3ede6;        color: #7a6655; }
 
 /* ==========================================================================
    ALERTS / FLASH MESSAGES
@@ -812,7 +812,7 @@ button.btn-secondary:hover {
     align-items: center;
     justify-content: center;
     padding: 24px;
-    background: linear-gradient(135deg, #1e2a3b 0%, #2d3e55 50%, #1a2535 100%);
+    background: linear-gradient(135deg, #2c1f14 0%, #3d2a18 50%, #1e1409 100%);
 }
 
 .login-card {

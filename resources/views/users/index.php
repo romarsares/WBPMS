@@ -104,10 +104,12 @@ $filterStatus   ??= '';
                 <td><?= Formatter::date($r['created_at']) ?></td>
                 <td>
                     <?php if (!$isArchived): ?>
-                        <?php if ($roleName === 'BusinessOwner'): ?>
+                        <?php if ($roleName === 'BusinessOwner' || ($roleName === 'HRHead' && $r['role_name'] === 'Employee')): ?>
                         <a class="btn-secondary btn-sm"
                            href="<?= $base ?>/users/<?= (int)$r['user_id'] ?>/edit">Edit</a>
+                        <?php endif; ?>
 
+                        <?php if ($roleName === 'BusinessOwner'): ?>
                         <!-- Toggle Active / Inactive -->
                         <form method="POST"
                               action="<?= $base ?>/users/<?= (int)$r['user_id'] ?>/toggle"

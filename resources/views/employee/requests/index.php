@@ -26,7 +26,6 @@ $statusBadge = static function (string $status): string {
     return match ($status) {
         'Pending'   => '<span class="badge badge-yellow">Pending</span>',
         'Approved'  => '<span class="badge badge-green">Approved</span>',
-        'Rejected'  => '<span class="badge badge-red">Rejected</span>',
         'Cancelled' => '<span class="badge badge-gray">Cancelled</span>',
         default     => '<span class="badge badge-gray">' . htmlspecialchars($status, ENT_QUOTES, 'UTF-8') . '</span>',
     };
@@ -48,7 +47,6 @@ $statusBadge = static function (string $status): string {
                 <option value="">All</option>
                 <option value="Pending"   <?= $filterStatus === 'Pending'   ? 'selected' : '' ?>>Pending</option>
                 <option value="Approved"  <?= $filterStatus === 'Approved'  ? 'selected' : '' ?>>Approved</option>
-                <option value="Rejected"  <?= $filterStatus === 'Rejected'  ? 'selected' : '' ?>>Rejected</option>
                 <option value="Cancelled" <?= $filterStatus === 'Cancelled' ? 'selected' : '' ?>>Cancelled</option>
             </select>
         </div>

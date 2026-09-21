@@ -18,16 +18,18 @@ $status   = (string) ($request['status'] ?? '');
 $typeName = (string) ($request['type_name'] ?? '');
 
 $statusColors = [
+    'Pending'    => '#f59e0b',
     'HRApproved' => '#6366f1',
     'Approved'   => '#10b981',
     'Returned'   => '#f97316',
-    'Rejected'   => '#ef4444',
+    'Cancelled'  => '#6b7280',
 ];
 $statusLabels = [
+    'Pending'    => 'Pending — Awaiting HR Review',
     'HRApproved' => 'Awaiting Your Approval',
     'Approved'   => 'Approved',
     'Returned'   => 'Returned to HR',
-    'Rejected'   => 'Rejected',
+    'Cancelled'  => 'Cancelled',
 ];
 $statusColor = $statusColors[$status] ?? '#6b7280';
 $statusLabel = $statusLabels[$status] ?? $status;
@@ -135,15 +137,20 @@ $statusLabel = $statusLabels[$status] ?? $status;
 
     <!-- ── Owner action panel ──────────────────────────────────────────── -->
     <div>
-        <?php if ($status === 'HRApproved'): ?>
+        <?php if (in_array($status, ['Pending', 'HRApproved'], true)): ?>
         <div class="card" style="padding:1.25rem">
             <h3 style="margin:0 0 .25rem;font-size:1rem">Your Decision</h3>
             <p style="margin:0 0 1.25rem;font-size:.8rem;color:#6b7280">
+                <?php if ($status === 'HRApproved'): ?>
                 HR has reviewed and pre-approved this request. Your approval is final and will
                 trigger the relevant side-effects (leave deduction, cash advance obligation, etc.).
+                <?php else: ?>
+                This request is still pending HR pre-approval. You may approve or cancel it directly.
+                <?php endif; ?>
             </p>
 
-            <!-- Final approve -->
+            <?php if ($status === 'HRApproved'): ?>
+            <!-- Final approve (only for HRApproved) -->
             <form method="POST"
                   action="<?= $base ?>/owner/requests/<?= (int) $request['request_id'] ?>/approve"
                   style="margin-bottom:1rem"
@@ -157,14 +164,15 @@ $statusLabel = $statusLabels[$status] ?? $status;
             <!-- Return to HR -->
             <form method="POST"
                   action="<?= $base ?>/owner/requests/<?= (int) $request['request_id'] ?>/return"
+                  style="margin-bottom:1rem"
                   onsubmit="return confirm('Return this request to HR for revision?')">
                 <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
                 <div style="margin-bottom:.75rem">
-                    <label for="owner_notes"
+                    <label for="owner_notes_return"
                            style="display:block;font-weight:500;font-size:.875rem;margin-bottom:.3rem">
                         Return note <span style="color:#ef4444">*</span>
                     </label>
-                    <textarea id="owner_notes" name="owner_notes" rows="3"
+                    <textarea id="owner_notes_return" name="owner_notes" rows="3"
                               placeholder="Explain what needs to be corrected before you can approve…"
                               style="width:100%;padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem;resize:vertical"
                               required></textarea>
@@ -172,6 +180,28 @@ $statusLabel = $statusLabels[$status] ?? $status;
                 <button type="submit"
                         style="width:100%;background:#f97316;color:#fff;border:none;padding:.5rem 1rem;border-radius:6px;cursor:pointer;font-size:.875rem;font-weight:500">
                     ↩ Return to HR
+                </button>
+            </form>
+            <?php endif; ?>
+
+            <!-- Cancel (available for Pending and HRApproved) -->
+            <hr style="border:0;border-top:1px solid #f3f4f6;margin:.75rem 0">
+            <form method="POST"
+                  action="<?= $base ?>/owner/requests/<?= (int) $request['request_id'] ?>/cancel"
+                  onsubmit="return confirm('Cancel this request? The employee will see this as Cancelled.')">
+                <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
+                <div style="margin-bottom:.75rem">
+                    <label for="owner_notes_cancel"
+                           style="display:block;font-weight:500;font-size:.875rem;margin-bottom:.3rem">
+                        Cancellation note <span style="color:#6b7280">(optional)</span>
+                    </label>
+                    <textarea id="owner_notes_cancel" name="owner_notes" rows="2"
+                              placeholder="Optional reason for cancellation…"
+                              style="width:100%;padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem;resize:vertical"></textarea>
+                </div>
+                <button type="submit"
+                        style="width:100%;background:#6b7280;color:#fff;border:none;padding:.5rem 1rem;border-radius:6px;cursor:pointer;font-size:.875rem;font-weight:500">
+                    ✗ Cancel Request
                 </button>
             </form>
         </div>

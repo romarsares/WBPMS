@@ -62,7 +62,7 @@ $val = static function (string $key) use ($old, $user): string {
         <!-- EMAIL -->
         <div class="form-group">
             <label for="account_email">Account Email <span class="req">*</span></label>
-            <input id="account_email" name="account_email" type="email"
+            <input id="account_email" name="account_email" type="text"
                    value="<?= Formatter::escape($val('account_email')) ?>"
                    maxlength="254" required autocomplete="email"
                    placeholder="e.g. juan@lightdiamond.com">
@@ -79,6 +79,7 @@ $val = static function (string $key) use ($old, $user): string {
         <?php endif; ?>
 
         <!-- ROLE -->
+        <?php if (($roleName ?? '') !== 'HRHead'): ?>
         <div class="form-group">
             <label for="role_id">Role <span class="req">*</span></label>
             <select id="role_id" name="role_id" required>
@@ -91,6 +92,11 @@ $val = static function (string $key) use ($old, $user): string {
                 <?php endforeach; ?>
             </select>
         </div>
+        <?php else: ?>
+        <?php /* HRHead cannot change role; the controller strips the field anyway, but
+                 we send it read-only for form consistency */ ?>
+        <input type="hidden" name="role_id" value="<?= (int)($val('role_id') ?: ($user['role_id'] ?? 0)) ?>">
+        <?php endif; ?>
 
         <!-- LINKED EMPLOYEE -->
         <div class="form-group">

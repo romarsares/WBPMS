@@ -99,11 +99,12 @@ $err = static fn(string $key): string => isset($errors[$key])
                     placeholder="09XXXXXXXXX">
             </div>
             <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email"
+                <label for="email">Email <span style="color:#dc2626">*</span></label>
+                <input type="text" id="email" name="email"
                     value="<?= $v('email') ?>"
                     class="<?= isset($errors['email']) ? 'is-invalid' : '' ?>"
-                    placeholder="optional">
+                    placeholder="e.g. juan@lightdiamond.com"
+                    <?= !$isEdit ? 'required' : '' ?>>
                 <?= $err('email') ?>
             </div>
         </div>

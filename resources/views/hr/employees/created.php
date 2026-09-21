@@ -3,20 +3,20 @@
  * Employee Created — credentials confirmation screen.
  *
  * Shown to the HR Head once, immediately after a new employee record is saved.
- * Displays the auto-provisioned username and temporary password so HR can
+ * Displays the auto-provisioned email and temporary password so HR can
  * relay them to the employee securely.  The plain-text password is never
  * stored and will not be retrievable after this page is left.
  *
  * Variables injected by EmployeeController::store():
  *   string $employeeName  — full name of the newly created employee
- *   string $username      — derived login username  (e.g. juan.delacruz)
+ *   string $accountEmail  — the employee's email address used as login credential
  *   string $tempPassword  — system-generated temporary password (shown once)
  *
  * Requirement 13, AC7: display credentials once in a dismissible confirmation;
  * AC8: no email delivery of credentials at this stage.
  *
  * @var string $employeeName
- * @var string $username
+ * @var string $accountEmail
  * @var string $tempPassword
  * @var string $base          injected by ViewRenderer
  * @var string $csrf          injected by ViewRenderer
@@ -44,16 +44,16 @@ use Wbpms\Http\View\Formatter;
     <table class="data-table" style="margin-bottom:1.5rem">
         <tbody>
             <tr>
-                <th scope="row" style="width:40%;font-weight:600">Username</th>
+                <th scope="row" style="width:40%;font-weight:600">Email (Login)</th>
                 <td>
                     <code id="cred-username" style="font-size:1rem;letter-spacing:.04em">
-                        <?= Formatter::escape($username) ?>
+                        <?= Formatter::escape($accountEmail) ?>
                     </code>
                     <button type="button"
                             class="btn btn-sm btn-secondary"
                             style="margin-left:.5rem;padding:.15rem .5rem;font-size:.75rem"
                             onclick="copyText('cred-username', this)"
-                            aria-label="Copy username">
+                            aria-label="Copy email">
                         Copy
                     </button>
                 </td>

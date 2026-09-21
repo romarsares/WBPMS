@@ -41,9 +41,8 @@ $typeBadgeColor = static function (string $type): string {
 $statusColor = static function (string $status): string {
     return match ($status) {
         'Approved'  => '#10b981',
-        'Rejected'  => '#ef4444',
         'Cancelled' => '#6b7280',
-        default     => '#f59e0b', // Pending
+        default     => '#f59e0b', // Pending / HRApproved / Returned
     };
 };
 ?>
@@ -61,7 +60,7 @@ $statusColor = static function (string $status): string {
     <div class="stat-card"><span class="stat-value"><?= (int) $total ?></span><span class="stat-label">Total</span></div>
     <div class="stat-card" style="border-left:4px solid #f59e0b"><span class="stat-value"><?= (int) $pending ?></span><span class="stat-label">Pending</span></div>
     <div class="stat-card" style="border-left:4px solid #10b981"><span class="stat-value"><?= (int) $approved ?></span><span class="stat-label">Approved</span></div>
-    <div class="stat-card" style="border-left:4px solid #ef4444"><span class="stat-value"><?= (int) $rejected ?></span><span class="stat-label">Rejected</span></div>
+    <div class="stat-card" style="border-left:4px solid #6b7280"><span class="stat-value"><?= (int) $rejected ?></span><span class="stat-label">Cancelled</span></div>
 </div>
 
 <!-- Filters -->
@@ -71,7 +70,7 @@ $statusColor = static function (string $status): string {
         <label style="font-size:.78rem;font-weight:500;color:#374151;display:block;margin-bottom:.2rem">Status</label>
         <select name="status" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
             <option value="">All</option>
-            <?php foreach (['Pending', 'Approved', 'Rejected', 'Cancelled'] as $s): ?>
+            <?php foreach (['Pending', 'HRApproved', 'Approved', 'Returned', 'Cancelled'] as $s): ?>
             <option value="<?= Formatter::escape($s) ?>"
                 <?= ($filters['status'] ?? '') === $s ? 'selected' : '' ?>>
                 <?= Formatter::escape($s) ?>

@@ -32,9 +32,9 @@ access only the features permitted for my role.
 
 #### Acceptance Criteria
 
-1. WHEN a user submits valid credentials THEN the system SHALL authenticate
-   the user and redirect to the role-appropriate home/dashboard page.
-   [REQ001]
+1. WHEN a user submits their registered email address and password THEN the
+   system SHALL authenticate the user and redirect to the role-appropriate
+   home/dashboard page. [REQ001; HR interview 2026-09-21]
 2. IF submitted credentials do not match a stored record THEN the system
    SHALL reject the login and display an error without revealing which
    field was incorrect.
@@ -49,10 +49,11 @@ access only the features permitted for my role.
 6. WHEN a Business Owner account is created THEN the system SHALL permit
    the account to exist without an employee profile because the Owner does
    not draw an employee salary. [Supplemental HR answer, p. 3]
-7. WHEN any account is created THEN the system SHALL store a unique account
-   recovery email independently of the optional employee email, store only a
-   hashed password/OTP, persist the server session in MySQL, and expire reset
-   challenges after use or timeout. [REQ002, REQN011; ADR-0002]
+7. WHEN any account is created THEN the system SHALL use the account's
+   email address as the login credential (no separate username field),
+   store only a hashed password/OTP, persist the server session in MySQL,
+   and expire reset challenges after use or timeout. [REQ002, REQN011;
+   ADR-0002; HR interview 2026-09-21]
 
 ### Requirement 2: Dashboard
 
@@ -109,8 +110,9 @@ data.
    the system SHALL create the employee record. [REQ010]
 3. WHEN the HR Head edits and saves an employee record THEN the system
    SHALL persist the changes. [REQ011]
-4. WHEN the HR Head archives an employee record THEN the system SHALL
-   remove it from active lists while retaining it for history. [REQ012]
+4. WHEN an employee is separated THEN the HR Head SHALL archive the employee
+   record; the system SHALL remove it from active lists while retaining all
+   history for audit. [REQ012; HR interview 2026-09-21]
 5. WHEN the HR Head searches by name or ID THEN the system SHALL return
    matching employee records. [REQ013, REQ014]
 6. WHEN employee records are requested for selection (e.g., in attendance
@@ -154,10 +156,11 @@ working days and hours.
    a calendar-based view, including designated holidays. [REQ029, REQ030]
 6. WHEN a schedule type is being assigned THEN the system SHALL present a
    selectable list of schedule types. [REQ031]
-7. WHEN the standard weekly schedule is configured THEN Saturday SHALL be
-   represented as the rest day and the normal payroll week SHALL contain
-   six working days from Friday through Thursday. Individual shifts may be
-   07:00–16:00 or 08:00–17:00. [Supplemental HR answer, p. 2]
+7. WHEN the work schedule is configured THEN the system SHALL support
+   configurable working-day patterns; the current Light Diamond configuration
+   is Sunday–Thursday (5 working days) or Friday–Thursday (6 working days)
+   with Saturday as the rest day. Individual shifts may be 07:00–16:00 or
+   08:00–17:00. [Supplemental HR answer, p. 2; HR interview 2026-09-21]
 8. FOR any calendar instant, THE SYSTEM SHALL permit at most one effective
    work schedule per employee; effective periods SHALL be preserved rather
    than overwritten. [REQ026; ADR-0002]
@@ -268,9 +271,9 @@ live connection to the device.
 ### Requirement 7: Request Management (Leave, Overtime, Cash Advance)
 
 **User Story:** As an Employee, I want to submit leave, overtime, and cash
-advance requests and track their status; as the HR Head, I want to review,
-approve, or reject them, so that all requests are centrally tracked and
-auditable.
+advance requests and track their status; as the HR Head or Business Owner,
+I want to review, approve, or cancel them, so that all requests are
+centrally tracked and auditable.
 
 #### Acceptance Criteria
 
@@ -285,22 +288,26 @@ auditable.
 4. WHEN the HR Head views requests THEN the system SHALL display and allow
    sorting/filtering by type, employee, and status. [REQ032, REQ036,
    REQ037, REQ041, REQ042, REQ046]
-5. WHEN the HR Head approves or rejects a request THEN the system SHALL
-   update its status to `Approved` or `Rejected` and make that status
-   visible to the submitting employee. [REQ033, REQ038, REQ043]
-6. WHEN the HR Head archives a resolved request THEN the system SHALL
+5. WHEN the HR Head approves or cancels a request THEN the system SHALL
+   update its status to `Approved` or `Cancelled` and make that status
+   visible to the submitting employee. [REQ033, REQ038, REQ043;
+   HR interview 2026-09-21]
+6. WHEN the Business Owner reviews a request THEN the system SHALL allow
+   the Owner to approve or cancel any leave, overtime, or cash advance
+   request. [HR interview 2026-09-21]
+7. WHEN the HR Head archives a resolved request THEN the system SHALL
    remove it from active queues while retaining it for reporting. [REQ034,
    REQ039, REQ044]
-7. WHEN the HR Head searches requests by employee THEN the system SHALL
+8. WHEN the HR Head searches requests by employee THEN the system SHALL
    return matching records. [REQ035, REQ040, REQ045]
-8. WHEN a request is stored THEN the system SHALL keep exactly one detail row
+9. WHEN a request is stored THEN the system SHALL keep exactly one detail row
    matching its type: leave dates/days, overtime date/time/minutes, or cash-
    advance amount. Archival metadata SHALL remain separate from its decision
    status. [REQ032–REQ046; ADR-0002]
-9. WHEN leave entitlement changes or approved sick leave is consumed THEN the
-   system SHALL append a leave-ledger entry; the current balance SHALL be
-   derived from that ledger. [REQ078; ADR-0002]
-10. WHEN a cash advance is approved THEN the system SHALL create exactly one
+10. WHEN leave entitlement changes or approved sick leave is consumed THEN the
+    system SHALL append a leave-ledger entry; the current balance SHALL be
+    derived from that ledger. [REQ078; ADR-0002]
+11. WHEN a cash advance is approved THEN the system SHALL create exactly one
     request-linked obligation; each later payroll repayment SHALL create a
     separate repayment row linked to the exact deduction. [ADR-0001, ADR-0002]
 
@@ -492,6 +499,8 @@ routine information.
    provide it as a downloadable file. [REQ082]
 5. IF an employee attempts to access another employee's records THEN the
    system SHALL deny access.
+6. WHEN an employee views My Attendance THEN the system SHALL display an
+   attendance status column for each record. [HR interview 2026-09-21]
 
 ---
 
@@ -516,10 +525,11 @@ routine information.
 7. THE SYSTEM SHALL restrict all access to authenticated, authorized
    users. [REQN007]
 8. ONLY the HR Head role SHALL be permitted to manage payroll. [REQN008]
-9. ONLY the HR Head role SHALL be permitted to approve leave requests.
-   [REQN009]
-10. ONLY the HR Head role SHALL be permitted to approve cash advances.
-    [REQN010]
+9. THE HR Head AND Business Owner roles SHALL be permitted to approve or
+   cancel leave, overtime, and cash advance requests. [REQN009; HR interview
+   2026-09-21]
+10. THE HR Head AND Business Owner roles SHALL be permitted to approve or
+    cancel cash advance requests. [REQN010; HR interview 2026-09-21]
 11. THE SYSTEM SHALL require secure login authentication (hashed
     passwords, session/token-based auth). [REQN011]
 11a. WHEN an unauthenticated action such as a failed login is audited THEN the

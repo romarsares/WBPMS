@@ -51,7 +51,7 @@ final class RequestsController
         $total    = count($rows);
         $pending  = count(array_filter($rows, fn($r) => $r['status'] === 'Pending'));
         $approved = count(array_filter($rows, fn($r) => in_array($r['status'], ['HRApproved', 'Approved'], true)));
-        $rejected = count(array_filter($rows, fn($r) => $r['status'] === 'Rejected'));
+        $rejected = count(array_filter($rows, fn($r) => $r['status'] === 'Cancelled'));
 
         ViewRenderer::render('hr/requests/index', [
             'rows'     => $rows,
@@ -186,24 +186,33 @@ final class RequestsController
     }
 
     // -----------------------------------------------------------------------
-    // POST /hr/requests/{id}/reject
+    // POST /hr/requests/{id}/cancel
     // -----------------------------------------------------------------------
 
     /** @param array<string, string> $params */
-    public function reject(array $params = []): void
+    public function cancel(array $params = []): void
     {
         $id       = (int) ($params['id'] ?? 0);
         $identity = AuthMiddleware::identity();
         $note     = trim((string) ($_POST['review_notes'] ?? ''));
 
         try {
-            $this->makeService()->reject($id, (int) ($identity['user_id'] ?? 0), $note);
-            ViewRenderer::flash('Request rejected.');
+            $this->makeService()->cancelRequest($id, (int) ($identity['user_id'] ?? 0), $note);
+            ViewRenderer::flash('Request cancelled.');
         } catch (RuntimeException $e) {
             ViewRenderer::flashError($e->getMessage());
         }
 
         $this->redirect('/hr/requests');
+    }
+
+    /**
+     * @deprecated Route alias kept for backwards compatibility.
+     * @param array<string, string> $params
+     */
+    public function reject(array $params = []): void
+    {
+        $this->cancel($params);
     }
 
     // -----------------------------------------------------------------------

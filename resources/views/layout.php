@@ -53,7 +53,6 @@ $nav = match ($roleName) {
         ['hr/settings',      'Settings',               '⚙', 'settings'],
     ],
     default => [ // Employee
-        ['employee/notices', 'HR Notices', 'N', 'my-notices'],
         ['employee/dashboard',  'Dashboard',                   '⌂', 'dashboard'],
         ['employee/attendance', 'My Attendance',               '◷', 'my-attendance'],
         ['employee/requests',   'Leave / OT / Cash Advance',   '▱', 'my-requests'],
@@ -255,6 +254,15 @@ function filterRows(input, tableId) {
 }
 .side-version:hover {
     color: #d1d5db;
+}
+
+/* Active nav item highlight */
+.sidebar nav a.active {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    font-weight: 700;
+    border-left: 3px solid #ffffff;
+    padding-left: calc(1rem - 3px);
 }
 </style>
 
