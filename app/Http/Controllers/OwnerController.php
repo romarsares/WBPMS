@@ -204,11 +204,13 @@ final class OwnerController
      */
     public function requestList(array $params = []): void
     {
-        $service = $this->makeRequestService();
-        $pending = $service->ownerPendingList();
+        $service  = $this->makeRequestService();
+        $pending  = $service->ownerPendingList();
+        $actioned = $service->ownerActionedList();
 
         ViewRenderer::render('owner/requests/index', [
-            'pending' => $pending,
+            'pending'  => $pending,
+            'actioned' => $actioned,
         ], 'Request Approvals');
     }
 
@@ -319,6 +321,9 @@ final class OwnerController
     private function redirect(string $path): void
     {
         $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
         header('Location: ' . $base . $path, true, 302);
         exit;
     }

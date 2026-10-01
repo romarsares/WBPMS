@@ -57,7 +57,7 @@ $err = static fn(string $key): string => isset($errors[$key])
 </div>
 
 <div class="card" style="max-width:720px">
-    <form method="POST" action="<?= Formatter::escape($action) ?>">
+    <form method="POST" action="<?= Formatter::escape($action) ?>" novalidate>
         <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
         <?php if ($isEdit): ?>
         <input type="hidden" name="_method" value="PUT">
@@ -69,7 +69,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <label for="first_name">First name <span style="color:#dc2626">*</span></label>
                 <input type="text" id="first_name" name="first_name"
                     value="<?= $v('first_name') ?>"
-                    class="<?= isset($errors['first_name']) ? 'is-invalid' : '' ?>" required>
+                    class="<?= isset($errors['first_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('first_name') ?>
             </div>
             <div class="form-group">
@@ -81,7 +81,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <label for="last_name">Last name <span style="color:#dc2626">*</span></label>
                 <input type="text" id="last_name" name="last_name"
                     value="<?= $v('last_name') ?>"
-                    class="<?= isset($errors['last_name']) ? 'is-invalid' : '' ?>" required>
+                    class="<?= isset($errors['last_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('last_name') ?>
             </div>
         </div>
@@ -103,8 +103,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="text" id="email" name="email"
                     value="<?= $v('email') ?>"
                     class="<?= isset($errors['email']) ? 'is-invalid' : '' ?>"
-                    placeholder="e.g. juan@lightdiamond.com"
-                    <?= !$isEdit ? 'required' : '' ?>>
+                    placeholder="e.g. juan@lightdiamond.com">
                 <?= $err('email') ?>
             </div>
         </div>
@@ -112,7 +111,7 @@ $err = static fn(string $key): string => isset($errors[$key])
         <div class="form-row">
             <div class="form-group">
                 <label for="position">Position / Job title <span style="color:#dc2626">*</span></label>
-                <select id="position_select" name="position" required
+                <select id="position_select" name="position"
                         onchange="syncPositionInput(this)"
                         class="<?= isset($errors['position']) ? 'is-invalid' : '' ?>">
                     <option value="">— select position —</option>
@@ -147,7 +146,7 @@ $err = static fn(string $key): string => isset($errors[$key])
             </div>
             <div class="form-group">
                 <label for="employee_type">Employee type <span style="color:#dc2626">*</span></label>
-                <select id="employee_type" name="employee_type" required>
+                <select id="employee_type" name="employee_type">
                     <option value="Regular"      <?= $sel($employee['employee_type'] ?? 'Regular', 'Regular') ?>>Regular</option>
                     <option value="Contractual"  <?= $sel($employee['employee_type'] ?? '',        'Contractual') ?>>Contractual</option>
                 </select>
@@ -159,12 +158,10 @@ $err = static fn(string $key): string => isset($errors[$key])
             var other = document.getElementById('position_other');
             if (sel.value === '__other__') {
                 other.style.display = '';
-                other.required = true;
                 other.name = 'position';
                 sel.name = '_position_select';
             } else {
                 other.style.display = 'none';
-                other.required = false;
                 other.name = 'position_other';
                 sel.name = 'position';
             }
@@ -178,7 +175,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <label for="employee_number">Employee number <span style="color:#dc2626">*</span></label>
                 <input type="text" id="employee_number" name="employee_number"
                     value="<?= $v('employee_number') ?>"
-                    <?= $isEdit ? 'readonly style="background:#f3f4f6"' : 'required' ?>
+                    <?= $isEdit ? 'readonly style="background:#f3f4f6"' : '' ?>
                     class="<?= isset($errors['employee_number']) ? 'is-invalid' : '' ?>">
                 <?= $err('employee_number') ?>
             </div>
@@ -187,7 +184,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="date" id="effective_from" name="effective_from"
                     value="<?= $v('effective_from') ?>"
                     class="<?= isset($errors['effective_from']) ? 'is-invalid' : '' ?>"
-                    <?= $isEdit ? 'readonly style="background:#f3f4f6"' : 'required' ?>>
+                    <?= $isEdit ? 'readonly style="background:#f3f4f6"' : '' ?>>
                 <?= $err('effective_from') ?>
             </div>
         </div>
@@ -221,14 +218,26 @@ $err = static fn(string $key): string => isset($errors[$key])
         <h2>Assignment &amp; Salary</h2>
         <div class="form-row">
             <div class="form-group">
-                <label for="branch_id">Branch <span style="color:#dc2626">*</span></label>
-                <select id="branch_id" name="branch_id"
+                <label for="branch_id">Branch <?= !$isEdit ? '<span style="color:#dc2626">*</span>' : '' ?></label>
+                <?php
+                // On edit: the select is visually disabled so HR cannot change it directly
+                // (use Transfer Branch instead), but we still need the value to survive
+                // a validation-error re-render. A hidden input carries the submitted value;
+                // the visible select is purely decorative and uses `disabled` + `tabindex="-1"`.
+                $currentBranchId = (string) ($employee['branch_id'] ?? ($_POST['branch_id'] ?? ''));
+                ?>
+                <?php if ($isEdit): ?>
+                <input type="hidden" name="branch_id" value="<?= Formatter::escape($currentBranchId) ?>">
+                <?php endif; ?>
+                <select id="branch_id"
+                    <?= !$isEdit ? 'name="branch_id"' : 'tabindex="-1" aria-hidden="true"' ?>
+                    <?= $isEdit ? 'disabled style="background:#f3f4f6;color:#6b7280;cursor:not-allowed"' : '' ?>
                     class="<?= isset($errors['branch_id']) ? 'is-invalid' : '' ?>"
-                    <?= $isEdit ? 'disabled' : 'required' ?>>
+                    <?= !$isEdit ? 'required' : '' ?>>
                     <option value="">— select —</option>
                     <?php foreach ($branches as $branch): ?>
                     <option value="<?= (int) $branch['id'] ?>"
-                        <?= $sel($branch['id'], $employee['branch_id'] ?? ($_POST['branch_id'] ?? '')) ?>>
+                        <?= $sel($branch['id'], $currentBranchId) ?>>
                         <?= Formatter::escape($branch['name']) ?>
                     </option>
                     <?php endforeach; ?>
@@ -241,7 +250,8 @@ $err = static fn(string $key): string => isset($errors[$key])
             <div class="form-group">
                 <label for="schedule_id">Work schedule <span style="color:#dc2626">*</span></label>
                 <select id="schedule_id" name="schedule_id"
-                    class="<?= isset($errors['schedule_id']) ? 'is-invalid' : '' ?>" required>
+                    required
+                    class="<?= isset($errors['schedule_id']) ? 'is-invalid' : '' ?>">
                     <option value="">— select —</option>
                     <?php foreach ($schedules as $schedule): ?>
                     <option value="<?= (int) $schedule['id'] ?>"
@@ -259,7 +269,8 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <label for="daily_rate">Daily rate (₱) <span style="color:#dc2626">*</span></label>
                 <input type="number" id="daily_rate" name="daily_rate"
                     value="<?= $v('daily_rate') ?>"
-                    min="0" step="0.01" required
+                    min="0.01" step="0.01"
+                    required
                     class="<?= isset($errors['daily_rate']) ? 'is-invalid' : '' ?>">
                 <?= $err('daily_rate') ?>
             </div>
@@ -278,9 +289,10 @@ $err = static fn(string $key): string => isset($errors[$key])
         <h2>Biometric Enrollment</h2>
         <div class="form-row">
             <div class="form-group">
-                <label for="device_id">Biometric device <span style="color:#dc2626">*</span></label>
+                <label for="device_id">Biometric device <?= !$isEdit ? '<span style="color:#dc2626">*</span>' : '' ?></label>
                 <select id="device_id" name="device_id"
-                    class="<?= isset($errors['device_id']) ? 'is-invalid' : '' ?>" required>
+                    <?= !$isEdit ? 'required' : '' ?>
+                    class="<?= isset($errors['device_id']) ? 'is-invalid' : '' ?>">
                     <option value="">— select —</option>
                     <?php foreach ($devices as $device): ?>
                     <option value="<?= (int) $device['id'] ?>"
@@ -290,13 +302,17 @@ $err = static fn(string $key): string => isset($errors[$key])
                     <?php endforeach; ?>
                 </select>
                 <?= $err('device_id') ?>
+                <?php if ($isEdit): ?>
+                <small class="muted">To re-enroll this employee on a device, use the biometric enrollment workflow.</small>
+                <?php endif; ?>
             </div>
             <div class="form-group">
-                <label for="enrollment_code">Enroll ID <span style="color:#dc2626">*</span></label>
+                <label for="enrollment_code">Enroll ID <?= !$isEdit ? '<span style="color:#dc2626">*</span>' : '' ?></label>
                 <input type="text" id="enrollment_code" name="enrollment_code"
                     value="<?= $v('enrollment_code') ?>"
                     inputmode="numeric"
-                    class="<?= isset($errors['enrollment_code']) ? 'is-invalid' : '' ?>" required>
+                    <?= !$isEdit ? 'required' : '' ?>
+                    class="<?= isset($errors['enrollment_code']) ? 'is-invalid' : '' ?>">
                 <?= $err('enrollment_code') ?>
             </div>
         </div>

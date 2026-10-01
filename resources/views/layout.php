@@ -23,8 +23,15 @@ $identity    = AuthMiddleware::identity();
 $roleName    = $identity['role_name']    ?? '';
 $displayName = $identity['display_name'] ?? ($identity['username'] ?? '');
 $activePage  = $activePage ?? '';
-$flash       = $flash ?? [];
 $notifCount  = $notifCount ?? 0;
+
+// $flash and $flashMessages are injected by the caller:
+//   - ViewRenderer path  → $flashMessages is a pre-built list<[type,msg]>; $flash is null
+//   - Direct require path (old-style controllers) → $flash is array of [type,msg] pairs; $flashMessages is not set
+// Do NOT reassign $flash here — it would shadow the injected value.
+if (!isset($flashMessages)) {
+    $flashMessages = [];
+}
 
 // Base URL for asset and route links (no trailing slash)
 $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
@@ -49,7 +56,7 @@ $nav = match ($roleName) {
         ['hr/salary',        'Salary Management',      '₱', 'salary'],
         ['hr/benefits',      'Benefits & Deductions',  '＋', 'benefits'],
         ['hr/reports',       'Reports',                '▤', 'reports'],
-        ['users',            'User Accounts',          '👤', 'users'],
+        ['users',            'User Management',        '👤', 'users'],
         ['hr/settings',      'Settings',               '⚙', 'settings'],
     ],
     default => [ // Employee
@@ -173,17 +180,25 @@ $nav = match ($roleName) {
         <!-- Page content -->
         <section class="content">
 
-            <?php
-            // Normalize flash: ViewRenderer injects $flash/$flashError as strings;
-            // older controllers inject $flash as array of [$type, $msg] pairs.
-            $flashMessages = [];
+        <?php
+            // Flash normalization.
+            //
+            // ViewRenderer path: $flashMessages is already populated as list<[type,msg]>.
+            //
+            // Direct-require path (old-style controllers: UserController, etc.):
+            //   $flash is array of ['success'|'error', 'message'] pairs — merge into $flashMessages.
+            //   $flashError may be a string set by those controllers directly.
+            //
+            // Both paths feed the toast container below. No inline .alert is
+            // rendered here for action feedback; validation errors stay inside $content.
+
             if (!empty($flash)) {
-                if (is_string($flash)) {
+                if (is_string($flash) && $flash !== '') {
                     $flashMessages[] = ['success', $flash];
                 } elseif (is_array($flash)) {
                     foreach ($flash as $item) {
                         if (is_array($item) && count($item) === 2) {
-                            $flashMessages[] = $item;
+                            $flashMessages[] = [$item[0], $item[1]];
                         }
                     }
                 }
@@ -191,12 +206,7 @@ $nav = match ($roleName) {
             if (!empty($flashError) && is_string($flashError)) {
                 $flashMessages[] = ['error', $flashError];
             }
-            foreach ($flashMessages as [$flashType, $flashMessage]):
-            ?>
-                <div class="alert <?= Formatter::escape($flashType) ?>" role="alert">
-                    <?= Formatter::escape($flashMessage) ?>
-                </div>
-            <?php endforeach; ?>
+        ?>
 
             <?= $content ?? '' ?>
 
@@ -205,6 +215,24 @@ $nav = match ($roleName) {
     </div><!-- /.main -->
 
 </div><!-- /.app -->
+
+<!-- ================================================================
+     TOAST NOTIFICATION CONTAINER
+     Flash messages of type 'success' and 'error' that come from
+     redirects (CRUD actions) are shown as auto-dismissing toasts.
+     Validation errors on forms remain as inline .alert divs.
+     ================================================================ -->
+<div id="toastContainer" class="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
+
+<?php
+// Build toast data from flash messages for JS injection.
+// Only redirect-based action messages become toasts;
+// form validation errors stay as inline alerts (handled above in content).
+$toastData = [];
+foreach ($flashMessages as [$ft, $fm]) {
+    $toastData[] = ['type' => $ft, 'message' => $fm];
+}
+?>
 
 <script>
 function searchNav(q) {
@@ -235,36 +263,48 @@ function filterRows(input, tableId) {
         r.style.display = r.innerText.toLowerCase().includes(q) ? '' : 'none';
     });
 }
+
+function showToast(type, message) {
+    var container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    var toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    toast.setAttribute('role', 'alert');
+
+    var icon = type === 'success' ? '✓' : (type === 'error' ? '✕' : (type === 'warning' ? '⚠' : 'ℹ'));
+    toast.innerHTML =
+        '<span class="toast-icon">' + icon + '</span>' +
+        '<span class="toast-msg">' + message.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>' +
+        '<button class="toast-close" onclick="this.parentElement.remove()" aria-label="Dismiss">×</button>';
+
+    container.appendChild(toast);
+
+    // Trigger animation
+    requestAnimationFrame(function () {
+        requestAnimationFrame(function () { toast.classList.add('toast-show'); });
+    });
+
+    // Auto-dismiss after 4.5 s
+    setTimeout(function () {
+        toast.classList.remove('toast-show');
+        toast.classList.add('toast-hide');
+        setTimeout(function () { if (toast.parentElement) toast.remove(); }, 400);
+    }, 4500);
+}
+
+// Fire any queued flash toasts now that showToast is defined.
+<?php if (!empty($toastData)): ?>
+(function () {
+    var toasts = <?= json_encode($toastData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    toasts.forEach(function (t) { showToast(t.type, t.message); });
+})();
+<?php endif; ?>
 </script>
 
 <!-- Build version — visible only in page source for non-sidebar views -->
 <meta name="app-version" content="<?= htmlspecialchars(\Wbpms\Http\View\AppVersion::label(), ENT_QUOTES, 'UTF-8') ?>">
 <meta name="app-commit" content="<?= htmlspecialchars(\Wbpms\Http\View\AppVersion::hash(), ENT_QUOTES, 'UTF-8') ?>">
-
-<style>
-.side-version {
-    font-size: .68rem;
-    color: #9ca3af;
-    padding: .4rem .9rem .6rem;
-    letter-spacing: .03em;
-    word-break: break-all;
-    border-top: 1px solid rgba(255,255,255,.08);
-    margin-top: auto;
-    cursor: default;
-}
-.side-version:hover {
-    color: #d1d5db;
-}
-
-/* Active nav item highlight */
-.sidebar nav a.active {
-    background: rgba(255, 255, 255, 0.15);
-    color: #ffffff;
-    font-weight: 700;
-    border-left: 3px solid #ffffff;
-    padding-left: calc(1rem - 3px);
-}
-</style>
 
 </body>
 </html>

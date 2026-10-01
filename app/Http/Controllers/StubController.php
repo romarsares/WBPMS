@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Wbpms\Http\Controllers;
 
-use Wbpms\Http\Middleware\AuthMiddleware;
-use Wbpms\Http\Middleware\CsrfMiddleware;
+use Wbpms\Http\View\ViewRenderer;
 
 /**
  * StubController — renders a "module coming soon" page for routes that are
@@ -92,39 +91,10 @@ final class StubController
 
     private function render(string $title, string $activePage, string $description): void
     {
-        $identity    = AuthMiddleware::identity();
-        $displayName = $identity['display_name'] ?? ($identity['username'] ?? '');
-        $roleName    = $identity['role_name'] ?? '';
-        $base        = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
-        $csrfField   = CsrfMiddleware::field();
-        $flash       = $_SESSION['_flash'] ?? [];
-        unset($_SESSION['_flash']);
-        $notifCount  = 0;
-
-        ob_start();
-        ?>
-        <div class="page-head">
-            <div>
-                <h1><?= htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
-                <p><?= htmlspecialchars($description, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
-            </div>
-        </div>
-
-        <div class="panel" style="text-align:center;padding:60px 20px">
-            <div style="font-size:48px;margin-bottom:16px">🚧</div>
-            <h2 style="margin:0 0 10px"><?= htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
-            <p style="color:var(--muted);max-width:480px;margin:0 auto 24px">
-                This module is currently under development and will be available soon.
-            </p>
-            <a class="btn-secondary" href="<?= htmlspecialchars($base . '/dashboard', ENT_QUOTES, 'UTF-8') ?>">
-                ← Back to Dashboard
-            </a>
-        </div>
-        <?php
-        $content = ob_get_clean();
-
-        http_response_code(200);
-        header('Content-Type: text/html; charset=utf-8');
-        require APP_ROOT . '/resources/views/layout.php';
+        ViewRenderer::render('stub', [
+            'stubTitle'       => $title,
+            'stubDescription' => $description,
+            'activePage'      => $activePage,
+        ], $title);
     }
 }

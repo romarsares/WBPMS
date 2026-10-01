@@ -775,6 +775,13 @@ final class EmployeeController
     private function redirect(string $path): void
     {
         $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        // Flush the session before redirecting so flash messages written to
+        // $_SESSION are committed to the database handler before exit kills
+        // the process. Without this, the custom DatabaseSessionHandler's
+        // write() may not be called in time and the toast never appears.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
         header('Location: ' . $base . $path, true, 302);
         exit;
     }

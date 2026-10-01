@@ -7,17 +7,19 @@ use Wbpms\Http\View\Formatter;
  * @var int      $inactive
  * @var int      $archived
  * @var string   $base
- * @var string   $csrfField
- * @var array[]  $flash
+ * @var string   $csrf
  * @var array[]  $positions       Active job positions for filter dropdown
  * @var string   $filterPosition  Current position filter value
  * @var string   $filterUsername  Current username filter value
  * @var string   $filterStatus    Current status filter value
+ *
+ * Flash messages are handled by layout.php via the ViewRenderer toast system.
  */
 $positions      ??= [];
 $filterPosition ??= '';
 $filterUsername ??= '';
 $filterStatus   ??= '';
+$roleName       ??= '';
 ?>
 <div class="page-head">
     <div><h1>User Management</h1><p>System accounts and role assignments.</p></div>
@@ -25,10 +27,6 @@ $filterStatus   ??= '';
     <a class="btn btn-primary" href="<?= $base ?>/users/create">＋ New User</a>
     <?php endif; ?>
 </div>
-
-<?php foreach ($flash as [$type, $msg]): ?>
-    <div class="alert <?= Formatter::escape($type) ?>" role="alert"><?= Formatter::escape($msg) ?></div>
-<?php endforeach; ?>
 
 <div class="cards four">
     <div class="stat"><strong><?= $total ?></strong><span>Total Users</span></div>
@@ -115,7 +113,7 @@ $filterStatus   ??= '';
                               action="<?= $base ?>/users/<?= (int)$r['user_id'] ?>/toggle"
                               style="display:inline"
                               onsubmit="return confirm('<?= $r['status'] === 'Active' ? 'Deactivate' : 'Activate' ?> this user?')">
-                            <?= $csrfField ?>
+                            <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <button type="submit" class="<?= $toggleClass ?> btn-sm">
                                 <?= $toggleLabel ?>
                             </button>
@@ -127,7 +125,7 @@ $filterStatus   ??= '';
                               action="<?= $base ?>/users/<?= (int)$r['user_id'] ?>/archive"
                               style="display:inline"
                               onsubmit="return confirm('Archive this user? This cannot be undone.')">
-                            <?= $csrfField ?>
+                            <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <button type="submit" class="btn-danger btn-sm">Archive</button>
                         </form>
                         <?php endif; ?>
@@ -139,7 +137,7 @@ $filterStatus   ??= '';
                               action="<?= $base ?>/users/<?= (int)$r['user_id'] ?>/reset-password"
                               style="display:inline"
                               onsubmit="return confirm('Reset password for <?= Formatter::escape($r['username']) ?>? A new temporary password will be generated.')">
-                            <?= $csrfField ?>
+                            <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8') ?>">
                             <button type="submit" class="btn-secondary btn-sm">Reset Password</button>
                         </form>
                         <?php endif; ?>

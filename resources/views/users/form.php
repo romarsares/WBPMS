@@ -9,8 +9,13 @@ use Wbpms\Http\View\Formatter;
  * @var array[]                   $employees  — unlinked employees for the select
  * @var string[]                  $errors     — validation error messages
  * @var string                    $base
- * @var string                    $csrfField
+ * @var string                    $csrf
  */
+$user       = $user ?? null;
+$old        = $old  ?? [];
+$errors     = $errors ?? [];
+$roles      = $roles ?? [];
+$employees  = $employees ?? [];
 $isEdit     = isset($user) && !empty($user['user_id']);
 $userId     = $isEdit ? (int) $user['user_id'] : 0;
 $formAction = $isEdit ? $base . '/users/' . $userId : $base . '/users';
@@ -44,8 +49,8 @@ $val = static function (string $key) use ($old, $user): string {
 <?php endif; ?>
 
 <div class="panel" style="max-width:680px">
-    <form method="POST" action="<?= Formatter::escape($formAction) ?>">
-        <?= $csrfField ?>
+    <form method="POST" action="<?= Formatter::escape($formAction) ?>" novalidate>
+        <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8') ?>">
         <?php if ($isEdit): ?>
             <input type="hidden" name="_method" value="PUT">
         <?php endif; ?>
@@ -54,8 +59,9 @@ $val = static function (string $key) use ($old, $user): string {
         <div class="form-group">
             <label for="username">Username <span class="req">*</span></label>
             <input id="username" name="username" type="text"
+                   class="form-control"
                    value="<?= Formatter::escape($val('username')) ?>"
-                   maxlength="50" required autocomplete="username"
+                   maxlength="50" autocomplete="username"
                    placeholder="e.g. jdelacruz">
         </div>
 
@@ -63,8 +69,9 @@ $val = static function (string $key) use ($old, $user): string {
         <div class="form-group">
             <label for="account_email">Account Email <span class="req">*</span></label>
             <input id="account_email" name="account_email" type="text"
+                   class="form-control"
                    value="<?= Formatter::escape($val('account_email')) ?>"
-                   maxlength="254" required autocomplete="email"
+                   maxlength="254" autocomplete="email"
                    placeholder="e.g. juan@lightdiamond.com">
         </div>
 
@@ -73,7 +80,8 @@ $val = static function (string $key) use ($old, $user): string {
         <div class="form-group">
             <label for="password">Password <span class="req">*</span></label>
             <input id="password" name="password" type="password"
-                   minlength="8" required autocomplete="new-password"
+                   class="form-control"
+                   minlength="8" autocomplete="new-password"
                    placeholder="Minimum 8 characters">
         </div>
         <?php endif; ?>
@@ -82,7 +90,7 @@ $val = static function (string $key) use ($old, $user): string {
         <?php if (($roleName ?? '') !== 'HRHead'): ?>
         <div class="form-group">
             <label for="role_id">Role <span class="req">*</span></label>
-            <select id="role_id" name="role_id" required>
+            <select id="role_id" name="role_id" class="form-control">
                 <option value="">— Select role —</option>
                 <?php foreach ($roles as $role): ?>
                     <option value="<?= (int)$role['role_id'] ?>"
@@ -93,15 +101,21 @@ $val = static function (string $key) use ($old, $user): string {
             </select>
         </div>
         <?php else: ?>
-        <?php /* HRHead cannot change role; the controller strips the field anyway, but
-                 we send it read-only for form consistency */ ?>
         <input type="hidden" name="role_id" value="<?= (int)($val('role_id') ?: ($user['role_id'] ?? 0)) ?>">
         <?php endif; ?>
 
         <!-- LINKED EMPLOYEE -->
         <div class="form-group">
             <label for="employee_id">Linked Employee <span id="employeeRequired" class="req" hidden>*</span></label>
-            <select id="employee_id" name="employee_id">
+            <?php if (empty($employees) && !$isEdit): ?>
+                <div class="alert info" role="alert" style="margin-top:4px;margin-bottom:0">
+                    All active employees are already linked to a user account.
+                    To link an employee here, first ensure they do not have an existing active account,
+                    or archive their old account before creating a new one.
+                </div>
+                <input type="hidden" name="employee_id" value="">
+            <?php else: ?>
+            <select id="employee_id" name="employee_id" class="form-control">
                 <option value="">— None (e.g. Business Owner) —</option>
                 <?php foreach ($employees as $emp): ?>
                     <option value="<?= (int)$emp['employee_id'] ?>"
@@ -111,7 +125,8 @@ $val = static function (string $key) use ($old, $user): string {
                     </option>
                 <?php endforeach; ?>
             </select>
-            <small class="muted">Required for Employee accounts. Unlinking an existing Employee account deactivates it immediately.</small>
+            <?php endif; ?>
+            <small class="help">Required for Employee accounts. Unlinking an existing Employee account deactivates it immediately.</small>
         </div>
 
         <div class="form-actions">
@@ -130,11 +145,12 @@ $val = static function (string $key) use ($old, $user): string {
     var requiredMarker = document.getElementById('employeeRequired');
     var isEdit = <?= $isEdit ? 'true' : 'false' ?>;
 
+    if (!roleSelect || !employeeSelect) return;
+
     function updateEmployeeRequirement() {
         var selected = roleSelect.options[roleSelect.selectedIndex];
         var isEmployee = selected && selected.text.trim() === 'Employee';
-        employeeSelect.required = isEmployee && !isEdit;
-        requiredMarker.hidden = !isEmployee;
+        if (requiredMarker) requiredMarker.hidden = !isEmployee;
     }
 
     roleSelect.addEventListener('change', updateEmployeeRequirement);
@@ -142,25 +158,4 @@ $val = static function (string $key) use ($old, $user): string {
 })();
 </script>
 
-<style>
-.form-group { margin-bottom: 20px; }
-.form-group label { display:block; font-weight:700; margin-bottom:6px; font-size:14px; }
-.form-group input, .form-group select {
-    width:100%; padding:9px 12px; border:1px solid var(--line);
-    border-radius:4px; font-size:14px; box-sizing:border-box;
-    background:#fff; color:var(--text);
-}
-.form-group input:focus, .form-group select:focus {
-    outline:none; border-color:var(--primary);
-    box-shadow:0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
-}
-.form-group small.muted { display:block; margin-top:4px; font-size:12px; }
-.req { color:var(--bad); }
-.form-actions { display:flex; gap:10px; margin-top:28px; }
-.alert.error { background:#fdf2f2; border:1px solid var(--bad);
-               color:var(--bad); padding:12px 16px; border-radius:4px;
-               margin-bottom:16px; }
-.alert.success { background:#f0faf4; border:1px solid var(--ok);
-                 color:#166534; padding:12px 16px; border-radius:4px;
-                 margin-bottom:16px; }
-</style>
+

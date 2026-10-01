@@ -136,6 +136,127 @@ final class ReportsController
     }
 
     // -----------------------------------------------------------------------
+    // GET /hr/reports/transaction-slips  (REQ073 — targeted printing)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Transaction slip generator.
+     *
+     * Produces individual BDO-style cash transaction slips from payroll and
+     * bank_details data. Each slip covers one employee's net pay for a
+     * selected payroll period.
+     *
+     * Data sources:
+     *   payroll        → net_pay (amount to deposit)
+     *   payroll_run    → period, branch, status (must be Approved)
+     *   payroll_period → period_start / period_end
+     *   employee       → name, employee_number
+     *   bank_details   → account_name, account_number, bank_name (may be empty)
+     *
+     * If bank_details has no record for an employee the slip prints with
+     * blank account fields and a notice, allowing HR to fill in manually.
+     *
+     * @param array<string,string> $params
+     */
+    public function transactionSlips(array $params = []): void
+    {
+        $pdo = $this->makeConnection()->pdo();
+
+        // ---- Filters -------------------------------------------------------
+        $employeeId = filter_var($_GET['employee_id'] ?? 0, FILTER_VALIDATE_INT);
+        $employeeId = $employeeId !== false && $employeeId > 0 ? (int) $employeeId : 0;
+
+        $branchId = filter_var($_GET['branch_id'] ?? 0, FILTER_VALIDATE_INT);
+        $branchId = $branchId !== false && $branchId > 0 ? (int) $branchId : 0;
+
+        $periodId = filter_var($_GET['payroll_period_id'] ?? 0, FILTER_VALIDATE_INT);
+        $periodId = $periodId !== false && $periodId > 0 ? (int) $periodId : 0;
+
+        $printMode = isset($_GET['print']) && $_GET['print'] === '1';
+
+        // ---- Reference data for filter dropdowns ---------------------------
+        $branches = $pdo->query(
+            "SELECT branch_id, branch_name FROM branch WHERE status = 'Active' ORDER BY branch_name"
+        )->fetchAll();
+
+        $employees = $pdo->query(
+            "SELECT employee_id, CONCAT(last_name, ', ', first_name) AS employee_name
+               FROM employee WHERE status = 'Active' ORDER BY last_name, first_name"
+        )->fetchAll();
+
+        $periods = $pdo->query(
+            "SELECT pp.payroll_period_id, pp.period_start, pp.period_end
+               FROM payroll_period pp
+               JOIN payroll_run pr ON pr.payroll_period_id = pp.payroll_period_id
+              WHERE pr.status = 'Approved'
+              GROUP BY pp.payroll_period_id
+              ORDER BY pp.period_start DESC
+              LIMIT 50"
+        )->fetchAll();
+
+        // ---- Slip data query -----------------------------------------------
+        $slips = [];
+        if ($periodId > 0) {
+            $where  = ["pr.status = 'Approved'", 'pr.payroll_period_id = :period_id'];
+            $bind   = [':period_id' => $periodId];
+
+            if ($branchId > 0) {
+                $where[]          = 'pr.branch_id = :branch_id';
+                $bind[':branch_id'] = $branchId;
+            }
+            if ($employeeId > 0) {
+                $where[]              = 'p.employee_id = :employee_id';
+                $bind[':employee_id'] = $employeeId;
+            }
+
+            $stmt = $pdo->prepare(
+                "SELECT
+                    e.employee_id,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    e.employee_number,
+                    b.branch_name,
+                    p.net_pay,
+                    pp.period_start,
+                    pp.period_end,
+                    bd.bank_name,
+                    bd.account_name,
+                    bd.account_number,
+                    bd.account_type
+                  FROM payroll p
+                  JOIN payroll_run pr       ON pr.payroll_run_id     = p.payroll_run_id
+                  JOIN payroll_period pp    ON pp.payroll_period_id  = pr.payroll_period_id
+                  JOIN employee e           ON e.employee_id         = p.employee_id
+                  JOIN branch b             ON b.branch_id           = pr.branch_id
+                  LEFT JOIN bank_details bd ON bd.employee_id        = e.employee_id
+                                           AND bd.status             = 'Active'
+                                           AND bd.effective_to IS NULL
+                 WHERE " . implode(' AND ', $where) . "
+                 ORDER BY e.last_name, e.first_name"
+            );
+            $stmt->execute($bind);
+            $slips = $stmt->fetchAll();
+        }
+
+        // ---- Bank details completeness warning flag ------------------------
+        $missingBankCount = count(array_filter($slips, static fn(array $s): bool => empty($s['account_number'])));
+
+        ViewRenderer::render('hr/reports/transaction-slips', [
+            'slips'            => $slips,
+            'branches'         => $branches,
+            'employees'        => $employees,
+            'periods'          => $periods,
+            'filters'          => [
+                'employee_id'       => $employeeId,
+                'branch_id'         => $branchId,
+                'payroll_period_id' => $periodId,
+            ],
+            'missingBankCount' => $missingBankCount,
+            'printMode'        => $printMode,
+            'activePage'       => 'reports',
+        ], 'Transaction Slips');
+    }
+
+    // -----------------------------------------------------------------------
     // GET /hr/reports/{type} — filtered on-screen preview before printing
     // -----------------------------------------------------------------------
 

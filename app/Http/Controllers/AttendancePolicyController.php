@@ -136,6 +136,9 @@ final class AttendancePolicyController
     private function redirect(string $path): void
     {
         $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
         header('Location: ' . $base . $path, true, 302);
         exit;
     }

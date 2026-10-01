@@ -406,12 +406,13 @@ final class RequestService
                         (request_id, employee_id, original_amount, remaining_balance,
                          status, approved_at, created_at, updated_at)
                      VALUES
-                        (:req, :emp, :amount, :amount,
+                        (:req, :emp, :orig_amount, :remaining_amount,
                          'Active', NOW(), NOW(), NOW())"
                 )->execute([
-                    ':req'    => $requestId,
-                    ':emp'    => $row['employee_id'],
-                    ':amount' => $amount,
+                    ':req'              => $requestId,
+                    ':emp'              => $row['employee_id'],
+                    ':orig_amount'      => $amount,
+                    ':remaining_amount' => $amount,
                 ]);
             }
         });
@@ -566,6 +567,37 @@ final class RequestService
               WHERE r.status IN ('Pending', 'HRApproved', 'Returned')
                 AND r.archived_at IS NULL
               ORDER BY r.submitted_at ASC"
+        );
+        return $stmt ? $stmt->fetchAll() : [];
+    }
+
+    /**
+     * List all requests the Owner has already actioned (Approved or Cancelled).
+     *
+     * Used to show the Owner a complete history of their decisions.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function ownerActionedList(): array
+    {
+        $stmt = $this->connection->pdo()->query(
+            "SELECT r.request_id,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    e.employee_number,
+                    rt.type_name,
+                    r.status,
+                    r.submitted_at,
+                    r.reviewed_at        AS hr_reviewed_at,
+                    r.owner_reviewed_at,
+                    r.owner_notes,
+                    r.reason
+               FROM request r
+               JOIN employee e      ON e.employee_id      = r.employee_id
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+              WHERE r.status IN ('Approved', 'Cancelled')
+                AND r.archived_at IS NULL
+              ORDER BY r.owner_reviewed_at DESC
+              LIMIT 100"
         );
         return $stmt ? $stmt->fetchAll() : [];
     }

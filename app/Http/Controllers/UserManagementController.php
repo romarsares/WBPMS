@@ -5,32 +5,21 @@ declare(strict_types=1);
 namespace Wbpms\Http\Controllers;
 
 use Wbpms\Http\Middleware\AuthMiddleware;
-use Wbpms\Http\Middleware\CsrfMiddleware;
+use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
 
+/**
+ * UserManagementController — legacy stub kept for any routes still pointing here.
+ * New work should use UserController instead.
+ */
 final class UserManagementController
 {
     /** @param array<string, string> $params */
     public function index(array $params = []): void
     {
-        $identity    = AuthMiddleware::identity();
-        $displayName = $identity['display_name'] ?? ($identity['username'] ?? '');
-        $roleName    = $identity['role_name'] ?? '';
-        $base        = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
-        $csrfField   = CsrfMiddleware::field();
-        $flash       = isset($_SESSION['_flash']) ? (array) $_SESSION['_flash'] : [];
-        unset($_SESSION['_flash']);
-        // Normalize flash to array of [type, message] pairs for the view
-        $flashNorm = [];
-        foreach ($flash as $item) {
-            if (is_array($item) && count($item) === 2) {
-                $flashNorm[] = $item;
-            }
-        }
-        $flash = $flashNorm;
-
-        $config = require APP_ROOT . '/config/database.php';
-        $pdo    = (new Connection($config))->pdo();
+        $identity = AuthMiddleware::identity() ?? [];
+        $config   = require APP_ROOT . '/config/database.php';
+        $pdo      = (new Connection($config))->pdo();
 
         $rows = $pdo->query(
             "SELECT u.user_id, u.username, u.account_email, u.status, u.created_at,
@@ -49,16 +38,18 @@ final class UserManagementController
         $inactive = count(array_filter($rows, fn($r) => $r['status'] === 'Inactive'));
         $archived = count(array_filter($rows, fn($r) => $r['status'] === 'Archived'));
 
-        $title      = 'User Management';
-        $activePage = 'users';
-        $notifCount = 0;
-
-        ob_start();
-        require APP_ROOT . '/resources/views/users/index.php';
-        $content = ob_get_clean();
-
-        http_response_code(200);
-        header('Content-Type: text/html; charset=utf-8');
-        require APP_ROOT . '/resources/views/layout.php';
+        ViewRenderer::render('users/index', [
+            'rows'           => $rows,
+            'total'          => $total,
+            'active'         => $active,
+            'inactive'       => $inactive,
+            'archived'       => $archived,
+            'positions'      => [],
+            'filterPosition' => '',
+            'filterUsername' => '',
+            'filterStatus'   => '',
+            'currentUserId'  => (int) ($identity['user_id'] ?? 0),
+            'activePage'     => 'users',
+        ], 'User Management');
     }
 }

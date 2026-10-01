@@ -224,6 +224,7 @@ $router->add('GET',  '/payroll/{id}/disbursement-summary', [PayrollController::c
 
 $router->add('GET',  '/hr/reports',        [ReportsController::class, 'index'],    ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/13th-month', [ReportsController::class, 'thirteenthMonth'], ['HRHead', 'BusinessOwner']);
+$router->add('GET',  '/hr/reports/transaction-slips', [ReportsController::class, 'transactionSlips'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/export', [ReportsController::class, 'export'],   ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/{type}', [ReportsController::class, 'preview'],  ['HRHead', 'BusinessOwner']);
 

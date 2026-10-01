@@ -8,6 +8,7 @@ use RuntimeException;
 use Wbpms\Application\UserService;
 use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\Middleware\CsrfMiddleware;
+use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
 
 /**
@@ -46,7 +47,7 @@ final class UserController
      */
     public function resetPassword(array $params = []): void
     {
-        [$service, $identity, $base] = $this->setup();
+        [$service, $identity] = $this->setup();
 
         $userId    = (int) ($params['id'] ?? 0);
         $actorRole = $identity['role_name'] ?? '';
@@ -61,7 +62,7 @@ final class UserController
 
         // HR Head may only reset Employee-role accounts
         if ($actorRole === 'HRHead' && ($user['role_name'] ?? '') !== 'Employee') {
-            $_SESSION['_flash'][] = ['error', 'HR Head may only reset passwords for Employee accounts.'];
+            ViewRenderer::flashError('HR Head may only reset passwords for Employee accounts.');
             $this->redirect('/users');
             return;
         }
@@ -94,7 +95,7 @@ final class UserController
             ':created_at'=> (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s'),
         ]);
 
-        \Wbpms\Http\View\ViewRenderer::render('users/reset-password-done', [
+        ViewRenderer::render('users/reset-password-done', [
             'username'     => $user['username'],
             'tempPassword' => $tempPwd,
             'resetBy'      => $actorRole,
@@ -108,7 +109,7 @@ final class UserController
     /** @param array<string,string> $params */
     public function index(array $params = []): void
     {
-        [$service, $identity, $base, $csrfField, $flash] = $this->setup();
+        [$service, $identity] = $this->setup();
 
         $filterPosition = trim((string) ($_GET['position'] ?? ''));
         $filterUsername = trim((string) ($_GET['username'] ?? ''));
@@ -134,18 +135,22 @@ final class UserController
               ORDER BY sort_order ASC, position_title ASC"
         )->fetchAll(\PDO::FETCH_ASSOC);
 
-        $title      = 'User Management';
-        $activePage = 'users';
-        $notifCount = 0;
-        $displayName = $identity['display_name'] ?? $identity['username'];
-        $roleName    = $identity['role_name'];
         $currentUserId = (int) ($identity['user_id'] ?? 0);
 
-        ob_start();
-        require APP_ROOT . '/resources/views/users/index.php';
-        $content = ob_get_clean();
-
-        $this->respond($content);
+        ViewRenderer::render('users/index', [
+            'rows'            => $rows,
+            'total'           => $total,
+            'active'          => $active,
+            'inactive'        => $inactive,
+            'archived'        => $archived,
+            'positions'       => $positions,
+            'filterPosition'  => $filterPosition,
+            'filterUsername'  => $filterUsername,
+            'filterStatus'    => $filterStatus,
+            'currentUserId'   => $currentUserId,
+            'roleName'        => $identity['role_name'] ?? '',
+            'activePage'      => 'users',
+        ], 'User Management');
     }
 
     // -----------------------------------------------------------------------
@@ -155,23 +160,21 @@ final class UserController
     /** @param array<string,string> $params */
     public function create(array $params = []): void
     {
-        [$service, $identity, $base, $csrfField, $flash] = $this->setup();
+        [$service, $identity] = $this->setup();
 
         $roles     = $service->roles();
         $employees = $service->unlinkedEmployees();
         $errors    = [];
+        $old       = [];
 
-        $title      = 'Create User';
-        $activePage = 'users';
-        $notifCount = 0;
-        $displayName = $identity['display_name'] ?? $identity['username'];
-        $roleName    = $identity['role_name'];
-
-        ob_start();
-        require APP_ROOT . '/resources/views/users/form.php';
-        $content = ob_get_clean();
-
-        $this->respond($content);
+        ViewRenderer::render('users/form', [
+            'roles'      => $roles,
+            'employees'  => $employees,
+            'errors'     => $errors,
+            'old'        => $old,
+            'roleName'   => $identity['role_name'] ?? '',
+            'activePage' => 'users',
+        ], 'Create User');
     }
 
     // -----------------------------------------------------------------------
@@ -181,31 +184,27 @@ final class UserController
     /** @param array<string,string> $params */
     public function store(array $params = []): void
     {
-        [$service, $identity, $base, $csrfField, $flash] = $this->setup();
+        [$service, $identity] = $this->setup();
 
         try {
-            $userId = $service->create($_POST, (int) $identity['user_id']);
-            $_SESSION['_flash'][] = ['success', 'User account created successfully.'];
+            $service->create($_POST, (int) $identity['user_id']);
+            ViewRenderer::flash('User account created successfully.');
             $this->redirect('/users');
         } catch (RuntimeException $e) {
-            // Re-render form with error and preserved input
             $roles     = $service->roles();
             $employees = $service->unlinkedEmployees();
             $errors    = [$e->getMessage()];
             $old       = $_POST;
 
-            $title      = 'Create User';
-            $activePage = 'users';
-            $notifCount = 0;
-            $displayName = $identity['display_name'] ?? $identity['username'];
-            $roleName    = $identity['role_name'];
-
-            ob_start();
-            require APP_ROOT . '/resources/views/users/form.php';
-            $content = ob_get_clean();
-
             http_response_code(422);
-            $this->respond($content);
+            ViewRenderer::render('users/form', [
+                'roles'      => $roles,
+                'employees'  => $employees,
+                'errors'     => $errors,
+                'old'        => $old,
+                'roleName'   => $identity['role_name'] ?? '',
+                'activePage' => 'users',
+            ], 'Create User');
         }
     }
 
@@ -216,7 +215,7 @@ final class UserController
     /** @param array<string,string> $params */
     public function edit(array $params = []): void
     {
-        [$service, $identity, $base, $csrfField, $flash] = $this->setup();
+        [$service, $identity] = $this->setup();
 
         try {
             $userId = (int) ($params['id'] ?? 0);
@@ -229,7 +228,7 @@ final class UserController
         // HRHead may only edit Employee-role accounts.
         $actorRole = (string) ($identity['role_name'] ?? '');
         if ($actorRole === 'HRHead' && ($user['role_name'] ?? '') !== 'Employee') {
-            $_SESSION['_flash'][] = ['error', 'HR Head may only edit Employee accounts.'];
+            ViewRenderer::flashError('HR Head may only edit Employee accounts.');
             $this->redirect('/users');
             return;
         }
@@ -251,20 +250,15 @@ final class UserController
             }
         }
 
-        $errors = [];
-        $old    = $user;    // pre-populate form from existing record
-
-        $title      = 'Edit User';
-        $activePage = 'users';
-        $notifCount = 0;
-        $displayName = $identity['display_name'] ?? $identity['username'];
-        $roleName    = $identity['role_name'];
-
-        ob_start();
-        require APP_ROOT . '/resources/views/users/form.php';
-        $content = ob_get_clean();
-
-        $this->respond($content);
+        ViewRenderer::render('users/form', [
+            'user'       => $user,
+            'roles'      => $roles,
+            'employees'  => $employees,
+            'errors'     => [],
+            'old'        => $user,
+            'roleName'   => $identity['role_name'] ?? '',
+            'activePage' => 'users',
+        ], 'Edit User');
     }
 
     // -----------------------------------------------------------------------
@@ -274,11 +268,10 @@ final class UserController
     /** @param array<string,string> $params */
     public function update(array $params = []): void
     {
-        [$service, $identity, $base, $csrfField, $flash] = $this->setup();
+        [$service, $identity] = $this->setup();
         $userId    = (int) ($params['id'] ?? 0);
         $actorRole = (string) ($identity['role_name'] ?? '');
 
-        // Verify the target user exists before checking scope.
         try {
             $targetUser = $service->findOrFail($userId);
         } catch (RuntimeException) {
@@ -288,20 +281,19 @@ final class UserController
 
         // HRHead may only update Employee-role accounts.
         if ($actorRole === 'HRHead' && ($targetUser['role_name'] ?? '') !== 'Employee') {
-            $_SESSION['_flash'][] = ['error', 'HR Head may only edit Employee accounts.'];
+            ViewRenderer::flashError('HR Head may only edit Employee accounts.');
             $this->redirect('/users');
             return;
         }
 
-        // HRHead cannot change the role of any account — strip the field
-        // so UserService.update() keeps the existing role unchanged.
+        // HRHead cannot change the role of any account.
         if ($actorRole === 'HRHead') {
             unset($_POST['role_id']);
         }
 
         try {
             $service->update($userId, $_POST, (int) $identity['user_id']);
-            $_SESSION['_flash'][] = ['success', 'User updated successfully.'];
+            ViewRenderer::flash('User updated successfully.');
             $this->redirect('/users');
         } catch (RuntimeException $e) {
             try {
@@ -316,18 +308,16 @@ final class UserController
             $errors    = [$e->getMessage()];
             $old       = array_merge($user, $_POST);
 
-            $title      = 'Edit User';
-            $activePage = 'users';
-            $notifCount = 0;
-            $displayName = $identity['display_name'] ?? $identity['username'];
-            $roleName    = $identity['role_name'];
-
-            ob_start();
-            require APP_ROOT . '/resources/views/users/form.php';
-            $content = ob_get_clean();
-
             http_response_code(422);
-            $this->respond($content);
+            ViewRenderer::render('users/form', [
+                'user'       => $user,
+                'roles'      => $roles,
+                'employees'  => $employees,
+                'errors'     => $errors,
+                'old'        => $old,
+                'roleName'   => $actorRole,
+                'activePage' => 'users',
+            ], 'Edit User');
         }
     }
 
@@ -344,9 +334,9 @@ final class UserController
         try {
             $newStatus = $service->toggleStatus($userId, (int) $identity['user_id']);
             $label     = $newStatus === 'Active' ? 'activated' : 'deactivated';
-            $_SESSION['_flash'][] = ['success', "User {$label} successfully."];
+            ViewRenderer::flash("User {$label} successfully.");
         } catch (RuntimeException $e) {
-            $_SESSION['_flash'][] = ['error', $e->getMessage()];
+            ViewRenderer::flashError($e->getMessage());
         }
 
         $this->redirect('/users');
@@ -364,9 +354,9 @@ final class UserController
 
         try {
             $service->archive($userId, (int) $identity['user_id']);
-            $_SESSION['_flash'][] = ['success', 'User archived successfully.'];
+            ViewRenderer::flash('User archived successfully.');
         } catch (RuntimeException $e) {
-            $_SESSION['_flash'][] = ['error', $e->getMessage()];
+            ViewRenderer::flashError($e->getMessage());
         }
 
         $this->redirect('/users');
@@ -379,20 +369,16 @@ final class UserController
     /**
      * Boot shared dependencies and return them as a tuple.
      *
-     * @return array{0:UserService, 1:array<string,mixed>, 2:string, 3:string, 4:array<mixed>}
+     * @return array{0:UserService, 1:array<string,mixed>}
      */
     private function setup(): array
     {
-        $identity  = AuthMiddleware::identity() ?? [];
-        $config    = require APP_ROOT . '/config/database.php';
-        $conn      = new Connection($config);
-        $service   = new UserService($conn);
-        $base      = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
-        $csrfField = CsrfMiddleware::field();
-        $flash     = $_SESSION['_flash'] ?? [];
-        unset($_SESSION['_flash']);
+        $identity = AuthMiddleware::identity() ?? [];
+        $config   = require APP_ROOT . '/config/database.php';
+        $conn     = new Connection($config);
+        $service  = new UserService($conn);
 
-        return [$service, $identity, $base, $csrfField, $flash];
+        return [$service, $identity];
     }
 
     private function pdo(): \PDO
@@ -401,16 +387,12 @@ final class UserController
         return (new Connection($config))->pdo();
     }
 
-    private function respond(string $content): void
-    {
-        http_response_code(200);
-        header('Content-Type: text/html; charset=utf-8');
-        require APP_ROOT . '/resources/views/layout.php';
-    }
-
     private function redirect(string $path): void
     {
         $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
         header('Location: ' . $base . $path, true, 302);
         exit;
     }
@@ -418,10 +400,6 @@ final class UserController
     private function notFound(): void
     {
         http_response_code(404);
-        header('Content-Type: text/html; charset=utf-8');
-        $title   = '404 Not Found';
-        $content = '<div class="page-head"><div><h1>User Not Found</h1><p>The requested user account does not exist.</p></div></div>';
-        $base    = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
-        require APP_ROOT . '/resources/views/layout.php';
+        ViewRenderer::render('errors/404', [], '404 Not Found');
     }
 }
