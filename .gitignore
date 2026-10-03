@@ -19,6 +19,9 @@
 # PHPStan cache
 /.phpstan.cache/
 
+# Kiro / AI tooling — local only, never pushed
+/.kiro/
+
 # IDE and OS files
 /.idea/
 /.vscode/
