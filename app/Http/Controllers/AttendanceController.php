@@ -42,6 +42,7 @@ final class AttendanceController
 {
     private const PREVIEW_SESSION_KEY = '_attendance_import_preview';
     private const PREVIEW_TTL_SECONDS = 1800;
+    private const PREVIEW_MAX_PUNCHES = 1000;
 
     // -----------------------------------------------------------------------
     // GET /hr/attendance
@@ -1052,7 +1053,7 @@ final class AttendanceController
             $dateTime = $punch->localTimestamp->format('Y-m-d H:i');
             $dates[] = $punch->localTimestamp->format('Y-m-d');
             $enrollments[$punch->enrollmentCode] = true;
-            if (count($sample) < 100) {
+            if (count($sample) < self::PREVIEW_MAX_PUNCHES) {
                 $sample[] = [
                     'row' => $punch->sourceRow,
                     'dateTime' => $dateTime,
