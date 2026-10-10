@@ -19,7 +19,7 @@ final class AttendancePunchMatch
     ) {
     }
 
-    public static function matched(int $employeeId, int $branchId, int $scheduleId): self
+    public static function matched(int $employeeId, int $branchId, ?int $scheduleId): self
     {
         return new self(self::MATCHED, $employeeId, $branchId, $scheduleId);
     }

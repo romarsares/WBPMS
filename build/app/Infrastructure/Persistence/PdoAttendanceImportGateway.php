@@ -251,7 +251,7 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
             ':schedule_to_date' => $punchDate,
         ]);
         $schedule   = $stmt->fetch(PDO::FETCH_ASSOC);
-        $scheduleId = $schedule ? (int) $schedule['schedule_id'] : 0;
+        $scheduleId = $schedule ? (int) $schedule['schedule_id'] : null;
 
         return AttendancePunchMatch::matched($employeeId, $branchId, $scheduleId);
     }
@@ -260,10 +260,12 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
     // Effective schedule loader
     // -----------------------------------------------------------------------
 
-    public function effectiveSchedule(int $scheduleId, string $attendanceDate): WorkSchedule
+    public function effectiveSchedule(?int $scheduleId, string $attendanceDate): WorkSchedule
     {
-        if ($scheduleId === 0) {
-            // Fallback: standard 7am-4pm schedule if none found
+        if ($scheduleId === null || $scheduleId === 0) {
+            // No schedule assignment found for this employee on this date.
+            // Fall back to a standard 7am-4pm default so hours/late/undertime
+            // can still be computed; HR should assign a proper schedule.
             return new WorkSchedule(0, '07:00', '16:00', 60, 480);
         }
 

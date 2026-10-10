@@ -114,7 +114,7 @@ final class CreateAttendanceImportTables extends AbstractMigration
             ->addColumn('attendance_id', 'biginteger', ['signed' => false, 'identity' => true, 'null' => false])
             ->addColumn('employee_id', 'biginteger', ['signed' => false, 'null' => false])
             ->addColumn('branch_assignment_id', 'biginteger', ['signed' => false, 'null' => false])
-            ->addColumn('schedule_id', 'biginteger', ['signed' => false, 'null' => false])
+            ->addColumn('schedule_id', 'biginteger', ['signed' => false, 'null' => true, 'default' => null, 'comment' => 'NULL when no active schedule assignment exists for this employee on this date'])
             ->addColumn('attendance_date', 'date', ['null' => false])
             ->addColumn('time_in', 'time', ['null' => true, 'default' => null, 'comment' => 'NULL when punch is incomplete (only time_out present)'])
             ->addColumn('time_out', 'time', ['null' => true, 'default' => null, 'comment' => 'NULL when punch is incomplete (only time_in present)'])
@@ -130,7 +130,7 @@ final class CreateAttendanceImportTables extends AbstractMigration
             ->addIndex(['employee_id', 'attendance_date'], ['unique' => true, 'name' => 'uq_attendance_employee_date'])
             ->addForeignKey('employee_id', 'employee', 'employee_id', ['delete' => 'RESTRICT', 'update' => 'CASCADE'])
             ->addForeignKey('branch_assignment_id', 'employee_branch_assignment', 'branch_assignment_id', ['delete' => 'RESTRICT', 'update' => 'CASCADE'])
-            ->addForeignKey('schedule_id', 'work_schedule', 'schedule_id', ['delete' => 'RESTRICT', 'update' => 'CASCADE'])
+            ->addForeignKey('schedule_id', 'work_schedule', 'schedule_id', ['delete' => 'SET NULL', 'update' => 'CASCADE'])
             ->addForeignKey('import_batch_id', 'attendance_import_batch', 'import_batch_id', ['delete' => 'RESTRICT', 'update' => 'CASCADE'])
             ->create();
 

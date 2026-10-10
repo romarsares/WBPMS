@@ -23,7 +23,7 @@ interface AttendanceImportGateway
 
     public function match(ParsedPunch $punch): AttendancePunchMatch;
 
-    public function effectiveSchedule(int $scheduleId, string $attendanceDate): WorkSchedule;
+    public function effectiveSchedule(?int $scheduleId, string $attendanceDate): WorkSchedule;
 
     public function isDuplicatePunch(ParsedPunch $punch): bool;
 

@@ -1,0 +1,25 @@
+# WBPMS — InfinityFree root .htaccess
+#
+# InfinityFree always serves from htdocs/ and does not allow changing the
+# document root. This file rewrites all incoming requests into the public/
+# sub-directory, which is the only directory that should be web-accessible.
+#
+# Security rationale: without this file, .env, app/, config/, database/,
+# storage/, and vendor/ would be directly reachable from the web.
+#
+# Two rules in order:
+#   1. Proxy uploaded private files accessed via /storage/* to the correct
+#      internal path (storage/private/*).
+#   2. Route everything else through the public/ front controller.
+
+RewriteEngine On
+
+# 1. Private storage access — map /storage/* requests to storage/private/*
+#    (WBPMS uses storage/private/ for uploaded employee documents)
+RewriteRule ^storage/(.*)$ /storage/private/$1 [END]
+
+# 2. Catch-all — rewrite every other request into public/
+#    A request for / becomes /public/, /login becomes /public/login, etc.
+#    Sensitive files like /.env or /vendor/* are rewritten to /public/.env
+#    (which does not exist), so visitors receive a 404 instead.
+RewriteRule (.*) /public/$1 [L]
