@@ -1404,9 +1404,31 @@ final class PayrollService
         );
         $policy = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
         if (!$policy) {
-            // Fallback defaults if no approved policy seeded
+            // No approved policy exists — insert the ADR-0001 default so the
+            // FK on payroll_run.payroll_policy_id is always satisfied.
+            $now = $this->utcNow();
+            $ins = $pdo->prepare(
+                "INSERT INTO payroll_policy_version
+                    (policy_code, version, effective_from, effective_to,
+                     eemr_days_per_year, annual_tax_threshold, late_rate_per_minute,
+                     rounding_mode, demo_only, status,
+                     approved_by, approved_at, created_at, updated_at)
+                 VALUES
+                    ('DEFAULT', 'V1', '2024-01-01', NULL,
+                     313, 250000.00, 1.00,
+                     'HalfUp', TRUE, 'Approved',
+                     NULL, :approved_at, :created_at, :updated_at)"
+            );
+            $ins->execute([
+                ':approved_at' => $now,
+                ':created_at'  => $now,
+                ':updated_at'  => $now,
+            ]);
+            $newId = (int) $pdo->lastInsertId();
+
             return [
-                'policy_id'            => 1,
+                'policy_id'            => $newId,
+                'policy_code'          => 'DEFAULT',
                 'eemr_days_per_year'   => 313,
                 'late_rate_per_minute' => 1.00,
                 'rounding_mode'        => 'HalfUp',
