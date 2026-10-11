@@ -239,6 +239,9 @@ final class EmployeeController
         $branchHistory  = $repo->branchHistory($id);
         $salaryHistory  = $repo->salaryHistory($id);
 
+        // Bank account details
+        $bankDetails = $repo->findBankDetails($id);
+
         // Document count (current only)
         $docCount = (new \Wbpms\Application\EmployeeDocumentService($con))
             ->listForEmployee($id);
@@ -251,6 +254,7 @@ final class EmployeeController
             'employee'        => $employee,
             'branchHistory'   => $branchHistory,
             'salaryHistory'   => $salaryHistory,
+            'bankDetails'     => $bankDetails,
             'currentDocCount' => $currentDocCount,
             'activePage'      => 'employees',
         ], $employee['last_name'] . ', ' . $employee['first_name']);
@@ -784,6 +788,96 @@ final class EmployeeController
         }
         header('Location: ' . $base . $path, true, 302);
         exit;
+    }
+
+    // -----------------------------------------------------------------------
+    // Bank account management
+    // -----------------------------------------------------------------------
+
+    /**
+     * GET /hr/employees/{id}/bank
+     * Show the bank account form for an employee.
+     *
+     * @param array<string, string> $params
+     */
+    public function bankForm(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $repo     = $this->makeRepo();
+        $employee = $repo->findById($id);
+
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $bank = $repo->findBankDetails($id);
+
+        ViewRenderer::render('hr/employees/bank', [
+            'employee' => $employee,
+            'bank'     => $bank,
+            'errors'   => [],
+            'activePage' => 'employees',
+        ], 'Bank Account – ' . $employee['last_name'] . ', ' . $employee['first_name']);
+    }
+
+    /**
+     * POST /hr/employees/{id}/bank
+     * Save (upsert) the bank account for an employee.
+     *
+     * @param array<string, string> $params
+     */
+    public function saveBank(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $repo     = $this->makeRepo();
+        $employee = $repo->findById($id);
+
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $data = [
+            'bank_name'      => trim((string) ($_POST['bank_name']      ?? 'BDO')),
+            'account_name'   => trim((string) ($_POST['account_name']   ?? '')),
+            'account_number' => trim((string) ($_POST['account_number'] ?? '')),
+            'account_type'   => trim((string) ($_POST['account_type']   ?? '')),
+            'effective_from' => trim((string) ($_POST['effective_from'] ?? '')),
+        ];
+
+        $errors = [];
+
+        if ($data['bank_name'] === '') {
+            $errors['bank_name'] = 'Bank name is required.';
+        }
+        if ($data['account_name'] === '') {
+            $errors['account_name'] = 'Account name is required.';
+        }
+        if ($data['account_number'] === '') {
+            $errors['account_number'] = 'Account number is required.';
+        } elseif (!preg_match('/^[\d\-\s]+$/', $data['account_number'])) {
+            $errors['account_number'] = 'Account number must contain digits, hyphens, or spaces only.';
+        }
+        if ($data['effective_from'] === '' || !$this->isIsoDate($data['effective_from'])) {
+            $errors['effective_from'] = 'Effective date is required (YYYY-MM-DD).';
+        }
+
+        if ($errors !== []) {
+            $bank = $repo->findBankDetails($id);
+            ViewRenderer::render('hr/employees/bank', [
+                'employee' => $employee,
+                'bank'     => $bank,
+                'errors'   => $errors,
+                'activePage' => 'employees',
+            ], 'Bank Account – ' . $employee['last_name'] . ', ' . $employee['first_name']);
+            return;
+        }
+
+        $repo->saveBankDetails($id, $data);
+
+        ViewRenderer::flash('Bank account details saved successfully.');
+        $this->redirect('/hr/employees/' . $id);
     }
 
     // -----------------------------------------------------------------------

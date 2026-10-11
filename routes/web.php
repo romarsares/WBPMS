@@ -122,6 +122,9 @@ $router->add('GET',  '/hr/employees/{id}/archive',   [EmployeeController::class,
 $router->add('POST', '/hr/employees/{id}/archive',   [EmployeeController::class, 'archive'],       ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}/rehire',    [EmployeeController::class, 'rehireForm'],    ['HRHead']);
 $router->add('POST', '/hr/employees/{id}/rehire',    [EmployeeController::class, 'rehire'],        ['HRHead']);
+// Bank account details
+$router->add('GET',  '/hr/employees/{id}/bank',     [EmployeeController::class, 'bankForm'],  ['HRHead']);
+$router->add('POST', '/hr/employees/{id}/bank',     [EmployeeController::class, 'saveBank'],  ['HRHead']);
 // Documents — literal sub-paths before bare {id} catch-alls  (Task 4.6.5 / REQ014-AC4)
 $router->add('GET',  '/hr/employees/{id}/documents',                      [EmployeeController::class, 'documents'],       ['HRHead']);
 $router->add('POST', '/hr/employees/{id}/documents',                      [EmployeeController::class, 'uploadDocument'],  ['HRHead']);

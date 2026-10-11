@@ -7,9 +7,10 @@ use Wbpms\Http\View\Formatter;
 /**
  * HR — Employee detail (read-only).
  *
- * @var array<string, mixed> $employee
+ * @var array<string, mixed>      $employee
  * @var list<array<string,mixed>> $branchHistory
  * @var list<array<string,mixed>> $salaryHistory
+ * @var array<string,mixed>|null  $bankDetails
  * @var int                  $currentDocCount
  * @var string               $base
  * @var string               $csrf
@@ -18,6 +19,7 @@ use Wbpms\Http\View\Formatter;
 $employee        ??= [];
 $branchHistory   ??= [];
 $salaryHistory   ??= [];
+$bankDetails     ??= null;
 $currentDocCount ??= 0;
 
 $empId   = (int) $employee['id'];
@@ -59,6 +61,7 @@ $formatMoney = static fn(mixed $v): string =>
         <a href="<?= $base ?>/hr/employees/<?= $empId ?>/documents" class="btn btn-secondary">
             Documents<?= $currentDocCount > 0 ? ' <span class="doc-badge">' . $currentDocCount . '</span>' : '' ?>
         </a>
+        <a href="<?= $base ?>/hr/employees/<?= $empId ?>/bank" class="btn btn-secondary">Bank Account</a>
         <?php $st = strtolower((string) $employee['status']); ?>
         <?php if ($st === 'active' || $st === 'inactive' || $st === 'separated'): ?>
         <a href="<?= $base ?>/hr/employees/<?= $empId ?>/transfer" class="btn btn-warning">Transfer</a>
@@ -157,6 +160,29 @@ $formatMoney = static fn(mixed $v): string =>
             <span class="detail-value muted">Not linked</span>
         </div>
         <?php endif; ?>
+    </div>
+
+    <!-- Bank account -->
+    <div class="card detail-section">
+        <h2>Bank Account</h2>
+        <?php if ($bankDetails !== null): ?>
+        <?= $field('Bank',           $bankDetails['bank_name']) ?>
+        <?= $field('Account name',   $bankDetails['account_name']) ?>
+        <?= $field('Account no.',    $bankDetails['account_number'], true) ?>
+        <?= $field('Account type',   $bankDetails['account_type'] ?? null) ?>
+        <?= $field('Effective from', $formatDate((string) $bankDetails['effective_from'])) ?>
+        <?php else: ?>
+        <div class="detail-field">
+            <span class="detail-label">Bank account</span>
+            <span class="detail-value muted">Not on file</span>
+        </div>
+        <?php endif; ?>
+        <div style="margin-top:.75rem">
+            <a href="<?= $base ?>/hr/employees/<?= $empId ?>/bank"
+               class="btn btn-secondary" style="font-size:.8rem;padding:.3rem .75rem">
+                <?= $bankDetails !== null ? 'Update Bank Account' : 'Add Bank Account' ?>
+            </a>
+        </div>
     </div>
 
 </div><!-- /detail-grid -->

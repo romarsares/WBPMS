@@ -624,4 +624,93 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
+
+    // -----------------------------------------------------------------------
+    // Bank details
+    // -----------------------------------------------------------------------
+
+    /**
+     * Return the active bank account for an employee, or null if none.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function findBankDetails(int $employeeId): ?array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT bank_id, bank_name, account_name, account_number, account_type,
+                    effective_from, status
+               FROM bank_details
+              WHERE employee_id = :id
+                AND status = 'Active'
+              ORDER BY effective_from DESC
+              LIMIT 1"
+        );
+        $stmt->execute([':id' => $employeeId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row !== false ? $row : null;
+    }
+
+    /**
+     * Save (upsert) bank account details for an employee.
+     *
+     * If an active record already exists it is deactivated first; then a new
+     * Active row is inserted. Both operations run inside a transaction so the
+     * employee never has zero bank rows between the two writes.
+     *
+     * @param array{
+     *   bank_name: string,
+     *   account_name: string,
+     *   account_number: string,
+     *   account_type: string,
+     *   effective_from: string
+     * } $data
+     */
+    public function saveBankDetails(int $employeeId, array $data): void
+    {
+        $this->connection->transaction(function (\PDO $pdo) use ($employeeId, $data): void {
+            // Deactivate any existing active record
+            $pdo->prepare(
+                "UPDATE bank_details
+                    SET status = 'Inactive', effective_to = :today, updated_at = NOW()
+                  WHERE employee_id = :id
+                    AND status = 'Active'"
+            )->execute([
+                ':today' => $data['effective_from'],
+                ':id'    => $employeeId,
+            ]);
+
+            // Insert new active record
+            $pdo->prepare(
+                "INSERT INTO bank_details
+                    (employee_id, bank_name, account_name, account_number,
+                     account_type, effective_from, effective_to, status,
+                     created_at, updated_at)
+                 VALUES
+                    (:emp_id, :bank_name, :account_name, :account_number,
+                     :account_type, :effective_from, NULL, 'Active',
+                     NOW(), NOW())"
+            )->execute([
+                ':emp_id'        => $employeeId,
+                ':bank_name'     => $data['bank_name'],
+                ':account_name'  => $data['account_name'],
+                ':account_number'=> $data['account_number'],
+                ':account_type'  => $data['account_type'] !== '' ? $data['account_type'] : null,
+                ':effective_from'=> $data['effective_from'],
+            ]);
+        });
+    }
+
+    /**
+     * Deactivate the current active bank account for an employee.
+     */
+    public function deactivateBankDetails(int $employeeId): void
+    {
+        $this->pdo()->prepare(
+            "UPDATE bank_details
+                SET status = 'Inactive', effective_to = CURDATE(), updated_at = NOW()
+              WHERE employee_id = :id
+                AND status = 'Active'"
+        )->execute([':id' => $employeeId]);
+    }
 }

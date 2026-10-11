@@ -331,6 +331,8 @@ $err = static fn(string $key): string => isset($errors[$key])
             <?php if ($isEdit): ?>
                 <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/documents"
                    class="btn btn-secondary">Documents</a>
+                <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/bank"
+                   class="btn btn-secondary">Bank Account</a>
                 <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/transfer"
                    class="btn btn-warning" style="margin-left:auto;">
                     Transfer Branch
