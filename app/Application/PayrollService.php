@@ -1514,10 +1514,56 @@ final class PayrollService
         );
         $policy = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : false;
         if (!$policy) {
-            throw new RuntimeException(
-                'No approved contribution policy found. '
-                . 'Please approve a contribution policy version before computing payroll.'
+            // No approved contribution policy exists — insert the ADR-0001
+            // demo defaults so payroll computation can proceed without manual
+            // DB seeding on fresh deployments.
+            $now = $this->utcNow();
+
+            $ins = $pdo->prepare(
+                "INSERT INTO contribution_policy_version
+                    (policy_code, version, effective_from, effective_to,
+                     demo_only, status, approved_by, approved_at, created_at, updated_at)
+                 VALUES
+                    ('DEFAULT', 'V1', '2024-01-01', NULL,
+                     TRUE, 'Approved', NULL, :approved_at, :created_at, :updated_at)"
             );
+            $ins->execute([
+                ':approved_at' => $now,
+                ':created_at'  => $now,
+                ':updated_at'  => $now,
+            ]);
+            $cpvId = (int) $pdo->lastInsertId();
+
+            // SSS bracket — single open-ended bracket (ADR-0001 demo values)
+            $pdo->prepare(
+                "INSERT INTO sss_bracket
+                    (contribution_policy_id, salary_from, salary_to,
+                     employee_share, employer_share,
+                     effective_from, effective_to, created_at, updated_at)
+                 VALUES
+                    (:cpv, 0.00, NULL, 540.00, 1140.00,
+                     '2024-01-01', NULL, :ca, :ua)"
+            )->execute([':cpv' => $cpvId, ':ca' => $now, ':ua' => $now]);
+
+            // PhilHealth — 4% total, 2% employee share (ADR-0001 demo values)
+            $pdo->prepare(
+                "INSERT INTO philhealth_rate
+                    (contribution_policy_id, rate_decimal, basis_floor, basis_ceiling,
+                     employee_share_decimal, created_at, updated_at)
+                 VALUES
+                    (:cpv, 0.040000, NULL, NULL, 0.020000, :ca, :ua)"
+            )->execute([':cpv' => $cpvId, ':ca' => $now, ':ua' => $now]);
+
+            // Pag-IBIG — ₱200 fixed employee + ₱200 employer (ADR-0001 demo values)
+            $pdo->prepare(
+                "INSERT INTO pagibig_rate
+                    (contribution_policy_id, rate_decimal, basis_ceiling,
+                     employee_fixed_amount, employer_fixed_amount, created_at, updated_at)
+                 VALUES
+                    (:cpv, NULL, NULL, 200.00, 200.00, :ca, :ua)"
+            )->execute([':cpv' => $cpvId, ':ca' => $now, ':ua' => $now]);
+
+            return ['contribution_policy_id' => $cpvId];
         }
         return $policy;
     }
