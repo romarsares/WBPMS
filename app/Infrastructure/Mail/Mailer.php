@@ -43,26 +43,71 @@ final class Mailer
         $this->host        = (string) ($_ENV['MAIL_HOST']         ?? '');
         $this->port        = (int)    ($_ENV['MAIL_PORT']         ?? 587);
         $this->username    = (string) ($_ENV['MAIL_USERNAME']     ?? '');
-        $this->password    = (string) ($_ENV['MAIL_PASSWORD']     ?? '');
+        $this->password    = $this->stripQuotes((string) ($_ENV['MAIL_PASSWORD'] ?? ''));
         $this->encryption  = strtolower(trim((string) ($_ENV['MAIL_ENCRYPTION'] ?? 'tls')));
         $this->fromAddress = (string) ($_ENV['MAIL_FROM_ADDRESS'] ?? 'no-reply@example.com');
         $this->fromName    = (string) ($_ENV['MAIL_FROM_NAME']    ?? 'WBPMS');
     }
 
     /**
+     * Strip surrounding single or double quotes from a password value.
+     *
+     * When a Gmail App Password like "xxxx xxxx xxxx xxxx" is set via a
+     * .env file the phpdotenv library strips the quotes automatically.
+     * However, when the value is pasted directly into Railway (or another
+     * hosting dashboard) as a raw environment variable, the quotes are
+     * preserved as literal characters and break AUTH LOGIN.
+     *
+     * This method normalises both cases so the code works identically
+     * whether the password was sourced from .env or from a hosting dashboard.
+     */
+    private function stripQuotes(string $value): string
+    {
+        if (strlen($value) >= 2) {
+            $first = $value[0];
+            $last  = $value[strlen($value) - 1];
+            if (($first === '"' && $last === '"') || ($first === "'" && $last === "'")) {
+                return substr($value, 1, -1);
+            }
+        }
+
+        return $value;
+    }
+
+    /**
      * Send a plain-text email.
+     *
+     * When the driver is "smtp" and the SMTP handshake fails, the error is
+     * written to the log file and the exception is re-thrown so callers can
+     * decide how to handle it (e.g. PasswordResetService catches it and lets
+     * the request complete gracefully rather than showing a 500 page).
      *
      * @param  string $to      Recipient email address
      * @param  string $subject Email subject line
      * @param  string $body    Plain-text body
-     * @throws RuntimeException on SMTP-level failure
+     * @throws RuntimeException on SMTP-level failure (smtp driver only)
      */
     public function send(string $to, string $subject, string $body): void
     {
-        match ($this->driver) {
-            'smtp' => $this->sendSmtp($to, $subject, $body),
-            default => $this->logEmail($to, $subject, $body),
-        };
+        if ($this->driver === 'smtp') {
+            try {
+                $this->sendSmtp($to, $subject, $body);
+            } catch (RuntimeException $e) {
+                // Always log the failure so it is traceable even in production.
+                $this->logEmail(
+                    $to,
+                    $subject,
+                    "[SMTP DELIVERY FAILED — {$e->getMessage()}]\n\n{$body}"
+                );
+                // Re-throw so PasswordResetService (and any other caller) can
+                // catch it and decide whether to surface an error or swallow it.
+                throw $e;
+            }
+
+            return;
+        }
+
+        $this->logEmail($to, $subject, $body);
     }
 
     // -----------------------------------------------------------------------

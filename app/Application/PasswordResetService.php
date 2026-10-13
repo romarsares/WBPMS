@@ -105,11 +105,26 @@ final class PasswordResetService
         // 3. Build the reset URL and send the email.
         $resetUrl = rtrim($baseUrl, '/') . '/reset-password?token=' . urlencode($rawToken);
 
-        $this->mailer->send(
-            to:      (string) $user['account_email'],
-            subject: 'WBPMS — Password Reset Request',
-            body:    $this->buildEmailBody((string) $user['username'], $resetUrl),
-        );
+        try {
+            $this->mailer->send(
+                to:      (string) $user['account_email'],
+                subject: 'WBPMS — Password Reset Request',
+                body:    $this->buildEmailBody((string) $user['username'], $resetUrl),
+            );
+        } catch (\RuntimeException $e) {
+            // The token was already saved to the database so the reset link is
+            // technically valid — but we could not deliver it.  Log the failure
+            // and return false so the caller knows delivery did not succeed.
+            // The caller (AuthController) still shows the generic success page
+            // to avoid leaking account-existence information; this return value
+            // is only used for internal diagnostics.
+            error_log(
+                '[PasswordResetService] Mail delivery failed for user_id='
+                . $user['user_id'] . ': ' . $e->getMessage()
+            );
+
+            return false;
+        }
 
         return true;
     }
