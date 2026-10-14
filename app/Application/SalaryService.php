@@ -315,12 +315,13 @@ final class SalaryService
             "INSERT INTO audit_logs
                 (user_id, event_type, action_performed, table_affected, record_id, description, action_at)
              VALUES
-                (:uid, :evt, :evt, 'salary', :rid, :desc, NOW())"
+                (:uid, :evt_type, :evt_action, 'salary', :rid, :desc, NOW())"
         )->execute([
-            ':uid'  => $actingUserId,
-            ':evt'  => $event,
-            ':rid'  => $recordId,
-            ':desc' => $desc,
+            ':uid'        => $actingUserId,
+            ':evt_type'   => $event,
+            ':evt_action' => $event,
+            ':rid'        => $recordId,
+            ':desc'       => $desc,
         ]);
     }
 }
