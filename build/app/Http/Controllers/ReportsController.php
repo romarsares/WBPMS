@@ -136,6 +136,127 @@ final class ReportsController
     }
 
     // -----------------------------------------------------------------------
+    // GET /hr/reports/transaction-slips  (REQ073 — targeted printing)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Transaction slip generator.
+     *
+     * Produces individual BDO-style cash transaction slips from payroll and
+     * bank_details data. Each slip covers one employee's net pay for a
+     * selected payroll period.
+     *
+     * Data sources:
+     *   payroll        → net_pay (amount to deposit)
+     *   payroll_run    → period, branch, status (must be Approved)
+     *   payroll_period → period_start / period_end
+     *   employee       → name, employee_number
+     *   bank_details   → account_name, account_number, bank_name (may be empty)
+     *
+     * If bank_details has no record for an employee the slip prints with
+     * blank account fields and a notice, allowing HR to fill in manually.
+     *
+     * @param array<string,string> $params
+     */
+    public function transactionSlips(array $params = []): void
+    {
+        $pdo = $this->makeConnection()->pdo();
+
+        // ---- Filters -------------------------------------------------------
+        $employeeId = filter_var($_GET['employee_id'] ?? 0, FILTER_VALIDATE_INT);
+        $employeeId = $employeeId !== false && $employeeId > 0 ? (int) $employeeId : 0;
+
+        $branchId = filter_var($_GET['branch_id'] ?? 0, FILTER_VALIDATE_INT);
+        $branchId = $branchId !== false && $branchId > 0 ? (int) $branchId : 0;
+
+        $periodId = filter_var($_GET['payroll_period_id'] ?? 0, FILTER_VALIDATE_INT);
+        $periodId = $periodId !== false && $periodId > 0 ? (int) $periodId : 0;
+
+        $printMode = isset($_GET['print']) && $_GET['print'] === '1';
+
+        // ---- Reference data for filter dropdowns ---------------------------
+        $branches = $pdo->query(
+            "SELECT branch_id, branch_name FROM branch WHERE status = 'Active' ORDER BY branch_name"
+        )->fetchAll();
+
+        $employees = $pdo->query(
+            "SELECT employee_id, CONCAT(last_name, ', ', first_name) AS employee_name
+               FROM employee WHERE status = 'Active' ORDER BY last_name, first_name"
+        )->fetchAll();
+
+        $periods = $pdo->query(
+            "SELECT pp.payroll_period_id, pp.period_start, pp.period_end
+               FROM payroll_period pp
+               JOIN payroll_run pr ON pr.payroll_period_id = pp.payroll_period_id
+              WHERE pr.status = 'Approved'
+              GROUP BY pp.payroll_period_id
+              ORDER BY pp.period_start DESC
+              LIMIT 50"
+        )->fetchAll();
+
+        // ---- Slip data query -----------------------------------------------
+        $slips = [];
+        if ($periodId > 0) {
+            $where  = ["pr.status = 'Approved'", 'pr.payroll_period_id = :period_id'];
+            $bind   = [':period_id' => $periodId];
+
+            if ($branchId > 0) {
+                $where[]          = 'pr.branch_id = :branch_id';
+                $bind[':branch_id'] = $branchId;
+            }
+            if ($employeeId > 0) {
+                $where[]              = 'p.employee_id = :employee_id';
+                $bind[':employee_id'] = $employeeId;
+            }
+
+            $stmt = $pdo->prepare(
+                "SELECT
+                    e.employee_id,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    e.employee_number,
+                    b.branch_name,
+                    p.net_pay,
+                    pp.period_start,
+                    pp.period_end,
+                    bd.bank_name,
+                    bd.account_name,
+                    bd.account_number,
+                    bd.account_type
+                  FROM payroll p
+                  JOIN payroll_run pr       ON pr.payroll_run_id     = p.payroll_run_id
+                  JOIN payroll_period pp    ON pp.payroll_period_id  = pr.payroll_period_id
+                  JOIN employee e           ON e.employee_id         = p.employee_id
+                  JOIN branch b             ON b.branch_id           = pr.branch_id
+                  LEFT JOIN bank_details bd ON bd.employee_id        = e.employee_id
+                                           AND bd.status             = 'Active'
+                                           AND bd.effective_to IS NULL
+                 WHERE " . implode(' AND ', $where) . "
+                 ORDER BY e.last_name, e.first_name"
+            );
+            $stmt->execute($bind);
+            $slips = $stmt->fetchAll();
+        }
+
+        // ---- Bank details completeness warning flag ------------------------
+        $missingBankCount = count(array_filter($slips, static fn(array $s): bool => empty($s['account_number'])));
+
+        ViewRenderer::render('hr/reports/transaction-slips', [
+            'slips'            => $slips,
+            'branches'         => $branches,
+            'employees'        => $employees,
+            'periods'          => $periods,
+            'filters'          => [
+                'employee_id'       => $employeeId,
+                'branch_id'         => $branchId,
+                'payroll_period_id' => $periodId,
+            ],
+            'missingBankCount' => $missingBankCount,
+            'printMode'        => $printMode,
+            'activePage'       => 'reports',
+        ], 'Transaction Slips');
+    }
+
+    // -----------------------------------------------------------------------
     // GET /hr/reports/{type} — filtered on-screen preview before printing
     // -----------------------------------------------------------------------
 
@@ -172,8 +293,9 @@ final class ReportsController
     /** @param array<string, string> $params */
     public function export(array $params = []): void
     {
-        $type = trim((string) ($_GET['type'] ?? ''));
-        $pdo  = $this->makeConnection()->pdo();
+        $type   = trim((string) ($_GET['type']   ?? ''));
+        $format = trim((string) ($_GET['format'] ?? 'html')); // 'html' or 'csv'
+        $pdo    = $this->makeConnection()->pdo();
 
         $e = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
         $n = fn(float $v): string  => number_format($v, 2);
@@ -181,34 +303,61 @@ final class ReportsController
         $title = $this->reportTitle($type);
 
         // ---------- Collect data ----------
-        $rows   = [];
+        $rows    = [];
         $headers = [];
-        $year   = (int) ($_GET['year'] ?? date('Y'));
+        $year    = (int) ($_GET['year'] ?? date('Y'));
+        $filters = [];
 
         if (in_array($type, ['payroll', 'attendance', 'requests', 'contributions', 'employees'], true)) {
-            [$headers, $rows] = $this->previewData($type, $this->previewFilters($type));
+            $filters = $this->previewFilters($type);
+            [$headers, $rows] = $this->previewData($type, $filters);
         } else {
             switch ($type) {
 
             case '13th_month':
                 $headers = ['Employee #', 'Employee Name', 'Total Basic Pay', '13th Month Pay'];
                 $filters = $this->thirteenthMonthFilters();
-                $year = $filters['year'];
+                $year    = $filters['year'];
                 $service = new \Wbpms\Application\PayrollService($this->makeConnection());
                 foreach ($service->compute13thMonth($year, [
-                    'branch_id' => $filters['branch_id'],
+                    'branch_id'   => $filters['branch_id'],
                     'employee_id' => $filters['employee_id'],
                 ]) as $r) {
                     $rows[] = [
                         $r['employee_number'],
                         $r['employee_name'],
-                        '₱' . $n($r['basic_total']),
-                        '₱' . $n($r['thirteenth_month']),
+                        number_format((float) $r['basic_total'], 2, '.', ''),
+                        number_format((float) $r['thirteenth_month'], 2, '.', ''),
                     ];
                 }
                 break;
 
             }
+        }
+
+        // ---------- CSV download (REQ076) ----------
+        if ($format === 'csv') {
+            $slug     = preg_replace('/[^a-z0-9_-]/i', '-', $type ?: 'report');
+            $filename = $slug . '-' . date('Ymd') . '.csv';
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+
+            $out = fopen('php://output', 'w');
+            if ($out === false) {
+                http_response_code(500);
+                return;
+            }
+            fwrite($out, "\xEF\xBB\xBF"); // BOM for Excel UTF-8
+            if ($headers !== []) {
+                fputcsv($out, $headers);
+            }
+            foreach ($rows as $row) {
+                fputcsv($out, array_map('strval', $row));
+            }
+            fclose($out);
+            return;
         }
 
         // ---------- Render print-ready HTML ----------
@@ -230,15 +379,21 @@ final class ReportsController
         $reportScope = '';
         if ($type === '13th_month') {
             $reportScope = ' &nbsp;|&nbsp; Year: ' . $year;
-            if ($filters['branch_id'] > 0) {
+            if (($filters['branch_id'] ?? 0) > 0) {
                 $reportScope .= ' &nbsp;|&nbsp; Branch filter applied';
             }
-            if ($filters['employee_id'] > 0) {
+            if (($filters['employee_id'] ?? 0) > 0) {
                 $reportScope .= ' &nbsp;|&nbsp; Employee filter applied';
             }
         }
+        // Build the CSV download link (same URL with format=csv appended)
+        $csvUrl = '?' . http_build_query(array_merge($_GET, ['format' => 'csv']));
         echo '<div class="meta">Light Diamond Enterprises &nbsp;|&nbsp; Generated: ' . date('m/d/Y H:i') . $reportScope . '</div>';
-        echo '<div class="no-print" style="margin-bottom:10px"><button onclick="window.print()">🖨 Print</button> &nbsp; <button onclick="history.back()">← Back</button></div>';
+        echo '<div class="no-print" style="margin-bottom:10px">'
+           . '<button onclick="window.print()">🖨 Print</button>'
+           . ' &nbsp; <a href="' . $e($csvUrl) . '" style="padding:4px 10px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:4px;font-size:11px">⬇ Export CSV</a>'
+           . ' &nbsp; <button onclick="history.back()">← Back</button>'
+           . '</div>';
 
         if ($rows === []) {
             echo '<p class="no-data">No data available for this report.</p>';

@@ -25,9 +25,16 @@ $statusOptions = match ($type) {
 <div class="page-header">
     <div>
         <h1><?= Formatter::escape($title) ?></h1>
-        <p>Apply filters and review the results before printing.</p>
+        <p>Apply filters and review the results before exporting.</p>
     </div>
-    <a href="<?= $base ?>/hr/reports/export?<?= Formatter::escape($printQuery) ?>" class="btn btn-secondary" target="_blank" rel="noopener">Print Report</a>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <a href="<?= $base ?>/hr/reports/export?<?= Formatter::escape($printQuery) ?>"
+           class="btn btn-secondary" target="_blank" rel="noopener">🖨 Print</a>
+        <a href="<?= $base ?>/hr/reports/export?<?= Formatter::escape($printQuery) ?>&amp;format=pdf"
+           class="btn btn-secondary" target="_blank" rel="noopener">⬇ PDF</a>
+        <a href="<?= $base ?>/hr/reports/export?<?= Formatter::escape($printQuery) ?>&amp;format=csv"
+           class="btn btn-primary">⬇ CSV</a>
+    </div>
 </div>
 
 <div class="card" style="padding:.9rem 1.25rem;margin-bottom:1.25rem">

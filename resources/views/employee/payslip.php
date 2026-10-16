@@ -1,127 +1,129 @@
 <?php
 
+declare(strict_types=1);
 
 use Wbpms\Http\View\Formatter;
 
 /**
- * Employee — My Payslips view.
+ * Employee — Single payslip detail view (REQ074, REQ081).
  *
- * Variables injected by controller:
+ * Variables injected by EmployeePortalController::payslipDetail():
  *   array{
  *     period:string, gross:string, deductions:string, net:string,
- *     items:list<array{label:string, amount:string}>
- *   }|null $payslip
- *   string|null $downloadUrl
- *   list<array{payroll_id:int, period:string, net:string, status:string}> $payslips
+ *     items:list<array{label:string, amount:string, type:string}>,
+ *     data:array<string,mixed>
+ *   } $payslip
+ *   string $downloadUrl  — URL to /employee/payslips/{id}/print
  */
-$payslip    = $payslip    ?? null;
-$payslips   = $payslips   ?? [];
+
+$payslip     = $payslip    ?? null;
 $downloadUrl = $downloadUrl ?? null;
-$base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+$data        = $payslip['data'] ?? [];
 ?>
 
 <div class="page-head">
     <div>
-        <h1>My Payslips</h1>
-        <p>View and download your approved payslips.</p>
+        <h1>Payslip</h1>
+        <p>
+            <?= Formatter::escape((string) ($data['employee_name'] ?? '')) ?>
+            &nbsp;&middot;&nbsp;
+            <?= Formatter::escape($payslip['period'] ?? '') ?>
+        </p>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <a class="btn btn-secondary" href="<?= $base ?>/employee/payslips">← Back to Payslips</a>
+        <?php if ($downloadUrl): ?>
+        <a class="btn btn-primary" href="<?= Formatter::escape($downloadUrl) ?>" target="_blank">
+            🖨 Print / Download
+        </a>
+        <?php endif; ?>
     </div>
 </div>
 
-<?php if ($payslip !== null): ?>
-    <!-- ---- Single payslip detail ---- -->
-    <div class="panel">
-        <h2>Payslip: <?= Formatter::escape($payslip['period']) ?></h2>
-
-        <div class="cards four" style="margin-bottom:16px">
-            <div class="stat">
-                <strong><?= Formatter::escape($payslip['gross']) ?></strong>
-                <span>Gross Pay</span>
-            </div>
-            <div class="stat">
-                <strong><?= Formatter::escape($payslip['deductions']) ?></strong>
-                <span>Total Deductions</span>
-            </div>
-            <div class="stat">
-                <strong><?= Formatter::escape($payslip['net']) ?></strong>
-                <span>Net Pay</span>
-            </div>
+<div class="card" style="padding:1.25rem;margin-bottom:1.25rem">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.25rem">
+        <div>
+            <div style="font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Employee</div>
+            <div style="font-weight:600;margin-top:.2rem"><?= Formatter::escape((string) ($data['employee_name'] ?? '')) ?></div>
+            <div style="font-size:.82rem;color:#6b7280"><?= Formatter::escape((string) ($data['employee_number'] ?? '')) ?></div>
         </div>
-
-        <div class="table-wrap">
-            <table>
-                <thead>
-                    <tr><th>DESCRIPTION</th><th>AMOUNT</th></tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($payslip['items'] as $item): ?>
-                        <tr>
-                            <td><?= Formatter::escape($item['label']) ?></td>
-                            <td><?= Formatter::escape($item['amount']) ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
+        <div>
+            <div style="font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Position</div>
+            <div style="font-weight:600;margin-top:.2rem"><?= Formatter::escape((string) ($data['position'] ?? '—')) ?></div>
         </div>
-
-        <?php if ($downloadUrl): ?>
-            <div style="margin-top:16px">
-                <a class="btn-secondary" href="<?= Formatter::escape($downloadUrl) ?>">
-                    ▤ Download Payslip
-                </a>
-            </div>
-        <?php endif; ?>
-
-        <div style="margin-top:12px">
-            <a class="text-btn" href="<?= $base ?>/my-payslips">← Back to payslips</a>
+        <div>
+            <div style="font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Branch</div>
+            <div style="font-weight:600;margin-top:.2rem"><?= Formatter::escape((string) ($data['branch_name'] ?? '')) ?></div>
+        </div>
+        <div>
+            <div style="font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Pay Period</div>
+            <div style="font-weight:600;margin-top:.2rem"><?= Formatter::escape($payslip['period'] ?? '') ?></div>
+        </div>
+        <div>
+            <div style="font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Pay Date</div>
+            <div style="font-weight:600;margin-top:.2rem"><?= Formatter::escape((string) ($data['pay_date'] ?? '')) ?></div>
+        </div>
+        <div>
+            <div style="font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Daily Rate</div>
+            <div style="font-weight:600;margin-top:.2rem">₱<?= number_format((float) ($data['daily_rate'] ?? 0), 2) ?></div>
         </div>
     </div>
 
-<?php else: ?>
-    <!-- ---- Payslip list ---- -->
-    <div class="panel table-wrap">
+    <!-- Summary stats -->
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin-bottom:1.25rem">
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.85rem">
+            <div style="font-size:.72rem;color:#166534;text-transform:uppercase;letter-spacing:.05em">Gross Pay</div>
+            <div style="font-size:1.25rem;font-weight:700;color:#15803d;margin-top:.25rem">₱<?= Formatter::escape($payslip['gross'] ?? '0.00') ?></div>
+        </div>
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.85rem">
+            <div style="font-size:.72rem;color:#991b1b;text-transform:uppercase;letter-spacing:.05em">Total Deductions</div>
+            <div style="font-size:1.25rem;font-weight:700;color:#dc2626;margin-top:.25rem">₱<?= Formatter::escape($payslip['deductions'] ?? '0.00') ?></div>
+        </div>
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.85rem">
+            <div style="font-size:.72rem;color:#1e40af;text-transform:uppercase;letter-spacing:.05em">Net Pay</div>
+            <div style="font-size:1.25rem;font-weight:700;color:#1d4ed8;margin-top:.25rem">₱<?= Formatter::escape($payslip['net'] ?? '0.00') ?></div>
+        </div>
+    </div>
+
+    <!-- Itemized breakdown -->
+    <div class="table-wrap">
         <table>
             <thead>
                 <tr>
-                    <th>PERIOD</th>
-                    <th>NET PAY</th>
-                    <th>STATUS</th>
-                    <th>ACTION</th>
+                    <th>DESCRIPTION</th>
+                    <th style="text-align:right">AMOUNT</th>
                 </tr>
             </thead>
             <tbody>
-            <?php if (empty($payslips)): ?>
+            <?php foreach (($payslip['items'] ?? []) as $item): ?>
                 <tr>
-                    <td colspan="4" class="muted" style="text-align:center;padding:28px">
-                        No payslips available yet.
+                    <td style="<?= ($item['type'] ?? '') === 'deduction' ? 'color:#dc2626' : 'color:#15803d' ?>">
+                        <?= Formatter::escape($item['label']) ?>
+                    </td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;<?= ($item['type'] ?? '') === 'deduction' ? 'color:#dc2626' : 'color:#15803d' ?>">
+                        <?= Formatter::escape($item['amount']) ?>
                     </td>
                 </tr>
-            <?php else: ?>
-                <?php foreach ($payslips as $p): ?>
-                    <tr>
-                        <td><?= Formatter::escape($p['period']) ?></td>
-                        <td><?= Formatter::escape($p['net']) ?></td>
-                        <td>
-                            <?php
-                            $badgeClass = match ($p['status']) {
-                                'Approved' => 'ok',
-                                'Returned' => 'bad',
-                                default    => 'wait',
-                            };
-                            ?>
-                            <span class="badge <?= $badgeClass ?>">
-                                <?= Formatter::escape($p['status']) ?>
-                            </span>
-                        </td>
-                        <td>
-                            <a class="text-btn"
-                               href="<?= $base ?>/my-payslips?id=<?= (int) $p['payroll_id'] ?>">
-                                View
-                            </a>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
+            <?php endforeach; ?>
+            <?php if (empty($payslip['items'])): ?>
+                <tr><td colspan="2" style="text-align:center;color:#6b7280;padding:1.5rem">No itemized details available.</td></tr>
             <?php endif; ?>
             </tbody>
+            <tfoot>
+                <tr style="background:#f8fafc;font-weight:700">
+                    <td style="padding:.65rem .85rem">NET PAY</td>
+                    <td style="text-align:right;padding:.65rem .85rem;font-size:1.1rem;color:#1d4ed8">₱<?= Formatter::escape($payslip['net'] ?? '0.00') ?></td>
+                </tr>
+            </tfoot>
         </table>
     </div>
-<?php endif; ?>
+
+    <?php if ($downloadUrl): ?>
+    <div style="margin-top:1.25rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+        <a class="btn btn-primary" href="<?= Formatter::escape($downloadUrl) ?>" target="_blank">
+            🖨 Print / Download Payslip
+        </a>
+        <span style="font-size:.8rem;color:#6b7280">Opens a print-ready copy in a new tab — use your browser's Print / Save as PDF.</span>
+    </div>
+    <?php endif; ?>
+</div>

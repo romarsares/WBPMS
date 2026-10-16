@@ -293,8 +293,9 @@ final class ReportsController
     /** @param array<string, string> $params */
     public function export(array $params = []): void
     {
-        $type = trim((string) ($_GET['type'] ?? ''));
-        $pdo  = $this->makeConnection()->pdo();
+        $type   = trim((string) ($_GET['type']   ?? ''));
+        $format = trim((string) ($_GET['format'] ?? 'html')); // 'html' or 'csv'
+        $pdo    = $this->makeConnection()->pdo();
 
         $e = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
         $n = fn(float $v): string  => number_format($v, 2);
@@ -302,29 +303,31 @@ final class ReportsController
         $title = $this->reportTitle($type);
 
         // ---------- Collect data ----------
-        $rows   = [];
+        $rows    = [];
         $headers = [];
-        $year   = (int) ($_GET['year'] ?? date('Y'));
+        $year    = (int) ($_GET['year'] ?? date('Y'));
+        $filters = [];
 
         if (in_array($type, ['payroll', 'attendance', 'requests', 'contributions', 'employees'], true)) {
-            [$headers, $rows] = $this->previewData($type, $this->previewFilters($type));
+            $filters = $this->previewFilters($type);
+            [$headers, $rows] = $this->previewData($type, $filters);
         } else {
             switch ($type) {
 
             case '13th_month':
                 $headers = ['Employee #', 'Employee Name', 'Total Basic Pay', '13th Month Pay'];
                 $filters = $this->thirteenthMonthFilters();
-                $year = $filters['year'];
+                $year    = $filters['year'];
                 $service = new \Wbpms\Application\PayrollService($this->makeConnection());
                 foreach ($service->compute13thMonth($year, [
-                    'branch_id' => $filters['branch_id'],
+                    'branch_id'   => $filters['branch_id'],
                     'employee_id' => $filters['employee_id'],
                 ]) as $r) {
                     $rows[] = [
                         $r['employee_number'],
                         $r['employee_name'],
-                        '₱' . $n($r['basic_total']),
-                        '₱' . $n($r['thirteenth_month']),
+                        number_format((float) $r['basic_total'], 2, '.', ''),
+                        number_format((float) $r['thirteenth_month'], 2, '.', ''),
                     ];
                 }
                 break;
@@ -332,7 +335,36 @@ final class ReportsController
             }
         }
 
-        // ---------- Render print-ready HTML ----------
+        // ---------- CSV download (REQ076) ----------
+        if ($format === 'csv') {
+            $slug     = preg_replace('/[^a-z0-9_-]/i', '-', $type ?: 'report');
+            $filename = $slug . '-' . date('Ymd') . '.csv';
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+
+            $out = fopen('php://output', 'w');
+            if ($out === false) {
+                http_response_code(500);
+                return;
+            }
+            fwrite($out, "\xEF\xBB\xBF"); // BOM for Excel UTF-8
+            if ($headers !== []) {
+                fputcsv($out, $headers);
+            }
+            foreach ($rows as $row) {
+                fputcsv($out, array_map('strval', $row));
+            }
+            fclose($out);
+            return;
+        }
+
+        // ---------- Print-ready HTML (format=html) or PDF-trigger (format=pdf) ----------
+        // Both render the same print-optimised HTML page.
+        // format=pdf additionally fires window.print() on load so the browser's
+        // Save as PDF dialog opens immediately (no Dompdf dependency required).
+        $autoPrint = ($format === 'pdf');
         header('Content-Type: text/html; charset=utf-8');
         echo '<!doctype html><html lang="en"><head><meta charset="utf-8">';
         echo '<title>' . $e($title) . '</title>';
@@ -346,20 +378,32 @@ final class ReportsController
             tr:nth-child(even){background:#fafafa}
             .no-data{text-align:center;padding:20px;color:#999}
             @media print{.no-print{display:none}}
-        </style></head><body>';
+        </style>';
+        if ($autoPrint) {
+            echo '<script>window.addEventListener("load",function(){window.print();});</script>';
+        }
+        echo '</head><body>';
         echo '<h2>' . $e($title) . '</h2>';
         $reportScope = '';
         if ($type === '13th_month') {
             $reportScope = ' &nbsp;|&nbsp; Year: ' . $year;
-            if ($filters['branch_id'] > 0) {
+            if (($filters['branch_id'] ?? 0) > 0) {
                 $reportScope .= ' &nbsp;|&nbsp; Branch filter applied';
             }
-            if ($filters['employee_id'] > 0) {
+            if (($filters['employee_id'] ?? 0) > 0) {
                 $reportScope .= ' &nbsp;|&nbsp; Employee filter applied';
             }
         }
+        // Build export links (same URL with different format params)
+        $csvUrl = '?' . http_build_query(array_merge($_GET, ['format' => 'csv']));
+        $pdfUrl = '?' . http_build_query(array_merge($_GET, ['format' => 'pdf']));
         echo '<div class="meta">Light Diamond Enterprises &nbsp;|&nbsp; Generated: ' . date('m/d/Y H:i') . $reportScope . '</div>';
-        echo '<div class="no-print" style="margin-bottom:10px"><button onclick="window.print()">🖨 Print</button> &nbsp; <button onclick="history.back()">← Back</button></div>';
+        echo '<div class="no-print" style="margin-bottom:10px;display:flex;gap:8px;align-items:center">'
+           . '<button onclick="window.print()" style="padding:4px 12px;cursor:pointer">🖨 Print</button>'
+           . '<a href="' . $e($pdfUrl) . '" style="padding:4px 10px;background:#374151;color:#fff;text-decoration:none;border-radius:4px;font-size:11px">⬇ PDF</a>'
+           . '<a href="' . $e($csvUrl) . '" style="padding:4px 10px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:4px;font-size:11px">⬇ CSV</a>'
+           . '<button onclick="history.back()" style="padding:4px 10px;cursor:pointer">← Back</button>'
+           . '</div>';
 
         if ($rows === []) {
             echo '<p class="no-data">No data available for this report.</p>';

@@ -287,10 +287,35 @@ final class AuthController
         $service    = new PasswordResetService($connection, $mailer);
         $baseUrl    = (string) ($_ENV['APP_BASE_URL'] ?? '');
 
-        // Silently ignore the return value — we show the same success page
-        // regardless so attackers cannot enumerate registered addresses.
-        $service->initiateReset($email, $baseUrl);
+        $mailDriver = strtolower(trim((string) ($_ENV['MAIL_DRIVER'] ?? 'log')));
+        $mailHost   = trim((string) ($_ENV['MAIL_HOST'] ?? ''));
 
+        // In production, reject immediately if SMTP is not configured at all —
+        // prevents the user from waiting and getting a silent no-op.
+        $appEnv = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'local')));
+        if ($appEnv === 'production' && ($mailDriver !== 'smtp' || $mailHost === '')) {
+            $_SESSION['_forgot_error'] =
+                'Password reset emails cannot be sent because the mail server is not '
+                . 'configured. Please contact your system administrator.';
+            $this->redirect('/forgot-password');
+            return;
+        }
+
+        try {
+            // initiateReset() returns false only when the address is unknown or
+            // the account is inactive. It re-throws RuntimeException on SMTP failure.
+            $service->initiateReset($email, $baseUrl);
+        } catch (\RuntimeException) {
+            // SMTP delivery failed — surface a meaningful error to the user.
+            $_SESSION['_forgot_error'] =
+                'We could not send the reset email. Please try again in a few minutes '
+                . 'or contact your system administrator if the problem persists.';
+            $this->redirect('/forgot-password');
+            return;
+        }
+
+        // Always redirect to the sent page (address unknown also lands here
+        // to prevent account-existence enumeration).
         $this->redirect('/forgot-password/sent');
     }
 

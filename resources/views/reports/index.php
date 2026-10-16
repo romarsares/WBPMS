@@ -17,22 +17,56 @@ use Wbpms\Http\View\Formatter;
     <div class="panel">
         <h2>▤ Payroll Report</h2>
         <p>View approved payroll summaries by period and branch. Print payslips and deposit-slip preparation lists.</p>
-        <a class="btn-secondary" href="<?= $base ?>/payroll">Open Payroll →</a>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/payroll">View →</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=payroll" target="_blank">🖨 Print</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=payroll&amp;format=csv">⬇ CSV</a>
+        </div>
     </div>
     <div class="panel">
         <h2>◷ Attendance Report</h2>
         <p>Review employee timesheets, late, undertime, overtime, and incomplete records by period.</p>
-        <a class="btn-secondary" href="<?= $base ?>/attendance">Open Attendance →</a>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/attendance">View →</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=attendance" target="_blank">🖨 Print</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=attendance&amp;format=csv">⬇ CSV</a>
+        </div>
     </div>
     <div class="panel">
         <h2>▱ Request Report</h2>
         <p>Summary of leave, overtime, and cash advance requests by status and type.</p>
-        <a class="btn-secondary" href="<?= $base ?>/requests">Open Requests →</a>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/requests">View →</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=requests" target="_blank">🖨 Print</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=requests&amp;format=csv">⬇ CSV</a>
+        </div>
     </div>
     <div class="panel">
         <h2>＋ Contribution Report</h2>
         <p>SSS, PhilHealth, and Pag-IBIG contribution records per period.</p>
-        <a class="btn-secondary" href="<?= $base ?>/benefits">Open Contributions →</a>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/contributions">View →</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=contributions" target="_blank">🖨 Print</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=contributions&amp;format=csv">⬇ CSV</a>
+        </div>
+    </div>
+    <div class="panel">
+        <h2>✦ 13th Month Report</h2>
+        <p>Annual 13th month pay computation per employee.</p>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/13th-month">View →</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=13th_month" target="_blank">🖨 Print</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=13th_month&amp;format=csv">⬇ CSV</a>
+        </div>
+    </div>
+    <div class="panel">
+        <h2>👤 Employee List</h2>
+        <p>Full employee directory with branch and status.</p>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.75rem">
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/employees">View →</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=employees" target="_blank">🖨 Print</a>
+            <a class="btn-secondary" href="<?= $base ?>/hr/reports/export?type=employees&amp;format=csv">⬇ CSV</a>
+        </div>
     </div>
 </div>
 

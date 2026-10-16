@@ -42,6 +42,15 @@ $router->add('GET', '/health', [HealthController::class, 'index'], []);
 $router->add('GET',  '/login',         [AuthController::class, 'showLogin'],    []);
 $router->add('POST', '/login',         [AuthController::class, 'login'],        []);
 
+// Forgot / reset password (REQ002)
+// Note: /forgot-password/sent must be registered before /forgot-password to
+// avoid any potential prefix collision in future router extensions.
+$router->add('GET',  '/forgot-password/sent', [AuthController::class, 'showResetLinkSent'], []);
+$router->add('GET',  '/forgot-password',      [AuthController::class, 'showForgotPassword'], []);
+$router->add('POST', '/forgot-password',      [AuthController::class, 'sendResetLink'],      []);
+$router->add('GET',  '/reset-password',       [AuthController::class, 'showResetPassword'],  []);
+$router->add('POST', '/reset-password',       [AuthController::class, 'resetPassword'],      []);
+
 // ---------------------------------------------------------------------------
 // Shared authenticated routes
 // ---------------------------------------------------------------------------
@@ -67,8 +76,8 @@ $router->add('GET', '/owner/dashboard', [DashboardController::class, 'ownerDashb
 $router->add('GET',  '/users',              [UserController::class, 'index'],         ['BusinessOwner', 'HRHead']);
 $router->add('GET',  '/users/create',       [UserController::class, 'create'],        ['BusinessOwner']);
 $router->add('POST', '/users',              [UserController::class, 'store'],         ['BusinessOwner']);
-$router->add('GET',  '/users/{id}/edit',    [UserController::class, 'edit'],          ['BusinessOwner']);
-$router->add('POST', '/users/{id}',         [UserController::class, 'update'],        ['BusinessOwner']);
+$router->add('GET',  '/users/{id}/edit',    [UserController::class, 'edit'],          ['BusinessOwner', 'HRHead']);
+$router->add('PUT',  '/users/{id}',         [UserController::class, 'update'],        ['BusinessOwner', 'HRHead']);
 $router->add('POST', '/users/{id}/toggle',  [UserController::class, 'toggle'],        ['BusinessOwner']);
 $router->add('POST', '/users/{id}/archive', [UserController::class, 'archive'],       ['BusinessOwner']);
 $router->add('POST', '/users/{id}/reset-password', [UserController::class, 'resetPassword'], ['BusinessOwner', 'HRHead']);
@@ -91,6 +100,7 @@ $router->add('GET',  '/owner/requests',                  [OwnerController::class
 $router->add('GET',  '/owner/requests/{id}',             [OwnerController::class, 'requestShow'],    ['BusinessOwner']);
 $router->add('POST', '/owner/requests/{id}/approve',     [OwnerController::class, 'requestApprove'], ['BusinessOwner']);
 $router->add('POST', '/owner/requests/{id}/return',      [OwnerController::class, 'requestReturn'],  ['BusinessOwner']);
+$router->add('POST', '/owner/requests/{id}/cancel',      [OwnerController::class, 'requestCancel'],  ['BusinessOwner']);
 
 // ---------------------------------------------------------------------------
 // HR Head — dashboard
@@ -112,6 +122,9 @@ $router->add('GET',  '/hr/employees/{id}/archive',   [EmployeeController::class,
 $router->add('POST', '/hr/employees/{id}/archive',   [EmployeeController::class, 'archive'],       ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}/rehire',    [EmployeeController::class, 'rehireForm'],    ['HRHead']);
 $router->add('POST', '/hr/employees/{id}/rehire',    [EmployeeController::class, 'rehire'],        ['HRHead']);
+// Bank account details
+$router->add('GET',  '/hr/employees/{id}/bank',     [EmployeeController::class, 'bankForm'],  ['HRHead']);
+$router->add('POST', '/hr/employees/{id}/bank',     [EmployeeController::class, 'saveBank'],  ['HRHead']);
 // Documents — literal sub-paths before bare {id} catch-alls  (Task 4.6.5 / REQ014-AC4)
 $router->add('GET',  '/hr/employees/{id}/documents',                      [EmployeeController::class, 'documents'],       ['HRHead']);
 $router->add('POST', '/hr/employees/{id}/documents',                      [EmployeeController::class, 'uploadDocument'],  ['HRHead']);
@@ -141,6 +154,7 @@ $router->add('PUT',  '/hr/schedules/{id}',          [ScheduleController::class, 
 // ---------------------------------------------------------------------------
 
 $router->add('GET',  '/hr/attendance',        [AttendanceController::class, 'index'],  ['HRHead']);
+$router->add('GET',  '/hr/attendance/frequency-report', [AttendanceController::class, 'frequencyReport'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/attendance/import', [AttendanceController::class, 'import'], ['HRHead']);
 $router->add('POST', '/hr/attendance/import', [AttendanceController::class, 'upload'], ['HRHead']);
 $router->add('POST', '/hr/attendance/import/confirm', [AttendanceController::class, 'confirmImport'], ['HRHead']);
@@ -159,7 +173,8 @@ $router->add('GET',  '/hr/requests/new',          [RequestsController::class, 'c
 $router->add('POST', '/hr/requests',              [RequestsController::class, 'store'],   ['HRHead']);
 $router->add('GET',  '/hr/requests/{id}',         [RequestsController::class, 'show'],    ['HRHead']);
 $router->add('POST', '/hr/requests/{id}/approve', [RequestsController::class, 'approve'], ['HRHead']);
-$router->add('POST', '/hr/requests/{id}/reject',  [RequestsController::class, 'reject'],  ['HRHead']);
+$router->add('POST', '/hr/requests/{id}/cancel',  [RequestsController::class, 'cancel'],  ['HRHead']);
+$router->add('POST', '/hr/requests/{id}/reject',  [RequestsController::class, 'reject'],  ['HRHead']); // deprecated alias
 $router->add('POST', '/hr/requests/{id}/archive', [RequestsController::class, 'archive'], ['HRHead']);
 
 // ---------------------------------------------------------------------------
@@ -201,12 +216,20 @@ $router->add('POST', '/hr/payroll/{id}/compute',     [PayrollController::class, 
 $router->add('POST', '/hr/payroll/{id}/submit',      [PayrollController::class, 'submit'],   ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/cancel',      [PayrollController::class, 'cancel'],   ['HRHead']);
 
+// Printable payroll documents. These use a neutral path because both HR and
+// the Business Owner may review the same source records.
+$router->add('GET',  '/payroll/{id}/timesheet', [PayrollController::class, 'printTimesheet'], ['HRHead', 'BusinessOwner']);
+$router->add('GET',  '/payroll/{id}/disbursement-summary', [PayrollController::class, 'disbursementSummary'], ['HRHead', 'BusinessOwner']);
+// REQ076: export the deposit-slip preparation list as CSV
+$router->add('GET',  '/payroll/{id}/disbursement-summary/export', [PayrollController::class, 'disbursementExport'], ['HRHead', 'BusinessOwner']);
+
 // ---------------------------------------------------------------------------
 // HR Head — Reports  (REQ065–REQ073)
 // ---------------------------------------------------------------------------
 
 $router->add('GET',  '/hr/reports',        [ReportsController::class, 'index'],    ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/13th-month', [ReportsController::class, 'thirteenthMonth'], ['HRHead', 'BusinessOwner']);
+$router->add('GET',  '/hr/reports/transaction-slips', [ReportsController::class, 'transactionSlips'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/export', [ReportsController::class, 'export'],   ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/{type}', [ReportsController::class, 'preview'],  ['HRHead', 'BusinessOwner']);
 
@@ -256,4 +279,7 @@ $router->add('GET',  '/hr/attendance/policy/flags',             [AttendancePolic
 $router->add('POST', '/hr/attendance/policy/flags/evaluate',    [AttendancePolicyController::class, 'evaluate'], ['HRHead']);
 $router->add('POST', '/hr/attendance/policy/flags/{id}/review', [AttendancePolicyController::class, 'review'],   ['HRHead']);
 
-$router->add('GET',  '/employee/payslips/{id}/print', [EmployeePortalController::class, 'payslipPrint'],  ['Employee']);
+$router->add('GET',  '/employee/payslips/{id}/print',    [EmployeePortalController::class, 'payslipPrint'],  ['Employee']);
+// REQ074/REQ082: /download is a user-facing alias for the same print renderer.
+// The print view instructs the browser to save as PDF via window.print().
+$router->add('GET',  '/employee/payslips/{id}/download', [EmployeePortalController::class, 'payslipPrint'],  ['Employee']);

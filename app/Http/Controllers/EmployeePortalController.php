@@ -406,8 +406,6 @@ final class EmployeePortalController
             $items[] = ['label' => $d['description'], 'amount' => '−₱' . number_format((float)$d['amount'], 2), 'type' => 'deduction'];
         }
 
-        $base = rtrim((string)($_ENV['APP_BASE_URL'] ?? ''), '/');
-
         $payslip = [
             'period'     => $data['period'],
             'gross'      => number_format($data['gross_pay'], 2),
@@ -417,9 +415,12 @@ final class EmployeePortalController
             'data'       => $data,
         ];
 
+        $base = rtrim((string)($_ENV['APP_BASE_URL'] ?? ''), '/');
+
         ViewRenderer::render('employee/payslip', [
             'payslip'     => $payslip,
-            'downloadUrl' => $base . '/employee/payslips/' . $payslipId . '/print',
+            'downloadUrl' => $base . '/employee/payslips/' . $payslipId . '/download',
+            'activePage'  => 'my-payslips',
         ], 'Payslip — ' . $data['period']);
     }
 

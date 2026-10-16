@@ -23,7 +23,11 @@ $forwardNote = 'Payroll disbursement package for ' . (string) ($run['period_labe
         </div>
         <div class="disbursement-actions no-print">
             <a class="btn btn-secondary" href="<?= $base ?><?= Formatter::escape($backPath) ?>"><?= Formatter::escape($backLabel) ?></a>
-            <?php if ($isReady): ?><button type="button" class="btn btn-secondary" onclick="copyForwardingNote()">Copy Forwarding Note</button><button type="button" class="btn btn-primary" onclick="window.print()">Print Package</button><?php endif; ?>
+            <?php if ($isReady): ?>
+            <button type="button" class="btn btn-secondary" onclick="copyForwardingNote()">Copy Forwarding Note</button>
+            <a class="btn btn-secondary" href="<?= $base ?>/payroll/<?= (int) ($run['payroll_run_id'] ?? 0) ?>/disbursement-summary/export">⬇ Export CSV</a>
+            <button type="button" class="btn btn-primary" onclick="window.print()">Print Package</button>
+            <?php endif; ?>
         </div>
     </header>
 

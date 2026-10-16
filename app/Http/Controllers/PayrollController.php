@@ -473,14 +473,15 @@ final class PayrollController
                          AND bd.bank_name = 'BDO'
                          AND bd.status = 'Active'
                          AND bd.effective_from <= :pay_date
-                         AND (bd.effective_to IS NULL OR bd.effective_to >= :pay_date)
+                         AND (bd.effective_to IS NULL OR bd.effective_to >= :pay_date2)
                   WHERE pr.payroll_period_id = :period_id
                     AND pr.status = 'Approved'
                   ORDER BY b.branch_name, e.last_name, e.first_name"
             );
             $entryStmt->execute([
                 ':period_id' => $run['payroll_period_id'],
-                ':pay_date' => $run['pay_date'],
+                ':pay_date'  => $run['pay_date'],
+                ':pay_date2' => $run['pay_date'],
             ]);
             $entries = $entryStmt->fetchAll(PDO::FETCH_ASSOC);
         }
@@ -508,6 +509,102 @@ final class PayrollController
             'backLabel' => $isOwner ? 'Back to Payroll Review' : 'Back to Payroll Run',
             'activePage' => 'payroll',
         ], 'Payroll Disbursement Summary');
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /payroll/{id}/disbursement-summary/export  (REQ076)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Export the disbursement deposit-slip preparation list as a CSV file.
+     * Available only when all branch runs for the period are Approved.
+     * REQ076: export reports as digital files.
+     *
+     * @param array<string, string> $params
+     */
+    public function disbursementExport(array $params = []): void
+    {
+        $runId = (int) ($params['id'] ?? 0);
+        try {
+            $run = $this->makeService()->findRunOrFail($runId);
+        } catch (RuntimeException) {
+            http_response_code(404);
+            echo 'Payroll run not found.';
+            return;
+        }
+
+        $pdo = $this->makeConnection()->pdo();
+
+        // Only export when all branch runs are approved
+        $branchRunsStmt = $pdo->prepare(
+            "SELECT pr.status
+               FROM payroll_run pr
+              WHERE pr.payroll_period_id = :period_id
+                AND pr.status <> 'Cancelled'"
+        );
+        $branchRunsStmt->execute([':period_id' => $run['payroll_period_id']]);
+        $statuses = $branchRunsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if (empty($statuses) || in_array(false, array_map(fn($s) => $s === 'Approved', $statuses), true)) {
+            http_response_code(403);
+            echo 'Disbursement export is available only when all branch payroll runs are approved.';
+            return;
+        }
+
+        $entryStmt = $pdo->prepare(
+            "SELECT b.branch_name,
+                    e.employee_number,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    p.net_pay,
+                    COALESCE(bd.bank_name, '') AS bank_name,
+                    COALESCE(bd.account_name, '') AS account_name,
+                    COALESCE(bd.account_number, '') AS account_number
+               FROM payroll p
+               JOIN payroll_run pr ON pr.payroll_run_id = p.payroll_run_id
+               JOIN branch b       ON b.branch_id       = pr.branch_id
+               JOIN employee e     ON e.employee_id     = p.employee_id
+               LEFT JOIN bank_details bd
+                      ON bd.employee_id = e.employee_id
+                     AND bd.bank_name   = 'BDO'
+                     AND bd.status      = 'Active'
+                     AND bd.effective_from <= :pay_date
+                     AND (bd.effective_to IS NULL OR bd.effective_to >= :pay_date2)
+              WHERE pr.payroll_period_id = :period_id
+                AND pr.status = 'Approved'
+              ORDER BY b.branch_name, e.last_name, e.first_name"
+        );
+        $entryStmt->execute([
+            ':period_id' => $run['payroll_period_id'],
+            ':pay_date'  => $run['pay_date'],
+            ':pay_date2' => $run['pay_date'],
+        ]);
+        $entries = $entryStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $filename = 'disbursement-' . str_replace([' ', '–', '/'], '-', (string) $run['period_label']) . '.csv';
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $out = fopen('php://output', 'w');
+        if ($out === false) {
+            http_response_code(500);
+            return;
+        }
+        // BOM for Excel UTF-8 compatibility
+        fwrite($out, "\xEF\xBB\xBF");
+        fputcsv($out, ['Branch', 'Employee #', 'Employee Name', 'BDO Account Name', 'BDO Account Number', 'Net Pay (PHP)']);
+        foreach ($entries as $entry) {
+            fputcsv($out, [
+                $entry['branch_name'],
+                $entry['employee_number'],
+                $entry['employee_name'],
+                $entry['account_name'] !== '' ? $entry['account_name'] : 'MISSING',
+                $entry['account_number'] !== '' ? $entry['account_number'] : 'MISSING',
+                number_format((float) $entry['net_pay'], 2, '.', ''),
+            ]);
+        }
+        fclose($out);
     }
 
     // -----------------------------------------------------------------------

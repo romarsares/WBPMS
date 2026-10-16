@@ -35,6 +35,7 @@ set_exception_handler(static function (\Throwable $e): void {
             ? '<pre style="font-size:12px;overflow:auto">' . htmlspecialchars($e->getTraceAsString(), ENT_QUOTES, 'UTF-8') . '</pre>'
             : '';
         if (defined('APP_ROOT') && file_exists(APP_ROOT . '/resources/views/errors/500.php')) {
+            $detail = $message; // expose to 500.php's $detail variable
             require APP_ROOT . '/resources/views/errors/500.php';
         } else {
             // Absolute fallback if the view itself cannot be loaded

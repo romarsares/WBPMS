@@ -220,6 +220,8 @@ $router->add('POST', '/hr/payroll/{id}/cancel',      [PayrollController::class, 
 // the Business Owner may review the same source records.
 $router->add('GET',  '/payroll/{id}/timesheet', [PayrollController::class, 'printTimesheet'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/payroll/{id}/disbursement-summary', [PayrollController::class, 'disbursementSummary'], ['HRHead', 'BusinessOwner']);
+// REQ076: export the deposit-slip preparation list as CSV
+$router->add('GET',  '/payroll/{id}/disbursement-summary/export', [PayrollController::class, 'disbursementExport'], ['HRHead', 'BusinessOwner']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Reports  (REQ065–REQ073)
@@ -277,4 +279,7 @@ $router->add('GET',  '/hr/attendance/policy/flags',             [AttendancePolic
 $router->add('POST', '/hr/attendance/policy/flags/evaluate',    [AttendancePolicyController::class, 'evaluate'], ['HRHead']);
 $router->add('POST', '/hr/attendance/policy/flags/{id}/review', [AttendancePolicyController::class, 'review'],   ['HRHead']);
 
-$router->add('GET',  '/employee/payslips/{id}/print', [EmployeePortalController::class, 'payslipPrint'],  ['Employee']);
+$router->add('GET',  '/employee/payslips/{id}/print',    [EmployeePortalController::class, 'payslipPrint'],  ['Employee']);
+// REQ074/REQ082: /download is a user-facing alias for the same print renderer.
+// The print view instructs the browser to save as PDF via window.print().
+$router->add('GET',  '/employee/payslips/{id}/download', [EmployeePortalController::class, 'payslipPrint'],  ['Employee']);
