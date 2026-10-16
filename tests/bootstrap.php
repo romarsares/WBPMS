@@ -24,7 +24,13 @@ declare(strict_types=1);
 // 1. Composer autoloader — always required.
 require_once __DIR__ . '/../vendor/autoload.php';
 
-// 2. Load environment variables from .env.testing or .env.
+// 2. Define APP_ROOT so infrastructure classes (Mailer, SessionHandler, etc.)
+//    that resolve storage paths via APP_ROOT work correctly in the test suite.
+if (!defined('APP_ROOT')) {
+    define('APP_ROOT', dirname(__DIR__));
+}
+
+// 3. Load environment variables from .env.testing or .env.
 //    We use createImmutable() so existing process variables take precedence
 //    over file values; phpunit.xml <env> entries therefore always win in CI.
 $root = dirname(__DIR__);

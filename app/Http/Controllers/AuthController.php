@@ -290,15 +290,25 @@ final class AuthController
         $mailDriver = strtolower(trim((string) ($_ENV['MAIL_DRIVER'] ?? 'log')));
         $mailHost   = trim((string) ($_ENV['MAIL_HOST'] ?? ''));
 
-        // In production, reject immediately if SMTP is not configured at all —
-        // prevents the user from waiting and getting a silent no-op.
+        // In production, reject immediately if a usable delivery driver is not
+        // configured — prevents the user from waiting on a silent no-op.
+        //
+        // Accepted production drivers:
+        //   smtp   — requires MAIL_HOST to be set
+        //   resend — requires RESEND_API_KEY to be set
         $appEnv = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'local')));
-        if ($appEnv === 'production' && ($mailDriver !== 'smtp' || $mailHost === '')) {
-            $_SESSION['_forgot_error'] =
-                'Password reset emails cannot be sent because the mail server is not '
-                . 'configured. Please contact your system administrator.';
-            $this->redirect('/forgot-password');
-            return;
+        if ($appEnv === 'production') {
+            $resendKey = trim((string) ($_ENV['RESEND_API_KEY'] ?? ''));
+            $smtpReady   = ($mailDriver === 'smtp'   && $mailHost !== '');
+            $resendReady = ($mailDriver === 'resend' && $resendKey !== '');
+
+            if (!$smtpReady && !$resendReady) {
+                $_SESSION['_forgot_error'] =
+                    'Password reset emails cannot be sent because the mail server is not '
+                    . 'configured. Please contact your system administrator.';
+                $this->redirect('/forgot-password');
+                return;
+            }
         }
 
         try {
