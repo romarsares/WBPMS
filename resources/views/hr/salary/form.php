@@ -24,7 +24,7 @@ $isEdit   = $salary !== null;
 <div style="display:grid;grid-template-columns:<?= $isEdit ? '1fr 1fr' : '1fr' ?>;gap:1.5rem">
 
     <div class="card">
-        <form method="post" action="<?= htmlspecialchars($formAction) ?>">
+        <form method="post" action="<?= $base . htmlspecialchars($formAction) ?>">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
 
             <?php if (!$isEdit): ?>

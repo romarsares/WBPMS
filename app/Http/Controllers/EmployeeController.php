@@ -474,6 +474,18 @@ final class EmployeeController
                 $this->redirect('/hr/employees/' . $id);
             } catch (\RuntimeException $e) {
                 $errors['form'] = $e->getMessage();
+            } catch (\PDOException $e) {
+                // Surface database constraint violations (e.g. duplicate branch/schedule
+                // assignment for the same effective date) as a friendly form error
+                // instead of a 500 page.
+                $driverCode = (int) ($e->errorInfo[1] ?? 0);
+                if ($driverCode === 1062) {
+                    $errors['form'] = 'A duplicate assignment record was detected for the selected rehire date. '
+                        . 'This employee may already have a branch, schedule, salary, or biometric record '
+                        . 'starting on that date. Choose a different rehire date or resolve the conflict first.';
+                } else {
+                    $errors['form'] = 'A database error occurred during rehire: ' . $e->getMessage();
+                }
             }
         }
         [$branches, $schedules, $devices, $positions] = $this->dropdownData();
@@ -874,7 +886,27 @@ final class EmployeeController
             return;
         }
 
-        $repo->saveBankDetails($id, $data);
+        try {
+            $repo->saveBankDetails($id, $data);
+        } catch (\PDOException $e) {
+            // Catch duplicate-key or other DB constraint violations and surface
+            // them as a user-facing form error instead of a 500 page.
+            $driverCode = (int) ($e->errorInfo[1] ?? 0);
+            if ($driverCode === 1062) {
+                $errorMessage = 'This bank account number is already on record with the same effective date. '
+                    . 'Choose a different effective date or update the existing record.';
+            } else {
+                $errorMessage = 'Could not save bank details: ' . $e->getMessage();
+            }
+            $bank = $repo->findBankDetails($id);
+            ViewRenderer::render('hr/employees/bank', [
+                'employee'   => $employee,
+                'bank'       => $bank,
+                'errors'     => ['bank_name' => $errorMessage],
+                'activePage' => 'employees',
+            ], 'Bank Account – ' . $employee['last_name'] . ', ' . $employee['first_name']);
+            return;
+        }
 
         ViewRenderer::flash('Bank account details saved successfully.');
         $this->redirect('/hr/employees/' . $id);

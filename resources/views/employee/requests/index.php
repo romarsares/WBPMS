@@ -18,23 +18,94 @@ use Wbpms\Http\View\Formatter;
  * @var string $csrf
  */
 
-$requests     ??= [];
-$filterStatus ??= '';
-$csrf         ??= '';
+$requests               ??= [];
+$filterStatus           ??= '';
+$csrf                   ??= '';
+$sickLeaveBalance       ??= 0.0;
+$sickLeaveLimit         ??= 4;
+$cashAdvanceOutstanding ??= 0.0;
+$cashAdvanceMax         ??= null;
 
 $statusBadge = static function (string $status): string {
     return match ($status) {
-        'Pending'   => '<span class="badge badge-yellow">Pending</span>',
-        'Approved'  => '<span class="badge badge-green">Approved</span>',
-        'Cancelled' => '<span class="badge badge-gray">Cancelled</span>',
-        default     => '<span class="badge badge-gray">' . htmlspecialchars($status, ENT_QUOTES, 'UTF-8') . '</span>',
+        'Pending'    => '<span class="badge badge-yellow">Pending</span>',
+        'HRApproved' => '<span class="badge badge-purple" style="background:#6366f1;color:#fff">Awaiting Owner</span>',
+        'Approved'   => '<span class="badge badge-green">Approved</span>',
+        'Returned'   => '<span class="badge badge-orange" style="background:#f97316;color:#fff">Returned</span>',
+        'Cancelled'  => '<span class="badge badge-gray">Cancelled</span>',
+        default      => '<span class="badge badge-gray">' . htmlspecialchars($status, ENT_QUOTES, 'UTF-8') . '</span>',
     };
 };
 ?>
 
 <div class="page-header">
-    <h1>My Requests</h1>
+    <div>
+        <h1>My Requests</h1>
+        <a href="<?= $base ?>/employee/dashboard" class="btn btn-secondary" style="font-size:.85rem;margin-top:.3rem;display:inline-block">← Back to Dashboard</a>
+    </div>
     <a href="<?= $base ?>/employee/requests/new" class="btn btn-primary">New Request</a>
+</div>
+
+<!-- Leave balance + cash advance summary -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
+
+    <!-- Sick Leave card -->
+    <div class="card" style="padding:1rem 1.25rem">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem">
+            <span style="font-size:1.5rem;line-height:1">🌿</span>
+            <span style="font-size:.78rem;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Sick Leave</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:.4rem">
+            <span style="font-size:1.75rem;font-weight:700;color:<?= (float)$sickLeaveBalance > 0 ? '#059669' : '#dc2626' ?>">
+                <?= number_format((float)$sickLeaveBalance, 1) ?>
+            </span>
+            <span style="font-size:.9rem;color:#6b7280">/ <?= (int)$sickLeaveLimit ?> days</span>
+        </div>
+        <div style="margin-top:.5rem">
+            <?php
+            $pct = $sickLeaveLimit > 0 ? min(100, ((float)$sickLeaveBalance / (int)$sickLeaveLimit) * 100) : 0;
+            $barColor = $pct > 50 ? '#10b981' : ($pct > 25 ? '#f59e0b' : '#ef4444');
+            ?>
+            <div style="height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden">
+                <div style="height:100%;width:<?= round($pct) ?>%;background:<?= $barColor ?>;border-radius:3px;transition:width .3s"></div>
+            </div>
+            <div style="font-size:.75rem;color:#9ca3af;margin-top:.25rem">
+                <?= number_format((float)$sickLeaveBalance, 1) ?> day<?= (float)$sickLeaveBalance !== 1.0 ? 's' : '' ?> remaining &nbsp;·&nbsp; Limit: <?= (int)$sickLeaveLimit ?> days/year
+            </div>
+        </div>
+    </div>
+
+    <!-- Cash Advance card -->
+    <div class="card" style="padding:1rem 1.25rem">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem">
+            <span style="font-size:1.5rem;line-height:1">💵</span>
+            <span style="font-size:.78rem;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Cash Advance</span>
+        </div>
+        <?php if ($cashAdvanceMax !== null): ?>
+        <div style="display:flex;align-items:baseline;gap:.4rem">
+            <span style="font-size:1.75rem;font-weight:700;color:<?= (float)$cashAdvanceOutstanding > 0 ? '#d97706' : '#059669' ?>">
+                ₱<?= number_format((float)$cashAdvanceOutstanding, 2) ?>
+            </span>
+            <span style="font-size:.9rem;color:#6b7280">outstanding</span>
+        </div>
+        <div style="margin-top:.5rem">
+            <?php
+            $caPct = $cashAdvanceMax > 0 ? min(100, ((float)$cashAdvanceOutstanding / $cashAdvanceMax) * 100) : 0;
+            $caBar = $caPct < 50 ? '#10b981' : ($caPct < 80 ? '#f59e0b' : '#ef4444');
+            ?>
+            <div style="height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden">
+                <div style="height:100%;width:<?= round($caPct) ?>%;background:<?= $caBar ?>;border-radius:3px;transition:width .3s"></div>
+            </div>
+            <div style="font-size:.75rem;color:#9ca3af;margin-top:.25rem">
+                Unpaid: ₱<?= number_format((float)$cashAdvanceOutstanding, 2) ?> &nbsp;·&nbsp; Max: ₱<?= number_format((float)$cashAdvanceMax, 2) ?>
+            </div>
+        </div>
+        <?php else: ?>
+        <div style="font-size:1.1rem;font-weight:600;color:#6b7280">No salary record on file</div>
+        <div style="font-size:.75rem;color:#9ca3af;margin-top:.25rem">Contact HR to set up your salary record.</div>
+        <?php endif; ?>
+    </div>
+
 </div>
 
 <!-- Status filter -->

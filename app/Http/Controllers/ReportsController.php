@@ -287,6 +287,102 @@ final class ReportsController
     }
 
     // -----------------------------------------------------------------------
+    // GET /hr/reports/payslips — Employee Payslip Report
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function payslipsReport(array $params = []): void
+    {
+        $pdo = $this->makeConnection()->pdo();
+
+        // Filters
+        $branchId = filter_var($_GET['branch_id'] ?? 0, FILTER_VALIDATE_INT);
+        $branchId = $branchId !== false && $branchId > 0 ? (int) $branchId : 0;
+
+        $periodId = filter_var($_GET['payroll_period_id'] ?? 0, FILTER_VALIDATE_INT);
+        $periodId = $periodId !== false && $periodId > 0 ? (int) $periodId : 0;
+
+        $employeeSearch = trim((string) ($_GET['employee_search'] ?? ''));
+
+        // Reference data for dropdowns
+        $branches = $pdo->query(
+            "SELECT branch_id, branch_name FROM branch WHERE status = 'Active' ORDER BY branch_name"
+        )->fetchAll();
+
+        $periods = $pdo->query(
+            "SELECT pp.payroll_period_id, pp.period_start, pp.period_end
+               FROM payroll_period pp
+               JOIN payroll_run pr ON pr.payroll_period_id = pp.payroll_period_id
+              WHERE pr.status = 'Approved'
+              GROUP BY pp.payroll_period_id
+              ORDER BY pp.period_start DESC
+              LIMIT 60"
+        )->fetchAll();
+
+        // Payslip data query
+        $rows = [];
+        if ($periodId > 0 || $employeeSearch !== '' || $branchId > 0) {
+            $where = ["pr.status = 'Approved'"];
+            $bind  = [];
+
+            if ($periodId > 0) {
+                $where[]             = 'pr.payroll_period_id = :period_id';
+                $bind[':period_id']  = $periodId;
+            }
+            if ($branchId > 0) {
+                $where[]              = 'pr.branch_id = :branch_id';
+                $bind[':branch_id']   = $branchId;
+            }
+            if ($employeeSearch !== '') {
+                $where[] = '(e.last_name LIKE :emp_last OR e.first_name LIKE :emp_first OR e.employee_number LIKE :emp_num)';
+                $pattern = '%' . $employeeSearch . '%';
+                $bind[':emp_last']  = $pattern;
+                $bind[':emp_first'] = $pattern;
+                $bind[':emp_num']   = $pattern;
+            }
+
+            $stmt = $pdo->prepare(
+                "SELECT ps.payslip_id,
+                        e.employee_number,
+                        CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                        b.branch_name,
+                        CONCAT(pp.period_start, ' – ', pp.period_end) AS period_label,
+                        pp.period_start,
+                        pp.period_end,
+                        p.gross_pay,
+                        p.total_deductions,
+                        p.net_pay,
+                        pr.reviewed_at AS approved_at
+                   FROM payslip ps
+                   JOIN payroll p         ON p.payroll_id         = ps.payroll_id
+                   JOIN payroll_run pr    ON pr.payroll_run_id    = p.payroll_run_id
+                   JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+                   JOIN employee e        ON e.employee_id        = p.employee_id
+                   JOIN branch b          ON b.branch_id          = pr.branch_id
+                  WHERE " . implode(' AND ', $where) . "
+                  ORDER BY pp.period_start DESC, e.last_name, e.first_name
+                  LIMIT 500"
+            );
+            $stmt->execute($bind);
+            $rows = $stmt->fetchAll();
+        }
+
+        $filters = [
+            'branch_id'         => $branchId,
+            'payroll_period_id' => $periodId,
+            'employee_search'   => $employeeSearch,
+        ];
+
+        ViewRenderer::render('hr/reports/payslips', [
+            'rows'       => $rows,
+            'branches'   => $branches,
+            'periods'    => $periods,
+            'filters'    => $filters,
+            'activePage' => 'reports',
+        ], 'Employee Payslip Report');
+    }
+
+    // -----------------------------------------------------------------------
     // GET /hr/reports/export
     // -----------------------------------------------------------------------
 
@@ -328,6 +424,61 @@ final class ReportsController
                         $r['employee_name'],
                         number_format((float) $r['basic_total'], 2, '.', ''),
                         number_format((float) $r['thirteenth_month'], 2, '.', ''),
+                    ];
+                }
+                break;
+
+            case 'payslips':
+                $headers  = ['Employee #', 'Employee Name', 'Branch', 'Period', 'Gross Pay', 'Total Deductions', 'Net Pay', 'Approved At'];
+                $periodId = filter_var($_GET['payroll_period_id'] ?? 0, FILTER_VALIDATE_INT);
+                $periodId = $periodId !== false && $periodId > 0 ? (int) $periodId : 0;
+                $branchId = filter_var($_GET['branch_id'] ?? 0, FILTER_VALIDATE_INT);
+                $branchId = $branchId !== false && $branchId > 0 ? (int) $branchId : 0;
+                $employeeSearch = trim((string) ($_GET['employee_search'] ?? ''));
+
+                $where = ["pr.status = 'Approved'"];
+                $bind  = [];
+                if ($periodId > 0) {
+                    $where[]             = 'pr.payroll_period_id = :period_id';
+                    $bind[':period_id']  = $periodId;
+                }
+                if ($branchId > 0) {
+                    $where[]            = 'pr.branch_id = :branch_id';
+                    $bind[':branch_id'] = $branchId;
+                }
+                if ($employeeSearch !== '') {
+                    $where[] = '(e.last_name LIKE :emp_last OR e.first_name LIKE :emp_first OR e.employee_number LIKE :emp_num)';
+                    $pat = '%' . $employeeSearch . '%';
+                    $bind[':emp_last'] = $pat; $bind[':emp_first'] = $pat; $bind[':emp_num'] = $pat;
+                }
+                $stmt = $pdo->prepare(
+                    "SELECT e.employee_number,
+                            CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                            b.branch_name,
+                            CONCAT(pp.period_start, ' – ', pp.period_end) AS period_label,
+                            p.gross_pay, p.total_deductions, p.net_pay,
+                            pr.reviewed_at AS approved_at
+                       FROM payslip ps
+                       JOIN payroll p         ON p.payroll_id         = ps.payroll_id
+                       JOIN payroll_run pr    ON pr.payroll_run_id    = p.payroll_run_id
+                       JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+                       JOIN employee e        ON e.employee_id        = p.employee_id
+                       JOIN branch b          ON b.branch_id          = pr.branch_id
+                      WHERE " . implode(' AND ', $where) . "
+                      ORDER BY pp.period_start DESC, e.last_name
+                      LIMIT 500"
+                );
+                $stmt->execute($bind);
+                foreach ($stmt->fetchAll() as $r) {
+                    $rows[] = [
+                        $r['employee_number'],
+                        $r['employee_name'],
+                        $r['branch_name'],
+                        $r['period_label'],
+                        number_format((float) $r['gross_pay'], 2, '.', ''),
+                        number_format((float) $r['total_deductions'], 2, '.', ''),
+                        number_format((float) $r['net_pay'], 2, '.', ''),
+                        (string) ($r['approved_at'] ?? ''),
                     ];
                 }
                 break;
@@ -445,6 +596,7 @@ final class ReportsController
             'contributions' => 'Government Contributions Report',
             '13th_month'    => '13th Month Pay Report',
             'employees'     => 'Employee List',
+            'payslips'      => 'Employee Payslip Report',
             default         => 'Report',
         };
     }

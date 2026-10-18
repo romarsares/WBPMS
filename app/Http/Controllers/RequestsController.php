@@ -236,6 +236,158 @@ final class RequestsController
     }
 
     // -----------------------------------------------------------------------
+    // GET /hr/requests/leave-credits
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function leaveCredits(array $params = []): void
+    {
+        $year = filter_var($_GET['year'] ?? date('Y'), FILTER_VALIDATE_INT);
+        $year = ($year !== false && $year >= 2020 && $year <= (int) date('Y') + 1)
+            ? (int) $year
+            : (int) date('Y');
+
+        $service = $this->makeService();
+        $rows    = $service->leaveCreditsForAll($year);
+
+        ViewRenderer::render('hr/requests/leave-credits', [
+            'rows'        => $rows,
+            'year'        => $year,
+            'currentYear' => (int) date('Y'),
+        ], 'Leave Credit Management');
+    }
+
+    // -----------------------------------------------------------------------
+    // GET  /hr/requests/leave-credits/{id}       — employee ledger + adjust form
+    // POST /hr/requests/leave-credits/{id}/adjust — apply adjustment
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function leaveCreditsEmployee(array $params = []): void
+    {
+        $employeeId = (int) ($params['id'] ?? 0);
+        $year = filter_var($_GET['year'] ?? date('Y'), FILTER_VALIDATE_INT);
+        $year = ($year !== false && $year >= 2020) ? (int) $year : (int) date('Y');
+
+        $pdo     = $this->makeConnection()->pdo();
+        $service = $this->makeService();
+
+        $empRow = $pdo->prepare(
+            "SELECT employee_id, employee_number,
+                    CONCAT(last_name, ', ', first_name) AS employee_name
+               FROM employee WHERE employee_id = :id"
+        );
+        $empRow->execute([':id' => $employeeId]);
+        $employee = $empRow->fetch();
+        if ($employee === false) {
+            http_response_code(404);
+            ViewRenderer::render('errors/404', [], '404 Not Found');
+            return;
+        }
+
+        $balance = $service->leaveBalance($employeeId, $year);
+        $ledger  = $service->leaveLedger($employeeId, $year);
+
+        ViewRenderer::render('hr/requests/leave-credits-employee', [
+            'employee' => $employee,
+            'balance'  => $balance,
+            'ledger'   => $ledger,
+            'year'     => $year,
+            'errors'   => [],
+        ], 'Leave Credits — ' . $employee['employee_name']);
+    }
+
+    /** @param array<string, string> $params */
+    public function adjustLeaveCredit(array $params = []): void
+    {
+        $employeeId = (int) ($params['id'] ?? 0);
+        $identity   = AuthMiddleware::identity();
+        $year       = (int) ($_POST['year'] ?? date('Y'));
+
+        $days      = (float) ($_POST['days']       ?? 0);
+        $entryType = trim((string) ($_POST['entry_type'] ?? ''));
+        $notes     = trim((string) ($_POST['notes']      ?? ''));
+
+        try {
+            $this->makeService()->adjustLeaveCredit(
+                $employeeId,
+                $days,
+                $entryType,
+                $notes,
+                (int) ($identity['user_id'] ?? 0),
+                $year
+            );
+            ViewRenderer::flash('Leave credit adjusted successfully.');
+            $this->redirect('/hr/requests/leave-credits/' . $employeeId . '?year=' . $year);
+        } catch (\RuntimeException $e) {
+            $pdo      = $this->makeConnection()->pdo();
+            $service  = $this->makeService();
+            $empRow   = $pdo->prepare(
+                "SELECT employee_id, employee_number,
+                        CONCAT(last_name, ', ', first_name) AS employee_name
+                   FROM employee WHERE employee_id = :id"
+            );
+            $empRow->execute([':id' => $employeeId]);
+            $employee = $empRow->fetch() ?: [];
+            ViewRenderer::render('hr/requests/leave-credits-employee', [
+                'employee' => $employee,
+                'balance'  => $service->leaveBalance($employeeId, $year),
+                'ledger'   => $service->leaveLedger($employeeId, $year),
+                'year'     => $year,
+                'errors'   => [$e->getMessage()],
+            ], 'Leave Credits — ' . ($employee['employee_name'] ?? ''));
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /hr/requests/cash-advance-tracker
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function cashAdvanceTracker(array $params = []): void
+    {
+        $pdo = $this->makeConnection()->pdo();
+
+        $showAll = isset($_GET['show_all']);
+
+        $where = $showAll ? '' : "WHERE cah.status = 'Active' AND cah.remaining_balance > 0";
+
+        $stmt = $pdo->query(
+            "SELECT cah.history_id,
+                    e.employee_id,
+                    e.employee_number,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    b.branch_name,
+                    cah.original_amount,
+                    cah.remaining_balance,
+                    cah.status        AS ca_status,
+                    cah.approved_at,
+                    r.reason          AS request_reason,
+                    cah.request_id
+               FROM cash_advance_history cah
+               JOIN employee e ON e.employee_id  = cah.employee_id
+               LEFT JOIN employee_branch_assignment eba
+                      ON eba.employee_id = e.employee_id AND eba.effective_to IS NULL
+               LEFT JOIN branch b ON b.branch_id = eba.branch_id
+               LEFT JOIN request r ON r.request_id = cah.request_id
+              {$where}
+              ORDER BY cah.remaining_balance DESC, e.last_name, e.first_name"
+        );
+        $rows = $stmt->fetchAll();
+
+        $totalOutstanding = array_sum(array_map(
+            static fn(array $r): float => (float) $r['remaining_balance'],
+            $rows
+        ));
+
+        ViewRenderer::render('hr/requests/cash-advance-tracker', [
+            'rows'             => $rows,
+            'totalOutstanding' => $totalOutstanding,
+            'showAll'          => $showAll,
+        ], 'Cash Advance Balances');
+    }
+
+    // -----------------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------------
 

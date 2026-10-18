@@ -97,6 +97,7 @@ $router->add('POST', '/owner/payroll/{id}/return',   [OwnerController::class, 'r
 // ---------------------------------------------------------------------------
 
 $router->add('GET',  '/owner/requests',                  [OwnerController::class, 'requestList'],    ['BusinessOwner']);
+$router->add('GET',  '/owner/requests/cash-advance-tracker', [RequestsController::class, 'cashAdvanceTracker'], ['BusinessOwner']);
 $router->add('GET',  '/owner/requests/{id}',             [OwnerController::class, 'requestShow'],    ['BusinessOwner']);
 $router->add('POST', '/owner/requests/{id}/approve',     [OwnerController::class, 'requestApprove'], ['BusinessOwner']);
 $router->add('POST', '/owner/requests/{id}/return',      [OwnerController::class, 'requestReturn'],  ['BusinessOwner']);
@@ -171,6 +172,12 @@ $router->add('POST', '/hr/attendance/{id}/adjust', [AttendanceController::class,
 $router->add('GET',  '/hr/requests',              [RequestsController::class, 'index'],   ['HRHead']);
 $router->add('GET',  '/hr/requests/new',          [RequestsController::class, 'create'],  ['HRHead']);
 $router->add('POST', '/hr/requests',              [RequestsController::class, 'store'],   ['HRHead']);
+// Leave credit management — must be before /hr/requests/{id}
+$router->add('GET',  '/hr/requests/leave-credits',             [RequestsController::class, 'leaveCredits'],         ['HRHead']);
+$router->add('GET',  '/hr/requests/leave-credits/{id}',        [RequestsController::class, 'leaveCreditsEmployee'], ['HRHead']);
+$router->add('POST', '/hr/requests/leave-credits/{id}/adjust', [RequestsController::class, 'adjustLeaveCredit'],    ['HRHead']);
+// Cash advance tracker
+$router->add('GET',  '/hr/requests/cash-advance-tracker',      [RequestsController::class, 'cashAdvanceTracker'],   ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/requests/{id}',         [RequestsController::class, 'show'],    ['HRHead']);
 $router->add('POST', '/hr/requests/{id}/approve', [RequestsController::class, 'approve'], ['HRHead']);
 $router->add('POST', '/hr/requests/{id}/cancel',  [RequestsController::class, 'cancel'],  ['HRHead']);
@@ -230,6 +237,7 @@ $router->add('GET',  '/payroll/{id}/disbursement-summary/export', [PayrollContro
 $router->add('GET',  '/hr/reports',        [ReportsController::class, 'index'],    ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/13th-month', [ReportsController::class, 'thirteenthMonth'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/transaction-slips', [ReportsController::class, 'transactionSlips'], ['HRHead', 'BusinessOwner']);
+$router->add('GET',  '/hr/reports/payslips', [ReportsController::class, 'payslipsReport'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/export', [ReportsController::class, 'export'],   ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/{type}', [ReportsController::class, 'preview'],  ['HRHead', 'BusinessOwner']);
 

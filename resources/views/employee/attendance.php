@@ -1,10 +1,14 @@
 <?php
 use Wbpms\Http\View\Formatter;
-/** @var array[] $rows @var int $total @var int $present @var int $incomplete @var int $totalOT @var string $base */
-$fmt = fn(int $m) => intdiv($m,60).'h '.str_pad((string)($m%60),2,'0',STR_PAD_LEFT).'m';
+/** @var array[] $rows @var int $total @var int $present @var int $incomplete @var int $totalOT @var string $dateFrom @var string $dateTo @var string $base */
+$fmt      = fn(int $m) => intdiv($m,60).'h '.str_pad((string)($m%60),2,'0',STR_PAD_LEFT).'m';
+$dateFrom ??= '';
+$dateTo   ??= '';
+$filtered = $dateFrom !== '' || $dateTo !== '';
 ?>
 <div class="page-head">
-    <div><h1>My Attendance</h1><p>Your biometric attendance records (last 90 days).</p></div>
+    <div><h1>My Attendance</h1><p>Your biometric attendance records.</p></div>
+    <a href="<?= $base ?>/employee/dashboard" class="btn btn-secondary">← Back to Dashboard</a>
 </div>
 <div class="cards four">
     <div class="stat"><strong><?= $total ?></strong><span>Total Days</span></div>
@@ -12,8 +16,35 @@ $fmt = fn(int $m) => intdiv($m,60).'h '.str_pad((string)($m%60),2,'0',STR_PAD_LE
     <div class="stat"><strong style="color:var(--bad)"><?= $incomplete ?></strong><span>Incomplete</span></div>
     <div class="stat"><strong style="color:var(--ok)"><?= $fmt($totalOT) ?></strong><span>Total Overtime</span></div>
 </div>
-<div class="filterbar">
-    <div class="local-search-wrap">⌕<input id="attSearch" placeholder="Filter by date..." oninput="filterRows(this,'attTable')"></div>
+
+<!-- From / To date filter -->
+<div class="card" style="padding:.9rem 1.25rem;margin-bottom:1.25rem">
+    <form method="GET" action="<?= $base ?>/employee/attendance"
+          style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end">
+        <div>
+            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">From</label>
+            <input type="date" name="date_from"
+                   value="<?= Formatter::escape($dateFrom) ?>"
+                   style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
+        </div>
+        <div>
+            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">To</label>
+            <input type="date" name="date_to"
+                   value="<?= Formatter::escape($dateTo) ?>"
+                   style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
+        </div>
+        <button type="submit" class="btn btn-primary">Filter</button>
+        <?php if ($filtered): ?>
+        <a href="<?= $base ?>/employee/attendance" class="btn btn-secondary">Clear</a>
+        <?php endif; ?>
+    </form>
+    <?php if ($filtered): ?>
+    <p style="margin:.6rem 0 0;font-size:.8rem;color:#6b7280">
+        Showing records<?= $dateFrom !== '' ? ' from <strong>' . Formatter::escape($dateFrom) . '</strong>' : '' ?><?= $dateTo !== '' ? ' to <strong>' . Formatter::escape($dateTo) . '</strong>' : '' ?>.
+    </p>
+    <?php else: ?>
+    <p style="margin:.6rem 0 0;font-size:.8rem;color:#6b7280">Showing the last 90 days. Use the date filter to view a specific range.</p>
+    <?php endif; ?>
 </div>
 <div class="panel table-wrap">
     <table id="attTable">
@@ -54,24 +85,3 @@ $fmt = fn(int $m) => intdiv($m,60).'h '.str_pad((string)($m%60),2,'0',STR_PAD_LE
     </table>
 </div>
 
-<script>
-// Auto-clear the searchbar when navigating away, so returning to this page
-// shows all records without a stale filter. [HR interview 2026-09-21]
-(function () {
-    var searchEl = document.getElementById('attSearch');
-    if (!searchEl) return;
-
-    // Clear on page unload (navigating away)
-    window.addEventListener('pagehide', function () {
-        searchEl.value = '';
-    });
-
-    // Also clear on page show in case the browser restores the page from cache
-    window.addEventListener('pageshow', function (e) {
-        if (e.persisted) {
-            searchEl.value = '';
-            filterRows(searchEl, 'attTable');
-        }
-    });
-})();
-</script>

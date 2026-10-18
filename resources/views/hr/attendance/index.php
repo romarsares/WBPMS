@@ -38,6 +38,8 @@ $monthInput ??= date('Y-m');
 $periodId  ??= null;
 $dateFrom  ??= '';
 $dateTo    ??= '';
+$dateRangeFrom ??= '';
+$dateRangeTo   ??= '';
 $branchId  ??= null;
 $search    ??= '';
 
@@ -82,6 +84,13 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
                     style="border-radius:0;border:none;border-left:1px solid var(--line);padding:.4rem 1rem;font-size:.85rem">
                 By Cut-off Period
             </button>
+            <button type="button"
+                    onclick="setTab('range')"
+                    id="tab-range"
+                    class="btn <?= $activeTab === 'range' ? 'btn-primary' : 'btn-secondary' ?>"
+                    style="border-radius:0;border:none;border-left:1px solid var(--line);padding:.4rem 1rem;font-size:.85rem">
+                By Date Range
+            </button>
         </div>
 
         <div style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end">
@@ -94,6 +103,26 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
                        id="monthPicker"
                        value="<?= Formatter::escape($monthInput) ?>"
                        style="padding:.4rem .6rem;border:1px solid var(--line);border-radius:4px;font-size:.9rem">
+            </div>
+
+            <!-- Date Range picker (CR-4) -->
+            <div id="panel-range" style="display:<?= $activeTab === 'range' ? 'flex' : 'none' ?>;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+                <div>
+                    <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:.3rem">From</label>
+                    <input type="date"
+                           name="date_from"
+                           id="dateFrom"
+                           value="<?= Formatter::escape($dateRangeFrom ?? '') ?>"
+                           style="padding:.4rem .6rem;border:1px solid var(--line);border-radius:4px;font-size:.9rem">
+                </div>
+                <div>
+                    <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:.3rem">To</label>
+                    <input type="date"
+                           name="date_to"
+                           id="dateTo"
+                           value="<?= Formatter::escape($dateRangeTo ?? '') ?>"
+                           style="padding:.4rem .6rem;border:1px solid var(--line);border-radius:4px;font-size:.9rem">
+                </div>
             </div>
 
             <!-- Cut-off period dropdown -->
@@ -179,7 +208,7 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
 
             <!-- Submit / clear -->
             <div style="display:flex;gap:.5rem;align-items:flex-end">
-                <button type="submit" class="btn btn-primary" style="padding:.4rem .9rem;font-size:.9rem">Apply</button>
+                <button type="submit" class="btn btn-primary" style="padding:.4rem .9rem;font-size:.9rem">Filter</button>
                 <a href="<?= $base ?>/hr/attendance" class="btn btn-secondary" style="padding:.4rem .9rem;font-size:.9rem">Clear</a>
             </div>
         </div>
@@ -467,17 +496,23 @@ thead th { position: static !important; }
 </style>
 
 <script>
-// Tab switcher — shows/hides the month picker vs cut-off dropdown
+// Tab switcher — shows/hides the month picker, cut-off dropdown, or date range inputs
 // and syncs the hidden _tab field so the controller knows which mode is active.
 function setTab(tab) {
     document.getElementById('panel-month').style.display  = tab === 'month'  ? 'block' : 'none';
     document.getElementById('panel-cutoff').style.display = tab === 'cutoff' ? 'block' : 'none';
+    document.getElementById('panel-range').style.display  = tab === 'range'  ? 'flex'  : 'none';
     document.getElementById('hiddenTab').value            = tab;
     document.getElementById('tab-month').className  = 'btn ' + (tab === 'month'  ? 'btn-primary' : 'btn-secondary');
     document.getElementById('tab-cutoff').className = 'btn ' + (tab === 'cutoff' ? 'btn-primary' : 'btn-secondary');
-    // Clear the inactive filter so it doesn't interfere
-    if (tab === 'month')  { var s = document.getElementById('periodSelect'); if (s) s.value = ''; }
-    if (tab === 'cutoff') { var m = document.getElementById('monthPicker');  if (m) m.value = ''; }
+    document.getElementById('tab-range').className  = 'btn ' + (tab === 'range'  ? 'btn-primary' : 'btn-secondary');
+    // Clear inactive filters so they don't interfere with the active one
+    if (tab !== 'cutoff') { var s = document.getElementById('periodSelect'); if (s) s.value = ''; }
+    if (tab !== 'month')  { var m = document.getElementById('monthPicker');  if (m) m.value = ''; }
+    if (tab !== 'range')  {
+        var df = document.getElementById('dateFrom'); if (df) df.value = '';
+        var dt = document.getElementById('dateTo');   if (dt) dt.value = '';
+    }
 }
 
 // Month → cut-off cascade filter

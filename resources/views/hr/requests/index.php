@@ -52,7 +52,11 @@ $statusColor = static function (string $status): string {
         <h1 style="margin:0 0 .25rem">Request Management</h1>
         <p style="margin:0;color:#6b7280;font-size:.875rem">Review and action employee leave, overtime, and cash-advance requests.</p>
     </div>
-    <a href="<?= $base ?>/hr/requests/new" class="btn btn-primary" style="white-space:nowrap">+ New Request</a>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <a href="<?= $base ?>/hr/requests/leave-credits" class="btn btn-secondary" style="white-space:nowrap">🌿 Leave Credits</a>
+        <a href="<?= $base ?>/hr/requests/cash-advance-tracker" class="btn btn-secondary" style="white-space:nowrap">💵 Cash Advance Balances</a>
+        <a href="<?= $base ?>/hr/requests/new" class="btn btn-primary" style="white-space:nowrap">+ New Request</a>
+    </div>
 </div>
 
 <!-- Summary cards -->

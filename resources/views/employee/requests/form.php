@@ -14,6 +14,7 @@ use Wbpms\Http\View\Formatter;
 
 $requestTypes     ??= [];
 $sickLeaveBalance ??= 0;
+$cashAdvanceOutstanding ??= 0.0;
 $errors           ??= [];
 $csrf             ??= '';
 $base             ??= '';
@@ -37,10 +38,37 @@ $selectedType = (string) ($_POST['request_type_id'] ?? '');
 
 <div class="card" style="max-width:600px;padding:1.5rem">
 
+    <!-- Leave balance and cash advance info panel -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.25rem">
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.85rem">
+            <div style="font-size:.7rem;color:#166534;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem">
+                Sick Leave Balance
+            </div>
+            <div style="font-size:1.4rem;font-weight:700;color:#15803d">
+                <?= number_format((float) $sickLeaveBalance, 1) ?>
+                <span style="font-size:.8rem;font-weight:400">day<?= (float) $sickLeaveBalance !== 1.0 ? 's' : '' ?> remaining</span>
+            </div>
+            <div style="font-size:.75rem;color:#166534;margin-top:.2rem">
+                Max 4 paid sick days per year
+            </div>
+        </div>
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.85rem">
+            <div style="font-size:.7rem;color:#1e40af;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem">
+                Outstanding Cash Advance
+            </div>
+            <div style="font-size:1.4rem;font-weight:700;color:<?= $cashAdvanceOutstanding > 0 ? '#dc2626' : '#15803d' ?>">
+                ₱<?= number_format($cashAdvanceOutstanding, 2) ?>
+            </div>
+            <div style="font-size:.75rem;color:#1e40af;margin-top:.2rem">
+                Unpaid balance (₱500/week deducted)
+            </div>
+        </div>
+    </div>
+
     <?php if ($sickLeaveBalance <= 1): ?>
-    <div class="alert warning" role="alert" style="margin-bottom:1rem">
-        You have <strong><?= (int) $sickLeaveBalance ?></strong> sick leave
-        day<?= $sickLeaveBalance !== 1 ? 's' : '' ?> remaining this year.
+    <div class="alert warning" role="alert" style="margin-bottom:1rem;padding:.75rem 1rem;background:#fefce8;border:1px solid #fde047;border-radius:6px;font-size:.875rem;color:#713f12">
+        ⚠ You have <strong><?= number_format((float) $sickLeaveBalance, 1) ?></strong> sick leave
+        day<?= (float) $sickLeaveBalance !== 1.0 ? 's' : '' ?> remaining.
         A leave request will be blocked if your balance is insufficient.
     </div>
     <?php endif; ?>

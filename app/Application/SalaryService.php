@@ -307,6 +307,30 @@ final class SalaryService
         if ($effectiveFrom === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $effectiveFrom)) {
             throw new RuntimeException('Effective date is required (YYYY-MM-DD).');
         }
+
+        // Guard against chk_salary_period constraint violation:
+        // Closing an existing Active record sets effective_to = effective_from - 1 day.
+        // If the new effective_from equals the existing record's effective_from,
+        // effective_to would equal effective_from which violates the check
+        // (effective_to IS NULL OR effective_to > effective_from).
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT effective_from
+               FROM salary
+              WHERE employee_id = :emp
+                AND status      = 'Active'
+              ORDER BY effective_from DESC
+              LIMIT 1"
+        );
+        $stmt->execute([':emp' => $employeeId]);
+        $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if ($existing !== false && $effectiveFrom <= (string) $existing['effective_from']) {
+            throw new RuntimeException(
+                'Effective date must be after the current active record\'s start date ('
+                . (string) $existing['effective_from'] . '). '
+                . 'Choose a later date to preserve the salary period integrity.'
+            );
+        }
     }
 
     private function insertAudit(PDO $pdo, int $actingUserId, string $event, int $recordId, string $desc): void

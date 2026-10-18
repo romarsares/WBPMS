@@ -56,6 +56,38 @@ final class EmployeePortalController
         $employeeId = $this->requireEmployeeId();
         $pdo        = $this->makeConnection()->pdo();
 
+        // From / To date filter (REQ075)
+        $dateFrom = trim((string) ($_GET['date_from'] ?? ''));
+        $dateTo   = trim((string) ($_GET['date_to']   ?? ''));
+
+        $validDate = static function (string $v): bool {
+            $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $v);
+            return $d !== false && $d->format('Y-m-d') === $v;
+        };
+
+        if (!$validDate($dateFrom)) {
+            $dateFrom = '';
+        }
+        if (!$validDate($dateTo)) {
+            $dateTo = '';
+        }
+
+        // Build WHERE clause
+        if ($dateFrom !== '' && $dateTo !== '') {
+            $rangeClause = 'AND attendance_date BETWEEN :date_from AND :date_to';
+            $bind = [':emp_id' => $employeeId, ':date_from' => $dateFrom, ':date_to' => $dateTo];
+        } elseif ($dateFrom !== '') {
+            $rangeClause = 'AND attendance_date >= :date_from';
+            $bind = [':emp_id' => $employeeId, ':date_from' => $dateFrom];
+        } elseif ($dateTo !== '') {
+            $rangeClause = 'AND attendance_date <= :date_to';
+            $bind = [':emp_id' => $employeeId, ':date_to' => $dateTo];
+        } else {
+            // Default: last 90 days
+            $rangeClause = 'AND attendance_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 89 DAY) AND CURDATE()';
+            $bind = [':emp_id' => $employeeId];
+        }
+
         $stmt = $pdo->prepare(
             "SELECT attendance_date,
                     time_in,
@@ -70,10 +102,10 @@ final class EmployeePortalController
                     END AS is_incomplete
              FROM attendance
              WHERE employee_id = :emp_id
-               AND attendance_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 89 DAY) AND CURDATE()
+               {$rangeClause}
              ORDER BY attendance_date DESC"
         );
-        $stmt->execute([':emp_id' => $employeeId]);
+        $stmt->execute($bind);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $total      = count($rows);
@@ -91,6 +123,8 @@ final class EmployeePortalController
             'present'    => $present,
             'incomplete' => $incomplete,
             'totalOT'    => $totalOT,
+            'dateFrom'   => $dateFrom,
+            'dateTo'     => $dateTo,
         ], 'My Attendance');
     }
 
@@ -221,9 +255,42 @@ final class EmployeePortalController
         $stmt->execute($queryParams);
         $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Leave balance for the current year
+        $service = new RequestService($this->makeConnection());
+        try {
+            $sickLeaveBalance = $service->leaveBalance($employeeId);
+        } catch (\RuntimeException) {
+            $sickLeaveBalance = 4.0;
+        }
+        $sickLeaveLimit = 4; // ADR-0001: 4 paid sick days per year
+
+        // Outstanding cash advance balance (remaining unpaid amount)
+        $caRow = $pdo->prepare(
+            "SELECT COALESCE(SUM(remaining_balance), 0) AS outstanding
+               FROM cash_advance_history
+              WHERE employee_id = :id AND status = 'Active'"
+        );
+        $caRow->execute([':id' => $employeeId]);
+        $cashAdvanceOutstanding = (float) $caRow->fetchColumn();
+
+        // Cash advance max = 1 month equivalent (daily_rate × 26 working days)
+        // Falls back to null if no active salary record exists.
+        $salRow = $pdo->prepare(
+            "SELECT daily_rate FROM salary
+              WHERE employee_id = :id AND status = 'Active'
+              ORDER BY effective_from DESC LIMIT 1"
+        );
+        $salRow->execute([':id' => $employeeId]);
+        $dailyRate = $salRow->fetchColumn();
+        $cashAdvanceMax = $dailyRate !== false ? round((float) $dailyRate * 26, 2) : null;
+
         ViewRenderer::render('employee/requests/index', [
-            'requests'     => $requests,
-            'filterStatus' => $filterStatus,
+            'requests'               => $requests,
+            'filterStatus'           => $filterStatus,
+            'sickLeaveBalance'       => $sickLeaveBalance,
+            'sickLeaveLimit'         => $sickLeaveLimit,
+            'cashAdvanceOutstanding' => $cashAdvanceOutstanding,
+            'cashAdvanceMax'         => $cashAdvanceMax,
         ], 'My Requests');
     }
 
@@ -234,8 +301,8 @@ final class EmployeePortalController
      */
     public function requestForm(array $params = []): void
     {
-        $this->requireEmployeeId();
-        $pdo = $this->makeConnection()->pdo();
+        $employeeId = $this->requireEmployeeId();
+        $pdo        = $this->makeConnection()->pdo();
 
         // View contract: $requestTypes with id, name, code (migration 004)
         // type_name values: Leave, Overtime, CashAdvance
@@ -254,10 +321,28 @@ final class EmployeePortalController
             return $t;
         }, $requestTypes);
 
+        // Live sick-leave balance (REQ078)
+        $service = new RequestService($this->makeConnection());
+        try {
+            $sickLeaveBalance = $service->leaveBalance($employeeId);
+        } catch (\RuntimeException) {
+            $sickLeaveBalance = 4.0;
+        }
+
+        // Outstanding cash advance balance (remaining unpaid amount)
+        $caRow = $pdo->prepare(
+            "SELECT COALESCE(SUM(remaining_balance), 0) AS outstanding
+               FROM cash_advance_history
+              WHERE employee_id = :id AND status = 'Active'"
+        );
+        $caRow->execute([':id' => $employeeId]);
+        $cashAdvanceOutstanding = (float) $caRow->fetchColumn();
+
         ViewRenderer::render('employee/requests/form', [
-            'requestTypes'     => $requestTypes,
-            'sickLeaveBalance' => 4, // ADR-0001: 4 paid sick days; live balance deferred
-            'errors'           => [],
+            'requestTypes'          => $requestTypes,
+            'sickLeaveBalance'      => $sickLeaveBalance,
+            'cashAdvanceOutstanding' => $cashAdvanceOutstanding,
+            'errors'                => [],
         ], 'Submit Request');
     }
 
@@ -320,10 +405,20 @@ final class EmployeePortalController
                 $balance = 4.0;
             }
 
+            // Re-fetch outstanding cash advance balance for re-render
+            $caRow = $connection->pdo()->prepare(
+                "SELECT COALESCE(SUM(remaining_balance), 0) AS outstanding
+                   FROM cash_advance_history
+                  WHERE employee_id = :id AND status = 'Active'"
+            );
+            $caRow->execute([':id' => $employeeId]);
+            $cashAdvanceOutstanding = (float) $caRow->fetchColumn();
+
             ViewRenderer::render('employee/requests/form', [
-                'requestTypes'     => $requestTypes,
-                'sickLeaveBalance' => (int) $balance,
-                'errors'           => ['_general' => $e->getMessage()],
+                'requestTypes'          => $requestTypes,
+                'sickLeaveBalance'      => (int) $balance,
+                'cashAdvanceOutstanding' => $cashAdvanceOutstanding,
+                'errors'                => ['_general' => $e->getMessage()],
             ], 'Submit Request');
         }
     }
@@ -501,7 +596,19 @@ final class EmployeePortalController
         echo '</tbody></table>';
 
         echo '<p style="font-size:10px;margin-top:20px;color:#666">This is a system-generated payslip. — Light Diamond Enterprises</p>';
+        echo '<div style="display:flex;gap:8px;margin-top:8px">';
         echo '<button onclick="window.print()" style="padding:6px 16px;cursor:pointer">🖨 Print</button>';
+        echo '<button onclick="downloadAsPdf()" style="padding:6px 16px;cursor:pointer;background:#1d4ed8;color:#fff;border:none;border-radius:4px">⬇ Download PDF</button>';
+        echo '</div>';
+        echo '<script>';
+        echo 'function downloadAsPdf() {';
+        echo '  if (window.chrome || navigator.userAgent.indexOf("Firefox") !== -1) {';
+        echo '    window.print();';
+        echo '  } else {';
+        echo '    window.print();';
+        echo '  }';
+        echo '}';
+        echo '</script>';
         echo '</body></html>';
     }
 

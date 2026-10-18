@@ -28,6 +28,7 @@ $statusOptions = match ($type) {
         <p>Apply filters and review the results before exporting.</p>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <a href="<?= $base ?>/hr/reports" class="btn btn-secondary">← Back</a>
         <a href="<?= $base ?>/hr/reports/export?<?= Formatter::escape($printQuery) ?>"
            class="btn btn-secondary" target="_blank" rel="noopener">🖨 Print</a>
         <a href="<?= $base ?>/hr/reports/export?<?= Formatter::escape($printQuery) ?>&amp;format=pdf"

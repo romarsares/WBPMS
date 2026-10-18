@@ -633,7 +633,152 @@ final class RequestService
               WHERE entitlement_id = :eid"
         );
         $stmt->execute([':eid' => $entitlementId]);
-        return (float) $stmt->fetchColumn();
+        // Round to 2 decimal places to avoid floating-point artifacts (e.g. 7.509999 → 7.51)
+        return round((float) $stmt->fetchColumn(), 2);
+    }
+
+    /**
+     * Return leave credit summary for all active employees for a given year.
+     * Used by HR leave credit management page.
+     *
+     * @return list<array{employee_id:int,employee_number:string,employee_name:string,entitled_days:float,balance:float,used:float}>
+     */
+    public function leaveCreditsForAll(int $year = 0): array
+    {
+        if ($year === 0) {
+            $year = (int) date('Y');
+        }
+        $pdo = $this->connection->pdo();
+
+        $stmt = $pdo->prepare(
+            "SELECT e.employee_id,
+                    e.employee_number,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    COALESCE(le.entitlement_id, 0)          AS entitlement_id,
+                    COALESCE(le.entitled_days, 4.00)        AS entitled_days,
+                    COALESCE(
+                        (SELECT SUM(ll.days_delta)
+                           FROM leave_ledger ll
+                          WHERE ll.entitlement_id = le.entitlement_id),
+                        0
+                    ) AS balance
+               FROM employee e
+               LEFT JOIN leave_entitlement le
+                      ON le.employee_id = e.employee_id
+                     AND le.leave_type  = 'Sick'
+                     AND le.leave_year  = :yr
+              WHERE e.status = 'Active'
+              ORDER BY e.last_name, e.first_name"
+        );
+        $stmt->execute([':yr' => $year]);
+        $rows = $stmt->fetchAll();
+
+        return array_map(static function (array $r): array {
+            $balance = (float) $r['balance'];
+            $entitled = (float) $r['entitled_days'];
+            return [
+                'employee_id'     => (int) $r['employee_id'],
+                'employee_number' => (string) $r['employee_number'],
+                'employee_name'   => (string) $r['employee_name'],
+                'entitled_days'   => $entitled,
+                'balance'         => $balance,
+                'used'            => round($entitled - $balance, 2),
+                'entitlement_id'  => (int) $r['entitlement_id'],
+            ];
+        }, $rows);
+    }
+
+    /**
+     * Return the ledger history for one employee's sick-leave entitlement.
+     *
+     * @return list<array{entry_type:string,days_delta:float,notes:string,created_at:string}>
+     */
+    public function leaveLedger(int $employeeId, int $year = 0): array
+    {
+        if ($year === 0) {
+            $year = (int) date('Y');
+        }
+        $pdo = $this->connection->pdo();
+        $entitlementId = $this->ensureLeaveEntitlement($pdo, $employeeId, $year);
+
+        $stmt = $pdo->prepare(
+            "SELECT ll.entry_id,
+                    ll.entry_type,
+                    ll.days_delta,
+                    COALESCE(ll.notes, '') AS notes,
+                    ll.created_at,
+                    COALESCE(u.username, 'System') AS recorded_by_name
+               FROM leave_ledger ll
+               LEFT JOIN users u ON u.user_id = ll.recorded_by
+              WHERE ll.entitlement_id = :eid
+              ORDER BY ll.entry_id ASC"
+        );
+        $stmt->execute([':eid' => $entitlementId]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * HR manual leave credit adjustment (add or deduct days).
+     *
+     * @throws RuntimeException on invalid input
+     */
+    public function adjustLeaveCredit(
+        int $employeeId,
+        float $days,
+        string $entryType,
+        string $notes,
+        int $actingUserId,
+        int $year = 0
+    ): void {
+        if ($year === 0) {
+            $year = (int) date('Y');
+        }
+        if (!in_array($entryType, ['Grant', 'Adjustment', 'Usage'], true)) {
+            throw new RuntimeException("Invalid entry type '{$entryType}'.");
+        }
+        if ($days < 0.5) {
+            throw new RuntimeException('Days must be at least 0.5 (half day).');
+        }
+        if (trim($notes) === '') {
+            throw new RuntimeException('A reason/note is required for manual adjustments.');
+        }
+
+        $delta = $entryType === 'Usage' ? -$days : $days;
+
+        // Pre-flight balance checks
+        $currentBalance = $this->leaveBalance($employeeId, $year);
+        if ($entryType === 'Usage' && $days > $currentBalance) {
+            throw new RuntimeException(
+                "Cannot deduct {$days} day(s) — current balance is only {$currentBalance} day(s)."
+            );
+        }
+        if (in_array($entryType, ['Grant', 'Adjustment'], true)) {
+            $newBalance = round($currentBalance + $days, 2);
+            if ($newBalance > 4.00) {
+                throw new RuntimeException(
+                    "This adjustment would set the balance to {$newBalance} days, which exceeds "
+                    . "the 4-day annual entitlement. Reduce the amount or use a smaller value."
+                );
+            }
+        }
+
+        $this->connection->transaction(function (\PDO $pdo) use (
+            $employeeId, $delta, $entryType, $notes, $actingUserId, $year
+        ): void {
+            $entitlementId = $this->ensureLeaveEntitlement($pdo, $employeeId, $year);
+            $pdo->prepare(
+                "INSERT INTO leave_ledger
+                    (entitlement_id, request_id, entry_type, days_delta, recorded_by, notes)
+                 VALUES
+                    (:eid, NULL, :type, :delta, :by, :notes)"
+            )->execute([
+                ':eid'   => $entitlementId,
+                ':type'  => $entryType,
+                ':delta' => number_format($delta, 2, '.', ''),
+                ':by'    => $actingUserId,
+                ':notes' => trim($notes),
+            ]);
+        });
     }
 
     // -----------------------------------------------------------------------

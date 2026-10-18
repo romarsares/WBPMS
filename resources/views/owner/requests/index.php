@@ -27,6 +27,7 @@ $typeIcons = [
         <h1>Request Approvals</h1>
         <p>Review and act on employee requests, and see your full approval history.</p>
     </div>
+    <a href="<?= $base ?>/owner/requests/cash-advance-tracker" class="btn btn-secondary">💵 Cash Advance Balances</a>
 </div>
 
 <?php if ($pending === []): ?>

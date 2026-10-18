@@ -56,12 +56,16 @@ final class AttendanceController
         // ---------------------------------------------------------------
         // Filter resolution
         //
-        // Priority: period_id (cut-off) > month > (default: current month)
+        // Priority: period_id (cut-off) > date_from/date_to (range) > month > (default: current month)
         // ---------------------------------------------------------------
         $periodId   = isset($_GET['period_id']) && $_GET['period_id'] !== ''
                       ? (int) $_GET['period_id'] : null;
         $monthInput = trim((string) ($_GET['month'] ?? ''));
         $tabHint    = (string) ($_GET['_tab'] ?? '');
+
+        // Date-range inputs (CR-4)
+        $dateRangeFrom = trim((string) ($_GET['date_from'] ?? ''));
+        $dateRangeTo   = trim((string) ($_GET['date_to']   ?? ''));
 
         // Load all payroll periods for the cut-off dropdown
         $periods = $pdo->query(
@@ -73,15 +77,28 @@ final class AttendanceController
         // Resolve date range
         $dateFrom  = null;
         $dateTo    = null;
-        $activeTab = 'cutoff'; // 'month' | 'cutoff'
+        $activeTab = 'cutoff'; // 'month' | 'cutoff' | 'range'
 
         // Attendance review follows the payroll cadence by default. HR can
-        // still switch to a full calendar month from the filter bar.
-        if ($periodId === null && $tabHint !== 'month' && $periods !== []) {
+        // still switch to a full calendar month or a custom date range from the filter bar.
+        if ($periodId === null && $tabHint !== 'month' && $tabHint !== 'range' && $periods !== []) {
             $periodId = (int) $periods[0]['payroll_period_id'];
         }
 
-        if ($periodId !== null) {
+        // --- Range tab takes explicit priority when both date fields are supplied ---
+        if ($tabHint === 'range' && $dateRangeFrom !== '' && $dateRangeTo !== '') {
+            // Validate ISO dates
+            $parsedFrom = \DateTimeImmutable::createFromFormat('!Y-m-d', $dateRangeFrom);
+            $parsedTo   = \DateTimeImmutable::createFromFormat('!Y-m-d', $dateRangeTo);
+            if ($parsedFrom !== false && $parsedTo !== false && $dateRangeFrom <= $dateRangeTo) {
+                $dateFrom  = $dateRangeFrom;
+                $dateTo    = $dateRangeTo;
+                $activeTab = 'range';
+                $periodId  = null; // don't activate cut-off
+            }
+        }
+
+        if ($dateFrom === null && $periodId !== null) {
             // Cut-off filter
             $stmt = $pdo->prepare(
                 "SELECT period_start, period_end FROM payroll_period WHERE payroll_period_id = :id"
@@ -297,15 +314,17 @@ final class AttendanceController
             'incomplete'  => $incomplete,
             'unmatched'   => $unmatched,
             // filter state
-            'activeTab'   => $activeTab,
-            'monthInput'  => $monthInput,
-            'periodId'    => $periodId,
-            'dateFrom'    => $dateFrom,
-            'dateTo'      => $dateTo,
-            'periods'     => $periods,
-            'branches'    => $branches,
-            'branchId'    => $branchId,
-            'search'      => $search,
+            'activeTab'    => $activeTab,
+            'monthInput'   => $monthInput,
+            'periodId'     => $periodId,
+            'dateFrom'     => $dateFrom,
+            'dateTo'       => $dateTo,
+            'dateRangeFrom' => $dateRangeFrom,
+            'dateRangeTo'   => $dateRangeTo,
+            'periods'      => $periods,
+            'branches'     => $branches,
+            'branchId'     => $branchId,
+            'search'       => $search,
         ], 'Attendance Management');
     }
 
