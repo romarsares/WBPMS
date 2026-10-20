@@ -4,6 +4,7 @@
     "type": "project",
     "require": {
         "php": "^8.2",
+        "dompdf/dompdf": "^3.0",
         "phpoffice/phpspreadsheet": "^3.3",
         "robmorgan/phinx": "^0.16",
         "vlucas/phpdotenv": "^5.6"

@@ -38,13 +38,13 @@ $statusLabel = $statusLabels[$status] ?? $status;
 <div class="page-head" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
     <div>
         <h1 style="margin:0 0 .2rem">Request #<?= (int) $request['request_id'] ?></h1>
-        <p style="margin:0;font-size:.875rem">
-            <a href="<?= $base ?>/owner/requests" style="color:#6366f1">← Back to Request Approvals</a>
-        </p>
     </div>
-    <span style="background:<?= $statusColor ?>;color:#fff;padding:4px 14px;border-radius:9999px;font-size:.875rem;font-weight:600">
-        <?= Formatter::escape($statusLabel) ?>
-    </span>
+    <div style="display:flex;gap:.5rem;align-items:center">
+        <a href="<?= $base ?>/owner/requests" class="btn btn-secondary">← Back to Request Approvals</a>
+        <span style="background:<?= $statusColor ?>;color:#fff;padding:4px 14px;border-radius:9999px;font-size:.875rem;font-weight:600">
+            <?= Formatter::escape($statusLabel) ?>
+        </span>
+    </div>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">

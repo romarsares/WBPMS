@@ -50,7 +50,7 @@ $formatSize = static function (int $bytes): string {
 
 <div class="page-header">
     <h1>Documents — <?= $empName ?></h1>
-    <a href="<?= $base ?>/hr/employees/<?= $empId ?>/edit" class="btn btn-secondary">← Back to employee</a>
+    <a href="<?= $base ?>/hr/employees/<?= $empId ?>/edit" class="btn btn-secondary">← Back to Employee</a>
 </div>
 
 <!-- ------------------------------------------------------------------ -->

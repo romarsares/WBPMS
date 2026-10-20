@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Wbpms\Application;
 
 use PDO;
-use PDOException;
 use RuntimeException;
 use Wbpms\Infrastructure\Database\Connection;
 
@@ -450,9 +449,20 @@ final class UserService
             throw new RuntimeException('User is already archived.');
         }
 
-        $this->connection->transaction(function (PDO $pdo) use ($userId, $actingUserId): void {
-            $pdo->prepare("UPDATE users SET status = 'Archived' WHERE user_id = :id")
+        $this->connection->transaction(function (PDO $pdo) use ($userId, $actingUserId, $user): void {
+            $pdo->prepare("UPDATE users SET status = 'Archived', updated_at = NOW() WHERE user_id = :id")
                 ->execute([':id' => $userId]);
+
+            // If this user is linked to an employee, mirror the Archived status
+            // on the employee record so it reflects correctly in Employee Management.
+            // (Full lifecycle closure — branch/schedule/salary — requires the
+            // controlled Employee archive workflow; this keeps statuses in sync.)
+            if (!empty($user['employee_id'])) {
+                $pdo->prepare(
+                    "UPDATE employee SET status = 'Archived', updated_at = NOW()
+                      WHERE employee_id = :emp_id AND status != 'Archived'"
+                )->execute([':emp_id' => $user['employee_id']]);
+            }
 
             $this->insertAudit($pdo, $actingUserId, 'user_archived', 'users', $userId,
                 "Archived user_id={$userId}");
@@ -555,10 +565,6 @@ final class UserService
             $sql  .= " AND user_id != :id";
             $bind[':id'] = $excludeId;
         }
-        $count = (int) $this->connection->pdo()->prepare($sql)->execute($bind) &&
-                 ($this->connection->pdo()->prepare($sql)->execute($bind) ?: 0);
-
-        // Re-query cleanly
         $stmt = $this->connection->pdo()->prepare($sql);
         $stmt->execute($bind);
         if ((int) $stmt->fetchColumn() > 0) {

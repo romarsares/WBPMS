@@ -11,6 +11,7 @@ use Wbpms\Application\RequestService;
 use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
+use Wbpms\Infrastructure\Reports\PdfRenderer;
 
 /**
  * EmployeePortalController — employee self-service views.
@@ -548,13 +549,66 @@ final class EmployeePortalController
         }
 
         header('Content-Type: text/html; charset=utf-8');
-        // Inline print-ready HTML — no layout dependency
-        $e = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-        $n = fn(float $v): string  => number_format($v, 2);
+        echo $this->buildPayslipHtml($data, includeControls: true);
+    }
 
-        echo '<!doctype html><html lang="en"><head><meta charset="utf-8">';
-        echo '<title>Payslip — ' . $e($data['period']) . '</title>';
-        echo '<style>
+    /**
+     * GET /employee/payslips/{id}/download
+     *
+     * Generate a real downloadable PDF payslip via Dompdf (REQ082).
+     * Replaces the former browser-print-to-PDF approach.
+     *
+     * @param array<string, string> $params
+     */
+    public function payslipPdf(array $params = []): void
+    {
+        $employeeId = $this->requireEmployeeId();
+        $payslipId  = (int) ($params['id'] ?? 0);
+
+        try {
+            $service = new \Wbpms\Application\PayrollService($this->makeConnection());
+            $data    = $service->payslipData($payslipId);
+        } catch (\RuntimeException) {
+            http_response_code(404);
+            echo 'Payslip not found.';
+            return;
+        }
+
+        try {
+            $this->scope->assertOwnRecord($employeeId, $data['employee_id']);
+        } catch (\DomainException) {
+            http_response_code(403);
+            ViewRenderer::render('errors/403', [], 'Forbidden');
+            return;
+        }
+
+        $html     = $this->buildPayslipHtml($data, includeControls: false);
+        $filename = 'payslip-' . preg_replace('/[^a-z0-9_-]/i', '_', (string) $data['employee_number']) . '.pdf';
+
+        PdfRenderer::download($html, $filename);
+    }
+
+    /**
+     * Build the payslip HTML document.
+     *
+     * When $includeControls is true (on-screen print view), the output
+     * includes Print / Download PDF buttons and the auto-print script.
+     * When false (PDF generation), only the payslip content is returned
+     * so Dompdf renders a clean document.
+     *
+     * Dates use MM/DD/YY per project standard.
+     *
+     * @param array<string,mixed> $data  Payslip data from PayrollService::payslipData()
+     */
+    private function buildPayslipHtml(array $data, bool $includeControls = false): string
+    {
+        $e = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+        $n = static fn(float $v): string  => number_format($v, 2);
+        $f = static fn(\DateTimeInterface|string|null $v): string => PdfRenderer::formatDate($v);
+
+        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
+        $html .= '<title>Payslip — ' . $e($data['period']) . '</title>';
+        $html .= '<style>
             body{font-family:Arial,sans-serif;font-size:12px;margin:20px}
             h2{margin:0 0 4px}
             .header{display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:12px}
@@ -564,52 +618,50 @@ final class EmployeePortalController
             th{background:#f0f0f0;text-align:left}
             .total-row td{font-weight:bold;background:#f9f9f9}
             .net-row td{font-weight:bold;font-size:13px;background:#e8f5e9}
-            @media print{button{display:none}}
+            @media print{.no-print{display:none}}
         </style></head><body>';
-        echo '<div class="header">';
-        echo '<div><h2>Light Diamond Enterprises</h2><small>PAYSLIP</small></div>';
-        echo '<div style="text-align:right"><b>Pay Period:</b> ' . $e($data['period']) . '<br>';
-        echo '<b>Pay Date:</b> ' . $e($data['pay_date']) . '</div>';
-        echo '</div>';
-        echo '<div class="meta">';
-        echo '<b>Employee:</b> ' . $e($data['employee_name']) . ' (' . $e($data['employee_number']) . ')<br>';
-        echo '<b>Position:</b> ' . $e($data['position']) . ' &nbsp;&nbsp; <b>Branch:</b> ' . $e($data['branch_name']) . '<br>';
-        echo '<b>Daily Rate:</b> ₱' . $n($data['daily_rate']) . ' &nbsp;&nbsp; <b>Issue Date:</b> ' . $e($data['issue_date']);
-        echo '</div>';
+        $html .= '<div class="header">';
+        $html .= '<div><h2>Light Diamond Enterprises</h2><small>PAYSLIP</small></div>';
+        $html .= '<div style="text-align:right"><b>Pay Period:</b> ' . $e($data['period']) . '<br>';
+        $html .= '<b>Pay Date:</b> ' . $e($f($data['pay_date'])) . '</div>';
+        $html .= '</div>';
+        $html .= '<div class="meta">';
+        $html .= '<b>Employee:</b> ' . $e($data['employee_name']) . ' (' . $e($data['employee_number']) . ')<br>';
+        $html .= '<b>Position:</b> ' . $e($data['position']) . ' &nbsp;&nbsp; <b>Branch:</b> ' . $e($data['branch_name']) . '<br>';
+        $html .= '<b>Daily Rate:</b> ₱' . $n($data['daily_rate']) . ' &nbsp;&nbsp; <b>Issue Date:</b> ' . $e($f($data['issue_date']));
+        $html .= '</div>';
 
-        echo '<table><thead><tr><th>EARNINGS</th><th style="text-align:right">AMOUNT</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>EARNINGS</th><th style="text-align:right">AMOUNT</th></tr></thead><tbody>';
         foreach ($data['earnings'] as $row) {
-            echo '<tr><td>' . $e($row['description']) . '</td><td style="text-align:right">₱' . $n((float)$row['amount']) . '</td></tr>';
+            $html .= '<tr><td>' . $e($row['description']) . '</td><td style="text-align:right">₱' . $n((float)$row['amount']) . '</td></tr>';
         }
-        echo '<tr class="total-row"><td>GROSS PAY</td><td style="text-align:right">₱' . $n($data['gross_pay']) . '</td></tr>';
-        echo '</tbody></table>';
+        $html .= '<tr class="total-row"><td>GROSS PAY</td><td style="text-align:right">₱' . $n($data['gross_pay']) . '</td></tr>';
+        $html .= '</tbody></table>';
 
-        echo '<table><thead><tr><th>DEDUCTIONS</th><th style="text-align:right">AMOUNT</th></tr></thead><tbody>';
+        $html .= '<table><thead><tr><th>DEDUCTIONS</th><th style="text-align:right">AMOUNT</th></tr></thead><tbody>';
         foreach ($data['deductions'] as $row) {
-            echo '<tr><td>' . $e($row['description']) . '</td><td style="text-align:right">₱' . $n((float)$row['amount']) . '</td></tr>';
+            $html .= '<tr><td>' . $e($row['description']) . '</td><td style="text-align:right">₱' . $n((float)$row['amount']) . '</td></tr>';
         }
-        echo '<tr class="total-row"><td>TOTAL DEDUCTIONS</td><td style="text-align:right">₱' . $n($data['total_deductions']) . '</td></tr>';
-        echo '</tbody></table>';
+        $html .= '<tr class="total-row"><td>TOTAL DEDUCTIONS</td><td style="text-align:right">₱' . $n($data['total_deductions']) . '</td></tr>';
+        $html .= '</tbody></table>';
 
-        echo '<table><tbody>';
-        echo '<tr class="net-row"><td><b>NET PAY</b></td><td style="text-align:right"><b>₱' . $n($data['net_pay']) . '</b></td></tr>';
-        echo '</tbody></table>';
+        $html .= '<table><tbody>';
+        $html .= '<tr class="net-row"><td><b>NET PAY</b></td><td style="text-align:right"><b>₱' . $n($data['net_pay']) . '</b></td></tr>';
+        $html .= '</tbody></table>';
 
-        echo '<p style="font-size:10px;margin-top:20px;color:#666">This is a system-generated payslip. — Light Diamond Enterprises</p>';
-        echo '<div style="display:flex;gap:8px;margin-top:8px">';
-        echo '<button onclick="window.print()" style="padding:6px 16px;cursor:pointer">🖨 Print</button>';
-        echo '<button onclick="downloadAsPdf()" style="padding:6px 16px;cursor:pointer;background:#1d4ed8;color:#fff;border:none;border-radius:4px">⬇ Download PDF</button>';
-        echo '</div>';
-        echo '<script>';
-        echo 'function downloadAsPdf() {';
-        echo '  if (window.chrome || navigator.userAgent.indexOf("Firefox") !== -1) {';
-        echo '    window.print();';
-        echo '  } else {';
-        echo '    window.print();';
-        echo '  }';
-        echo '}';
-        echo '</script>';
-        echo '</body></html>';
+        $html .= '<p style="font-size:10px;margin-top:20px;color:#666">This is a system-generated payslip. — Light Diamond Enterprises</p>';
+
+        if ($includeControls) {
+            $base = rtrim((string)($_ENV['APP_BASE_URL'] ?? ''), '/');
+            $pdfUrl = $base . '/employee/payslips/' . (int)($data['payslip_id'] ?? 0) . '/download';
+            $html .= '<div class="no-print" style="display:flex;gap:8px;margin-top:8px">';
+            $html .= '<button onclick="window.print()" style="padding:6px 16px;cursor:pointer">🖨 Print</button>';
+            $html .= '<a href="' . $e($pdfUrl) . '" style="padding:6px 16px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:4px">⬇ Download PDF</a>';
+            $html .= '</div>';
+        }
+
+        $html .= '</body></html>';
+        return $html;
     }
 
     /**

@@ -22,8 +22,8 @@ $v = static fn(string $key, string $fallback = ''): string =>
 <div class="page-head">
     <div>
         <h1>Assign Schedule to Employee</h1>
-        <p><a href="<?= $base ?>/hr/schedules">← Back to Work Schedules</a></p>
     </div>
+    <a href="<?= $base ?>/hr/schedules" class="btn btn-secondary">← Back to Work Schedules</a>
 </div>
 
 <div class="card" style="max-width:520px">

@@ -492,7 +492,7 @@ body {
 
 <div class="no-print">
     <button onclick="window.print()">🖨 Print All Slips (<?= count($slips) ?>)</button>
-    <a href="javascript:history.back()">← Back</a>
+    <a href="<?= $e($base) ?>/hr/reports/transaction-slips" class="btn btn-secondary">← Back to Transaction Slips</a>
     <span style="margin-left:auto;opacity:.7">
         <?= count($slips) ?> slip(s) &nbsp;·&nbsp; <?= $e(date('m/d/Y')) ?>
     </span>

@@ -35,9 +35,14 @@ foreach ($deductions as $deduction) {
 <div class="page-head">
     <div>
         <h1>Payroll Run — <?= htmlspecialchars($run['branch_name']) ?></h1>
-        <p><?= htmlspecialchars($run['period_label']) ?> &nbsp;|&nbsp; <a href="<?= $base ?>/hr/payroll">← Back to Payroll</a></p>
+        <p><?= htmlspecialchars($run['period_label']) ?></p>
     </div>
-    <span style="background:<?= $sc ?>;color:#fff;padding:4px 14px;border-radius:9999px;font-size:.875rem;align-self:center"><?= htmlspecialchars($run['status']) ?></span>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+        <a href="<?= $base ?>/hr/payroll" class="btn btn-secondary">← Back to Payroll</a>
+        <a href="<?= $base ?>/payroll/<?= (int) $run['payroll_run_id'] ?>/timesheet" class="btn btn-secondary" style="font-size:.8rem">Cut-off Timesheet</a>
+        <a href="<?= $base ?>/payroll/<?= (int) $run['payroll_run_id'] ?>/disbursement-summary" class="btn btn-secondary" style="font-size:.8rem">Disbursement Summary</a>
+        <span style="background:<?= $sc ?>;color:#fff;padding:4px 14px;border-radius:9999px;font-size:.875rem"><?= htmlspecialchars($run['status']) ?></span>
+    </div>
 </div>
 
 <?php if (!empty($run['return_reason'])): ?>

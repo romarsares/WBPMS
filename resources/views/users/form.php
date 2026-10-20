@@ -37,7 +37,7 @@ $val = static function (string $key) use ($old, $user): string {
         <h1><?= $pageTitle ?></h1>
         <p><?= $isEdit ? 'Update account details and role assignment.' : 'Create a new system account.' ?></p>
     </div>
-    <a class="btn-secondary" href="<?= $base ?>/users">← Back to Users</a>
+    <a class="btn btn-secondary" href="<?= $base ?>/users">← Back to Users</a>
 </div>
 
 <?php if (!empty($errors)): ?>

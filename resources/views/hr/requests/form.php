@@ -45,10 +45,8 @@ foreach ($types as $t) {
 <div class="page-head" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
     <div>
         <h1 style="margin:0 0 .2rem">New Request</h1>
-        <p style="margin:0;font-size:.875rem">
-            <a href="<?= $base ?>/hr/requests" style="color:#6366f1">← Back to Requests</a>
-        </p>
     </div>
+    <a href="<?= $base ?>/hr/requests" class="btn btn-secondary">← Back to Requests</a>
 </div>
 
 <div class="card" style="max-width:640px;padding:1.5rem">

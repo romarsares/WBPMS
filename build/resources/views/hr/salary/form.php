@@ -11,8 +11,8 @@ $isEdit   = $salary !== null;
 <div class="page-head">
     <div>
         <h1><?= htmlspecialchars($formTitle) ?></h1>
-        <p><a href="<?= $base ?>/hr/salary">← Back to Salary Management</a></p>
     </div>
+    <a href="<?= $base ?>/hr/salary" class="btn btn-secondary">← Back to Salary Management</a>
 </div>
 
 <?php if ($errors !== []): ?>
@@ -24,7 +24,7 @@ $isEdit   = $salary !== null;
 <div style="display:grid;grid-template-columns:<?= $isEdit ? '1fr 1fr' : '1fr' ?>;gap:1.5rem">
 
     <div class="card">
-        <form method="post" action="<?= htmlspecialchars($formAction) ?>">
+        <form method="post" action="<?= $base . htmlspecialchars($formAction) ?>">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
 
             <?php if (!$isEdit): ?>

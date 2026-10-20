@@ -23,11 +23,11 @@ $csrf          ??= '';
 
 $typeColor = static function (string $type): string {
     return match ($type) {
-        'ConsecutiveLate' => '#f59e0b',
-        'TardinessMemoCap' => '#ef4444',
-        'TwoWeekAbsence'   => '#6366f1',
-        'ConsecutiveAWOL'  => '#0ea5e9',
-        default            => '#6b7280',
+        'ConsecutiveLate'   => '#f59e0b',
+        'TardinessMemoCap'  => '#ef4444',
+        'TwoWeekAbsence'    => '#6366f1',
+        'ConsecutiveAWOL'   => '#0ea5e9',
+        default             => '#6b7280',
     };
 };
 
@@ -50,6 +50,7 @@ $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'Consecut
             HR-review alerts for consecutive lates, tardiness memoranda, and AWOL absences. The system never disciplines employees automatically.
         </p>
     </div>
+    <a href="<?= $base ?>/hr/attendance" class="btn btn-secondary" style="white-space:nowrap;flex-shrink:0">← Back to Attendance</a>
 </div>
 
 <!-- Summary cards -->
@@ -90,7 +91,7 @@ $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'Consecut
     <div>
         <label style="font-size:.78rem;font-weight:500;color:#374151;display:block;margin-bottom:.2rem">Status</label>
         <select name="status" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
-            <option value="">All statuses</option>
+            <option value="">All</option>
             <?php foreach (['Pending', 'Reviewed', 'Closed'] as $s): ?>
             <option value="<?= Formatter::escape($s) ?>" <?= ($filters['status'] ?? '') === $s ? 'selected' : '' ?>><?= Formatter::escape($s) ?></option>
             <?php endforeach; ?>
@@ -148,7 +149,7 @@ $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'Consecut
                         <?= Formatter::escape((string) $r['flag_type']) ?>
                     </span>
                 </td>
-                <td style="padding:.65rem 1rem;font-size:.85rem;white-space:nowrap"><?= Formatter::escape((string) $r['triggering_date']) ?></td>
+                <td style="padding:.65rem 1rem;font-size:.85rem;white-space:nowrap"><?= Formatter::date((string) $r['triggering_date']) ?></td>
                 <td style="padding:.65rem 1rem;font-size:.8rem;color:#374151;max-width:260px;line-height:1.4">
                     <?php $evidence = $r['late_dates'] ?? $r['absence_dates'] ?? null; ?>
                     <?php if ($evidence !== null && $evidence !== ''): ?>
@@ -163,7 +164,7 @@ $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'Consecut
                         <?= Formatter::escape((string) $r['status']) ?>
                     </span>
                 </td>
-                <td style="padding:.65rem 1rem;font-size:.85rem;white-space:nowrap"><?= Formatter::escape((string) $r['created_at']) ?></td>
+                <td style="padding:.65rem 1rem;font-size:.85rem;white-space:nowrap"><?= Formatter::date((string) $r['created_at']) ?></td>
                 <td style="padding:.65rem 1rem;font-size:.8rem;white-space:nowrap">
                     <?php if (($r['notice_id'] ?? null) === null): ?>
                         <span style="color:#6b7280">Not issued</span>
@@ -180,10 +181,11 @@ $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'Consecut
                         </summary>
                         <div style="margin-top:.4rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:.6rem .7rem">
                             <?php if (($r['status'] ?? '') !== 'Pending' && ($r['reviewed_at'] ?? null) !== null): ?>
-                            <div style="font-size:.78rem;color:#374151;margin-bottom:.4rem">
-                                <strong>Reviewed:</strong> <?= Formatter::escape((string) $r['reviewed_at']) ?>
+                            <!-- Current review summary (read-only) -->
+                            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:.5rem .65rem;margin-bottom:.55rem;font-size:.78rem;color:#374151;line-height:1.6">
+                                <div><span style="color:#6b7280">Reviewed:</span> <strong><?= Formatter::date((string) $r['reviewed_at']) ?></strong></div>
                                 <?php if (($r['action_taken'] ?? '') !== ''): ?>
-                                · <strong>Action:</strong> <?= Formatter::escape((string) $r['action_taken']) ?>
+                                <div style="margin-top:.15rem"><span style="color:#6b7280">Action taken:</span> <strong><?= Formatter::escape((string) $r['action_taken']) ?></strong></div>
                                 <?php endif; ?>
                             </div>
                             <?php endif; ?>
@@ -212,9 +214,9 @@ $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'Consecut
                                     <textarea name="notice_body" rows="3" maxlength="4000"
                                               placeholder="Message the employee will see in their portal. Include the required next step."></textarea>
                                 <?php elseif (($r['notice_acknowledged_at'] ?? null) === null): ?>
-                                    <div style="font-size:.78rem;color:#a16207">Notice issued <?= Formatter::escape((string) $r['notice_issued_at']) ?>; awaiting employee acknowledgment.</div>
+                                    <div style="font-size:.78rem;color:#a16207">Notice issued <?= Formatter::date((string) $r['notice_issued_at']) ?>; awaiting employee acknowledgment.</div>
                                 <?php else: ?>
-                                    <div style="font-size:.78rem;color:#4b5563">Employee acknowledged <?= Formatter::escape((string) $r['notice_acknowledged_at']) ?>.</div>
+                                    <div style="font-size:.78rem;color:#4b5563">Employee acknowledged <?= Formatter::date((string) $r['notice_acknowledged_at']) ?>.</div>
                                 <?php endif; ?>
                                 <button type="submit" class="btn btn-sm btn-primary" style="font-size:.78rem;padding:.3rem .6rem">Save review</button>
                             </form>

@@ -7,11 +7,11 @@
  * retrieved after leaving this page.
  *
  * Variables injected by UserController::resetPassword():
- *   string $username      — the account whose password was reset
+ *   string $email         — the account email whose password was reset
  *   string $tempPassword  — the new system-generated temporary password
  *   string $resetBy       — role name of the actor (HRHead | BusinessOwner)
  *
- * @var string $username
+ * @var string $email
  * @var string $tempPassword
  * @var string $resetBy
  * @var string $base         injected by ViewRenderer
@@ -28,7 +28,7 @@ use Wbpms\Http\View\Formatter;
 <div class="card" style="max-width:520px">
 
     <div class="alert success" role="status" style="margin-bottom:1.25rem">
-        The password for <strong><?= Formatter::escape($username) ?></strong>
+        The password for <strong><?= Formatter::escape($email) ?></strong>
         has been reset successfully.
     </div>
 
@@ -40,16 +40,16 @@ use Wbpms\Http\View\Formatter;
     <table class="data-table" style="margin-bottom:1.5rem">
         <tbody>
             <tr>
-                <th scope="row" style="width:38%;font-weight:600">Username</th>
+                <th scope="row" style="width:38%;font-weight:600">Email</th>
                 <td>
-                    <code id="cred-username" style="font-size:1rem;letter-spacing:.04em">
-                        <?= Formatter::escape($username) ?>
+                    <code id="cred-email" style="font-size:1rem;letter-spacing:.04em">
+                        <?= Formatter::escape($email) ?>
                     </code>
                     <button type="button"
                             class="btn btn-sm btn-secondary"
                             style="margin-left:.5rem;padding:.15rem .5rem;font-size:.75rem"
-                            onclick="copyText('cred-username', this)"
-                            aria-label="Copy username">
+                            onclick="copyText('cred-email', this)"
+                            aria-label="Copy email">
                         Copy
                     </button>
                 </td>
@@ -78,9 +78,7 @@ use Wbpms\Http\View\Formatter;
         recovered after leaving this page.
     </div>
 
-    <a href="<?= $base ?>/users" class="btn btn-secondary">
-        ← Back to User List
-    </a>
+    <a href="<?= $base ?>/users" class="btn btn-secondary">← Back to User List</a>
 
 </div>
 

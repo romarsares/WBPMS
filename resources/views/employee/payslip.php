@@ -13,7 +13,7 @@ use Wbpms\Http\View\Formatter;
  *     items:list<array{label:string, amount:string, type:string}>,
  *     data:array<string,mixed>
  *   } $payslip
- *   string $downloadUrl  — URL to /employee/payslips/{id}/print
+ *   string $downloadUrl  — URL to /employee/payslips/{id}/download (PDF)
  */
 
 $payslip     = $payslip    ?? null;
@@ -120,10 +120,10 @@ $data        = $payslip['data'] ?? [];
 
     <?php if ($downloadUrl): ?>
     <div style="margin-top:1.25rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
-        <a class="btn btn-primary" href="<?= Formatter::escape($downloadUrl) ?>" target="_blank">
-            🖨 Print / Download Payslip
+        <a class="btn btn-primary" href="<?= Formatter::escape($downloadUrl) ?>">
+            ⬇ Download PDF
         </a>
-        <span style="font-size:.8rem;color:#6b7280">Opens a print-ready copy in a new tab — use your browser's Print / Save as PDF.</span>
+        <span style="font-size:.8rem;color:#6b7280">Generates a downloadable PDF payslip.</span>
     </div>
     <?php endif; ?>
 </div>

@@ -238,6 +238,7 @@ $router->add('GET',  '/hr/reports',        [ReportsController::class, 'index'], 
 $router->add('GET',  '/hr/reports/13th-month', [ReportsController::class, 'thirteenthMonth'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/transaction-slips', [ReportsController::class, 'transactionSlips'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/payslips', [ReportsController::class, 'payslipsReport'], ['HRHead', 'BusinessOwner']);
+$router->add('GET',  '/hr/reports/payslips/bulk', [ReportsController::class, 'bulkPrintPayslips'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/export', [ReportsController::class, 'export'],   ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/{type}', [ReportsController::class, 'preview'],  ['HRHead', 'BusinessOwner']);
 
@@ -288,6 +289,5 @@ $router->add('POST', '/hr/attendance/policy/flags/evaluate',    [AttendancePolic
 $router->add('POST', '/hr/attendance/policy/flags/{id}/review', [AttendancePolicyController::class, 'review'],   ['HRHead']);
 
 $router->add('GET',  '/employee/payslips/{id}/print',    [EmployeePortalController::class, 'payslipPrint'],  ['Employee']);
-// REQ074/REQ082: /download is a user-facing alias for the same print renderer.
-// The print view instructs the browser to save as PDF via window.print().
-$router->add('GET',  '/employee/payslips/{id}/download', [EmployeePortalController::class, 'payslipPrint'],  ['Employee']);
+// REQ074/REQ082: /download generates a real downloadable PDF via Dompdf.
+$router->add('GET',  '/employee/payslips/{id}/download', [EmployeePortalController::class, 'payslipPdf'],     ['Employee']);

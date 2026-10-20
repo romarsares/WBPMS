@@ -14,7 +14,7 @@ $value = static fn (string $key, string $fallback = ''): string => (string) ($ol
         <h1>Manual Payroll Adjustment</h1>
         <p>Add a documented earning or deduction before submitting payroll for approval.</p>
     </div>
-    <a href="<?= $base ?>/hr/payroll/<?= $runId ?>" class="btn btn-secondary">Back to Payroll Run</a>
+    <a href="<?= $base ?>/hr/payroll/<?= $runId ?>" class="btn btn-secondary">← Back to Payroll Run</a>
 </div>
 
 <?php if ($errors !== []): ?>

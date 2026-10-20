@@ -30,10 +30,9 @@ $months = [
 <div class="page-head">
     <div>
         <h1>Import Attendance Workbook</h1>
-        <p>Upload a biometric device .xls daily-log export.
-            <a href="<?= $base ?>/hr/attendance">← Back to Attendance</a>
-        </p>
+        <p>Upload a biometric device .xls daily-log export.</p>
     </div>
+    <a href="<?= $base ?>/hr/attendance" class="btn btn-secondary">← Back to Attendance</a>
 </div>
 
 <?php if ($errors !== []): ?>

@@ -24,5 +24,5 @@ $stubDescription = $stubDescription ?? '';
     <p style="color:var(--muted);max-width:480px;margin:0 auto 24px">
         This module is currently under development and will be available soon.
     </p>
-    <a class="btn-secondary" href="<?= $base ?>/dashboard">← Back to Dashboard</a>
+    <a class="btn btn-secondary" href="<?= $base ?>/dashboard">← Back to Dashboard</a>
 </div>

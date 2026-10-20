@@ -11,8 +11,8 @@ $isEdit   = $salary !== null;
 <div class="page-head">
     <div>
         <h1><?= htmlspecialchars($formTitle) ?></h1>
-        <p><a href="<?= $base ?>/hr/salary">← Back to Salary Management</a></p>
     </div>
+    <a href="<?= $base ?>/hr/salary" class="btn btn-secondary">← Back to Salary Management</a>
 </div>
 
 <?php if ($errors !== []): ?>

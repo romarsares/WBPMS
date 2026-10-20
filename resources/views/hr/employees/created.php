@@ -87,7 +87,7 @@ use Wbpms\Http\View\Formatter;
             Add Another Employee
         </a>
         <a href="<?= $base ?>/hr/employees" class="btn btn-secondary">
-            Back to Employee List
+            ← Back to Employee List
         </a>
     </div>
 

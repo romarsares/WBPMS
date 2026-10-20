@@ -6,6 +6,7 @@ namespace Wbpms\Http\Controllers;
 
 use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
+use Wbpms\Infrastructure\Reports\PdfRenderer;
 
 /**
  * ReportsController — Reports management for HR and Business Owner.
@@ -319,9 +320,13 @@ final class ReportsController
               LIMIT 60"
         )->fetchAll();
 
-        // Payslip data query
-        $rows = [];
-        if ($periodId > 0 || $employeeSearch !== '' || $branchId > 0) {
+        // Payslip data — always run the query (even with no filter) so the
+        // report shows all approved payslips by default. Optional filters
+        // narrow the result set. Then load the full earnings + deductions
+        // breakdown for each via PayrollService so the report displays a
+        // complete payslip per employee (REQ074, REQ081).
+        $payslips = [];
+        {
             $where = ["pr.status = 'Approved'"];
             $bind  = [];
 
@@ -343,15 +348,6 @@ final class ReportsController
 
             $stmt = $pdo->prepare(
                 "SELECT ps.payslip_id,
-                        e.employee_number,
-                        CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
-                        b.branch_name,
-                        CONCAT(pp.period_start, ' – ', pp.period_end) AS period_label,
-                        pp.period_start,
-                        pp.period_end,
-                        p.gross_pay,
-                        p.total_deductions,
-                        p.net_pay,
                         pr.reviewed_at AS approved_at
                    FROM payslip ps
                    JOIN payroll p         ON p.payroll_id         = ps.payroll_id
@@ -364,7 +360,19 @@ final class ReportsController
                   LIMIT 500"
             );
             $stmt->execute($bind);
-            $rows = $stmt->fetchAll();
+            $matched = $stmt->fetchAll();
+
+            $service = new \Wbpms\Application\PayrollService($this->makeConnection());
+            foreach ($matched as $m) {
+                try {
+                    $detail = $service->payslipData((int) $m['payslip_id']);
+                    $detail['approved_at'] = $m['approved_at'];
+                    $payslips[] = $detail;
+                } catch (\RuntimeException) {
+                    // Skip a payslip that can no longer be resolved (e.g. row
+                    // removed between the id query and the detail fetch).
+                }
+            }
         }
 
         $filters = [
@@ -374,12 +382,229 @@ final class ReportsController
         ];
 
         ViewRenderer::render('hr/reports/payslips', [
-            'rows'       => $rows,
+            'payslips'   => $payslips,
             'branches'   => $branches,
             'periods'    => $periods,
             'filters'    => $filters,
             'activePage' => 'reports',
         ], 'Employee Payslip Report');
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /hr/reports/payslips/bulk  — 1/4-sheet bulk print (REQ074, REQ081)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Renders all matched payslips in a compact 1/4-sheet (A6) format
+     * designed for printing four payslips per A4/Letter page.
+     *
+     * Accepts the same query-string filters as payslipsReport() so the
+     * "Print 1/4 Sheet" button can forward the current filter state.
+     *
+     * @param array<string, string> $params
+     */
+    public function bulkPrintPayslips(array $params = []): void
+    {
+        $pdo = $this->makeConnection()->pdo();
+
+        $branchId = filter_var($_GET['branch_id'] ?? 0, FILTER_VALIDATE_INT);
+        $branchId = $branchId !== false && $branchId > 0 ? (int) $branchId : 0;
+
+        $periodId = filter_var($_GET['payroll_period_id'] ?? 0, FILTER_VALIDATE_INT);
+        $periodId = $periodId !== false && $periodId > 0 ? (int) $periodId : 0;
+
+        $employeeSearch = trim((string) ($_GET['employee_search'] ?? ''));
+
+        $where = ["pr.status = 'Approved'"];
+        $bind  = [];
+
+        if ($periodId > 0) {
+            $where[]             = 'pr.payroll_period_id = :period_id';
+            $bind[':period_id']  = $periodId;
+        }
+        if ($branchId > 0) {
+            $where[]             = 'pr.branch_id = :branch_id';
+            $bind[':branch_id']  = $branchId;
+        }
+        if ($employeeSearch !== '') {
+            $where[] = '(e.last_name LIKE :emp_last OR e.first_name LIKE :emp_first OR e.employee_number LIKE :emp_num)';
+            $pattern = '%' . $employeeSearch . '%';
+            $bind[':emp_last']  = $pattern;
+            $bind[':emp_first'] = $pattern;
+            $bind[':emp_num']   = $pattern;
+        }
+
+        $stmt = $pdo->prepare(
+            "SELECT ps.payslip_id
+               FROM payslip ps
+               JOIN payroll p         ON p.payroll_id         = ps.payroll_id
+               JOIN payroll_run pr    ON pr.payroll_run_id    = p.payroll_run_id
+               JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+               JOIN employee e        ON e.employee_id        = p.employee_id
+               JOIN branch b          ON b.branch_id          = pr.branch_id
+              WHERE " . implode(' AND ', $where) . "
+              ORDER BY pp.period_start DESC, e.last_name, e.first_name
+              LIMIT 500"
+        );
+        $stmt->execute($bind);
+        $matched = $stmt->fetchAll();
+
+        $payslips = [];
+        $service  = new \Wbpms\Application\PayrollService($this->makeConnection());
+        foreach ($matched as $m) {
+            try {
+                $payslips[] = $service->payslipData((int) $m['payslip_id']);
+            } catch (\RuntimeException) {
+                // Skip unreachable payslips.
+            }
+        }
+
+        $e = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+        $n = static fn(float $v): string  => number_format($v, 2);
+        $f = static fn(\DateTimeInterface|string|null $v): string => PdfRenderer::formatDate($v);
+
+        $generatedDate = (new \DateTimeImmutable())->format('m/d/Y H:i');
+
+        // ----------------------------------------------------------------
+        // Build standalone print document
+        // ----------------------------------------------------------------
+        $backUrl = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/') . '/hr/reports/payslips'
+                 . (isset($_SERVER['QUERY_STRING']) && $_SERVER['QUERY_STRING'] !== ''
+                     ? '?' . $_SERVER['QUERY_STRING'] : '');
+
+        $html  = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
+        $html .= '<title>Payslips — 1/4 Sheet Bulk Print</title>';
+        $html .= '<style>
+/* -----------------------------------------------------------------------
+   1/4-sheet payslip layout (A6 per slip — 4 slips per A4/Letter page)
+   Each .slip is 99mm × 139mm on paper; the grid arranges them 2×2.
+   ----------------------------------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;font-size:10px;background:#fff;color:#111}
+.no-print{display:block}
+.slip-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.slip{
+    width:99mm;height:139mm;
+    padding:6mm 6mm 4mm;
+    border:1px solid #ccc;
+    overflow:hidden;
+    page-break-inside:avoid;
+    display:flex;flex-direction:column;gap:3px;
+}
+.slip-head{border-bottom:1.5px solid #1d4ed8;padding-bottom:3px;margin-bottom:3px}
+.slip-head .company{font-size:9px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.04em}
+.slip-head .emp-name{font-size:11px;font-weight:700;margin-top:1px}
+.slip-head .emp-meta{font-size:8.5px;color:#555;margin-top:1px}
+.slip-period{font-size:8.5px;color:#374151;margin-bottom:2px}
+.slip-tables{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex:1}
+.slip-table{width:100%;border-collapse:collapse}
+.slip-table th{font-size:7.5px;text-transform:uppercase;letter-spacing:.03em;padding:1px 2px;border-bottom:1px solid #d1d5db}
+.slip-table td{font-size:8.5px;padding:1px 2px;border-bottom:1px solid #f3f4f6;vertical-align:top}
+.slip-table td.amt{text-align:right;font-variant-numeric:tabular-nums}
+.earn th{color:#166534}.earn .total td{font-weight:700;background:#f0fdf4}
+.ded  th{color:#991b1b}.ded  .total td{font-weight:700;background:#fef2f2}
+.earn .total td.amt{color:#15803d}.ded .total td.amt{color:#dc2626}
+.net-row{margin-top:3px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:3px;
+         padding:3px 5px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.net-label{font-size:7.5px;font-weight:700;text-transform:uppercase;color:#1e40af;letter-spacing:.04em}
+.net-amount{font-size:12px;font-weight:700;color:#1d4ed8}
+.slip-footer{font-size:7px;color:#9ca3af;text-align:center;margin-top:2px;border-top:1px solid #f3f4f6;padding-top:2px;flex-shrink:0}
+.controls{padding:8px 14px;display:flex;gap:8px;align-items:center;background:#f9fafb;border-bottom:1px solid #e5e7eb;margin-bottom:8px;position:sticky;top:0;z-index:10}
+.controls small{color:#6b7280}
+@media print{
+    html,body{margin:0;padding:0}
+    .no-print{display:none!important}
+    .slip-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;page-break-after:auto}
+    .slip{border:1px solid #bbb;page-break-inside:avoid}
+    @page{size:A4 portrait;margin:5mm}
+}
+</style></head><body>';
+
+        $html .= '<div class="no-print controls">';
+        $html .= '<button onclick="window.print()" style="padding:5px 14px;background:#1d4ed8;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px">🖨 Print All Payslips</button>';
+        $html .= '<a href="' . $e($backUrl) . '" style="padding:5px 12px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;text-decoration:none;color:#374151">← Back to Payslip Report</a>';
+        $html .= '<small>' . count($payslips) . ' payslip(s) &nbsp;|&nbsp; Generated: ' . $e($generatedDate) . '</small>';
+        $html .= '</div>';
+
+        if ($payslips === []) {
+            $html .= '<p style="padding:20px;color:#6b7280">No approved payslips found. Adjust the filters on the Payslip Report page and try again.</p>';
+        } else {
+            $html .= '<div class="slip-grid">';
+            foreach ($payslips as $ps) {
+                $empName    = (string) ($ps['employee_name']   ?? '');
+                $empNumber  = (string) ($ps['employee_number'] ?? '');
+                $position   = (string) ($ps['position']       ?? '—');
+                $branchName = (string) ($ps['branch_name']    ?? '');
+                $period     = (string) ($ps['period']          ?? '');
+                $payDate    = $f($ps['pay_date'] ?? null);
+                $issueDate  = $f($ps['issue_date'] ?? null);
+                $gross      = (float) ($ps['gross_pay']        ?? 0);
+                $deductions = (float) ($ps['total_deductions'] ?? 0);
+                $net        = (float) ($ps['net_pay']          ?? 0);
+                $earnings   = is_array($ps['earnings']   ?? null) ? $ps['earnings']   : [];
+                $dedRows    = is_array($ps['deductions'] ?? null) ? $ps['deductions'] : [];
+
+                $html .= '<div class="slip">';
+
+                // Header
+                $html .= '<div class="slip-head">';
+                $html .= '<div class="company">Light Diamond Enterprises — Payslip</div>';
+                $html .= '<div class="emp-name">' . $e($empName) . '</div>';
+                $html .= '<div class="emp-meta">' . $e($empNumber) . ' &middot; ' . $e($position) . ' &middot; ' . $e($branchName) . '</div>';
+                $html .= '</div>';
+
+                // Period / dates
+                $html .= '<div class="slip-period">'
+                       . 'Period: <b>' . $e($period) . '</b>'
+                       . ($payDate !== '' ? ' &nbsp; Pay date: <b>' . $e($payDate) . '</b>' : '')
+                       . ($issueDate !== '' ? ' &nbsp; Issued: ' . $e($issueDate) : '')
+                       . '</div>';
+
+                // Earnings + Deductions side by side
+                $html .= '<div class="slip-tables">';
+
+                // Earnings column
+                $html .= '<table class="slip-table earn"><thead><tr><th>Earnings</th><th class="amt">₱</th></tr></thead><tbody>';
+                foreach ($earnings as $row) {
+                    $html .= '<tr><td>' . $e((string) ($row['description'] ?? '')) . '</td>'
+                           . '<td class="amt">' . $n((float) ($row['amount'] ?? 0)) . '</td></tr>';
+                }
+                if ($earnings === []) {
+                    $html .= '<tr><td colspan="2" style="color:#9ca3af">—</td></tr>';
+                }
+                $html .= '</tbody><tfoot><tr class="total"><td>Gross</td><td class="amt">₱' . $n($gross) . '</td></tr></tfoot></table>';
+
+                // Deductions column
+                $html .= '<table class="slip-table ded"><thead><tr><th>Deductions</th><th class="amt">₱</th></tr></thead><tbody>';
+                foreach ($dedRows as $row) {
+                    $html .= '<tr><td>' . $e((string) ($row['description'] ?? '')) . '</td>'
+                           . '<td class="amt">' . $n((float) ($row['amount'] ?? 0)) . '</td></tr>';
+                }
+                if ($dedRows === []) {
+                    $html .= '<tr><td colspan="2" style="color:#9ca3af">—</td></tr>';
+                }
+                $html .= '</tbody><tfoot><tr class="total"><td>Deductions</td><td class="amt">₱' . $n($deductions) . '</td></tr></tfoot></table>';
+
+                $html .= '</div>'; // .slip-tables
+
+                // Net pay bar
+                $html .= '<div class="net-row">'
+                       . '<span class="net-label">Net Pay</span>'
+                       . '<span class="net-amount">₱' . $n($net) . '</span>'
+                       . '</div>';
+
+                // Footer
+                $html .= '<div class="slip-footer">This is a system-generated payslip. Please keep for your records.</div>';
+
+                $html .= '</div>'; // .slip
+            }
+            $html .= '</div>'; // .slip-grid
+        }
+
+        $html .= '</body></html>';
+
+        header('Content-Type: text/html; charset=utf-8');
+        echo $html;
     }
 
     // -----------------------------------------------------------------------
@@ -429,57 +654,133 @@ final class ReportsController
                 break;
 
             case 'payslips':
-                $headers  = ['Employee #', 'Employee Name', 'Branch', 'Period', 'Gross Pay', 'Total Deductions', 'Net Pay', 'Approved At'];
-                $periodId = filter_var($_GET['payroll_period_id'] ?? 0, FILTER_VALIDATE_INT);
-                $periodId = $periodId !== false && $periodId > 0 ? (int) $periodId : 0;
-                $branchId = filter_var($_GET['branch_id'] ?? 0, FILTER_VALIDATE_INT);
-                $branchId = $branchId !== false && $branchId > 0 ? (int) $branchId : 0;
-                $employeeSearch = trim((string) ($_GET['employee_search'] ?? ''));
+                // For HTML and PDF we build a full detailed-payslip document
+                // (earnings + deductions per employee) and return early so we
+                // never hit the generic table builder below.
+                {
+                    $periodId = filter_var($_GET['payroll_period_id'] ?? 0, FILTER_VALIDATE_INT);
+                    $periodId = $periodId !== false && $periodId > 0 ? (int) $periodId : 0;
+                    $branchId = filter_var($_GET['branch_id'] ?? 0, FILTER_VALIDATE_INT);
+                    $branchId = $branchId !== false && $branchId > 0 ? (int) $branchId : 0;
+                    $employeeSearch = trim((string) ($_GET['employee_search'] ?? ''));
 
-                $where = ["pr.status = 'Approved'"];
-                $bind  = [];
-                if ($periodId > 0) {
-                    $where[]             = 'pr.payroll_period_id = :period_id';
-                    $bind[':period_id']  = $periodId;
-                }
-                if ($branchId > 0) {
-                    $where[]            = 'pr.branch_id = :branch_id';
-                    $bind[':branch_id'] = $branchId;
-                }
-                if ($employeeSearch !== '') {
-                    $where[] = '(e.last_name LIKE :emp_last OR e.first_name LIKE :emp_first OR e.employee_number LIKE :emp_num)';
-                    $pat = '%' . $employeeSearch . '%';
-                    $bind[':emp_last'] = $pat; $bind[':emp_first'] = $pat; $bind[':emp_num'] = $pat;
-                }
-                $stmt = $pdo->prepare(
-                    "SELECT e.employee_number,
-                            CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
-                            b.branch_name,
-                            CONCAT(pp.period_start, ' – ', pp.period_end) AS period_label,
-                            p.gross_pay, p.total_deductions, p.net_pay,
-                            pr.reviewed_at AS approved_at
-                       FROM payslip ps
-                       JOIN payroll p         ON p.payroll_id         = ps.payroll_id
-                       JOIN payroll_run pr    ON pr.payroll_run_id    = p.payroll_run_id
-                       JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
-                       JOIN employee e        ON e.employee_id        = p.employee_id
-                       JOIN branch b          ON b.branch_id          = pr.branch_id
-                      WHERE " . implode(' AND ', $where) . "
-                      ORDER BY pp.period_start DESC, e.last_name
-                      LIMIT 500"
-                );
-                $stmt->execute($bind);
-                foreach ($stmt->fetchAll() as $r) {
-                    $rows[] = [
-                        $r['employee_number'],
-                        $r['employee_name'],
-                        $r['branch_name'],
-                        $r['period_label'],
-                        number_format((float) $r['gross_pay'], 2, '.', ''),
-                        number_format((float) $r['total_deductions'], 2, '.', ''),
-                        number_format((float) $r['net_pay'], 2, '.', ''),
-                        (string) ($r['approved_at'] ?? ''),
-                    ];
+                    $where = ["pr.status = 'Approved'"];
+                    $bind  = [];
+                    if ($periodId > 0) {
+                        $where[]            = 'pr.payroll_period_id = :period_id';
+                        $bind[':period_id'] = $periodId;
+                    }
+                    if ($branchId > 0) {
+                        $where[]             = 'pr.branch_id = :branch_id';
+                        $bind[':branch_id']  = $branchId;
+                    }
+                    if ($employeeSearch !== '') {
+                        $where[] = '(e.last_name LIKE :emp_last OR e.first_name LIKE :emp_first OR e.employee_number LIKE :emp_num)';
+                        $pat = '%' . $employeeSearch . '%';
+                        $bind[':emp_last'] = $pat;
+                        $bind[':emp_first'] = $pat;
+                        $bind[':emp_num']   = $pat;
+                    }
+
+                    $idStmt = $pdo->prepare(
+                        "SELECT ps.payslip_id, pr.reviewed_at AS approved_at
+                           FROM payslip ps
+                           JOIN payroll p         ON p.payroll_id         = ps.payroll_id
+                           JOIN payroll_run pr    ON pr.payroll_run_id    = p.payroll_run_id
+                           JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+                           JOIN employee e        ON e.employee_id        = p.employee_id
+                           JOIN branch b          ON b.branch_id          = pr.branch_id
+                          WHERE " . implode(' AND ', $where) . "
+                          ORDER BY pp.period_start DESC, e.last_name, e.first_name
+                          LIMIT 500"
+                    );
+                    $idStmt->execute($bind);
+                    $matched = $idStmt->fetchAll();
+
+                    // CSV: emit one flat row per payslip (summary, no line-item detail)
+                    if ($format === 'csv') {
+                        $csvHeaders = ['Employee #', 'Employee Name', 'Branch', 'Period', 'Gross Pay', 'Total Deductions', 'Net Pay', 'Approved At'];
+                        $csvRows    = [];
+                        foreach ($matched as $m) {
+                            // Use the plain summary query result already in $matched for speed,
+                            // but we need gross/net — reuse payslipData or just re-query.
+                            // To avoid N queries for CSV we fetch summary data directly.
+                        }
+                        // Re-query for CSV summary data
+                        $sumStmt = $pdo->prepare(
+                            "SELECT e.employee_number,
+                                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                                    b.branch_name,
+                                    CONCAT(pp.period_start, ' – ', pp.period_end) AS period_label,
+                                    p.gross_pay, p.total_deductions, p.net_pay,
+                                    pr.reviewed_at AS approved_at
+                               FROM payslip ps
+                               JOIN payroll p         ON p.payroll_id         = ps.payroll_id
+                               JOIN payroll_run pr    ON pr.payroll_run_id    = p.payroll_run_id
+                               JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+                               JOIN employee e        ON e.employee_id        = p.employee_id
+                               JOIN branch b          ON b.branch_id          = pr.branch_id
+                              WHERE " . implode(' AND ', $where) . "
+                              ORDER BY pp.period_start DESC, e.last_name
+                              LIMIT 500"
+                        );
+                        $sumStmt->execute($bind);
+                        foreach ($sumStmt->fetchAll() as $r) {
+                            $csvRows[] = [
+                                $r['employee_number'],
+                                $r['employee_name'],
+                                $r['branch_name'],
+                                $r['period_label'],
+                                number_format((float) $r['gross_pay'], 2, '.', ''),
+                                number_format((float) $r['total_deductions'], 2, '.', ''),
+                                number_format((float) $r['net_pay'], 2, '.', ''),
+                                (string) ($r['approved_at'] ?? ''),
+                            ];
+                        }
+                        $slug     = 'payslips';
+                        $filename = $slug . '-' . date('Ymd') . '.csv';
+                        header('Content-Type: text/csv; charset=utf-8');
+                        header('Content-Disposition: attachment; filename="' . $filename . '"');
+                        header('Pragma: no-cache');
+                        header('Expires: 0');
+                        $out = fopen('php://output', 'w');
+                        if ($out === false) { http_response_code(500); return; }
+                        fwrite($out, "\xEF\xBB\xBF");
+                        fputcsv($out, $csvHeaders);
+                        foreach ($csvRows as $row) {
+                            fputcsv($out, array_map('strval', $row));
+                        }
+                        fclose($out);
+                        return;
+                    }
+
+                    // HTML / PDF: load full payslip detail and render a payslip-per-card document
+                    $service  = new \Wbpms\Application\PayrollService($this->makeConnection());
+                    $payslips = [];
+                    foreach ($matched as $m) {
+                        try {
+                            $detail = $service->payslipData((int) $m['payslip_id']);
+                            $detail['approved_at'] = $m['approved_at'];
+                            $payslips[] = $detail;
+                        } catch (\RuntimeException) {
+                            // Skip unresolvable payslip
+                        }
+                    }
+
+                    $payslipsHtml = $this->buildPayslipsHtml(
+                        $payslips,
+                        $e,
+                        includeControls: ($format !== 'pdf'),
+                    );
+
+                    if ($format === 'pdf') {
+                        PdfRenderer::download($payslipsHtml, 'payslips-' . date('ymd') . '.pdf');
+                        return;
+                    }
+
+                    header('Content-Type: text/html; charset=utf-8');
+                    echo $payslipsHtml;
+                    return;
                 }
                 break;
 
@@ -511,30 +812,47 @@ final class ReportsController
             return;
         }
 
-        // ---------- Print-ready HTML (format=html) or PDF-trigger (format=pdf) ----------
-        // Both render the same print-optimised HTML page.
-        // format=pdf additionally fires window.print() on load so the browser's
-        // Save as PDF dialog opens immediately (no Dompdf dependency required).
-        $autoPrint = ($format === 'pdf');
-        header('Content-Type: text/html; charset=utf-8');
-        echo '<!doctype html><html lang="en"><head><meta charset="utf-8">';
-        echo '<title>' . $e($title) . '</title>';
-        echo '<style>
-            body{font-family:Arial,sans-serif;font-size:11px;margin:20px}
-            h2{margin:0 0 4px;font-size:15px}
-            .meta{font-size:10px;color:#555;margin-bottom:12px}
-            table{width:100%;border-collapse:collapse}
-            th,td{border:1px solid #ccc;padding:4px 7px;text-align:left}
-            th{background:#f0f0f0;font-weight:bold}
-            tr:nth-child(even){background:#fafafa}
-            .no-data{text-align:center;padding:20px;color:#999}
-            @media print{.no-print{display:none}}
-        </style>';
-        if ($autoPrint) {
-            echo '<script>window.addEventListener("load",function(){window.print();});</script>';
+        // ---------- PDF download (format=pdf) ----------
+        // Generate a real downloadable PDF via Dompdf instead of relying on
+        // the browser's print-to-PDF dialog.
+        if ($format === 'pdf') {
+            $html        = $this->buildReportHtml($title, $type, $year, $filters, $headers, $rows, $e);
+            $slug        = preg_replace('/[^a-z0-9_-]/i', '-', $type ?: 'report');
+            $filename    = $slug . '-' . date('ymd') . '.pdf';
+            PdfRenderer::download($html, $filename);
+            return;
         }
-        echo '</head><body>';
-        echo '<h2>' . $e($title) . '</h2>';
+
+        // ---------- Print-ready HTML (format=html) ----------
+        $html = $this->buildReportHtml($title, $type, $year, $filters, $headers, $rows, $e, includeControls: true);
+        header('Content-Type: text/html; charset=utf-8');
+        echo $html;
+    }
+
+    /**
+     * Build the print-ready HTML for a report export.
+     *
+     * When $includeControls is true (on-screen HTML view), the output
+     * includes the Print / PDF / CSV / Back buttons and the auto-print
+     * script. When false (PDF generation), only the report content is
+     * returned so Dompdf renders a clean document.
+     *
+     * Dates use MM/DD/YY per project standard.
+     *
+     * @param list<string>                $headers
+     * @param list<list<string|int|float>> $rows
+     * @param callable(string): string     $e  HTML-escape helper
+     */
+    private function buildReportHtml(
+        string $title,
+        string $type,
+        int $year,
+        array $filters,
+        array $headers,
+        array $rows,
+        callable $e,
+        bool $includeControls = false,
+    ): string {
         $reportScope = '';
         if ($type === '13th_month') {
             $reportScope = ' &nbsp;|&nbsp; Year: ' . $year;
@@ -545,42 +863,197 @@ final class ReportsController
                 $reportScope .= ' &nbsp;|&nbsp; Employee filter applied';
             }
         }
-        // Build export links (same URL with different format params)
+
+        $generatedDate = (new \DateTimeImmutable())->format('m/d/Y H:i');
+
         $csvUrl = '?' . http_build_query(array_merge($_GET, ['format' => 'csv']));
         $pdfUrl = '?' . http_build_query(array_merge($_GET, ['format' => 'pdf']));
-        echo '<div class="meta">Light Diamond Enterprises &nbsp;|&nbsp; Generated: ' . date('m/d/Y H:i') . $reportScope . '</div>';
-        echo '<div class="no-print" style="margin-bottom:10px;display:flex;gap:8px;align-items:center">'
-           . '<button onclick="window.print()" style="padding:4px 12px;cursor:pointer">🖨 Print</button>'
-           . '<a href="' . $e($pdfUrl) . '" style="padding:4px 10px;background:#374151;color:#fff;text-decoration:none;border-radius:4px;font-size:11px">⬇ PDF</a>'
-           . '<a href="' . $e($csvUrl) . '" style="padding:4px 10px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:4px;font-size:11px">⬇ CSV</a>'
-           . '<button onclick="history.back()" style="padding:4px 10px;cursor:pointer">← Back</button>'
-           . '</div>';
 
-        if ($rows === []) {
-            echo '<p class="no-data">No data available for this report.</p>';
-        } else {
-            echo '<table><thead><tr>';
-            foreach ($headers as $h) {
-                echo '<th>' . $e($h) . '</th>';
-            }
-            echo '</tr></thead><tbody>';
-            foreach ($rows as $row) {
-                echo '<tr>';
-                foreach ($row as $cell) {
-                    echo '<td>' . $e((string)$cell) . '</td>';
-                }
-                echo '</tr>';
-            }
-            echo '</tbody></table>';
-            echo '<p class="meta" style="margin-top:10px">Total records: ' . count($rows) . '</p>';
+        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
+        $html .= '<title>' . $e($title) . '</title>';
+        $html .= '<style>
+            body{font-family:Arial,sans-serif;font-size:11px;margin:20px}
+            h2{margin:0 0 4px;font-size:15px}
+            .meta{font-size:10px;color:#555;margin-bottom:12px}
+            table{width:100%;border-collapse:collapse}
+            th,td{border:1px solid #ccc;padding:4px 7px;text-align:left}
+            th{background:#f0f0f0;font-weight:bold}
+            tr:nth-child(even){background:#fafafa}
+            .no-data{text-align:center;padding:20px;color:#999}
+            @media print{.no-print{display:none}}
+        </style>';
+        $html .= '</head><body>';
+        $html .= '<h2>' . $e($title) . '</h2>';
+        $html .= '<div class="meta">Light Diamond Enterprises &nbsp;|&nbsp; Generated: ' . $generatedDate . $reportScope . '</div>';
+
+        if ($includeControls) {
+            $html .= '<div class="no-print" style="margin-bottom:10px;display:flex;gap:8px;align-items:center">'
+                   . '<button onclick="window.print()" style="padding:4px 12px;cursor:pointer">🖨 Print</button>'
+                   . '<a href="' . $e($pdfUrl) . '" style="padding:4px 10px;background:#374151;color:#fff;text-decoration:none;border-radius:4px;font-size:11px">⬇ PDF</a>'
+                   . '<a href="' . $e($csvUrl) . '" style="padding:4px 10px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:4px;font-size:11px">⬇ CSV</a>'
+                   . '<button onclick="history.back()" style="padding:4px 10px;cursor:pointer">← Back</button>'
+                   . '</div>';
         }
 
-        echo '</body></html>';
+        if ($rows === []) {
+            $html .= '<p class="no-data">No data available for this report.</p>';
+        } else {
+            $html .= '<table><thead><tr>';
+            foreach ($headers as $h) {
+                $html .= '<th>' . $e($h) . '</th>';
+            }
+            $html .= '</tr></thead><tbody>';
+            foreach ($rows as $row) {
+                $html .= '<tr>';
+                foreach ($row as $cell) {
+                    $html .= '<td>' . $e((string)$cell) . '</td>';
+                }
+                $html .= '</tr>';
+            }
+            $html .= '</tbody></table>';
+            $html .= '<p class="meta" style="margin-top:10px">Total records: ' . count($rows) . '</p>';
+        }
+
+        $html .= '</body></html>';
+        return $html;
     }
 
-    // -----------------------------------------------------------------------
-    // Private helpers
-    // -----------------------------------------------------------------------
+    /**
+     * Build the print/PDF-ready HTML for the Employee Payslip Report.
+     *
+     * Renders one card per employee showing the earnings and deductions
+     * breakdown, gross pay, total deductions, and net pay — mirroring the
+     * on-screen report layout but with print-friendly inline styles.
+     *
+     * @param list<array<string,mixed>>  $payslips  Each is from PayrollService::payslipData()
+     * @param callable(string): string $e          HTML-escape helper
+     */
+    private function buildPayslipsHtml(array $payslips, callable $e, bool $includeControls = false): string
+    {
+        $n = static fn(float $v): string => number_format($v, 2);
+        $f = static fn(\DateTimeInterface|string|null $v): string => PdfRenderer::formatDate($v);
+
+        $generatedDate = (new \DateTimeImmutable())->format('m/d/Y H:i');
+
+        $totalGross = 0.0;
+        $totalDeductions = 0.0;
+        $totalNet = 0.0;
+        foreach ($payslips as $ps) {
+            $totalGross      += (float) ($ps['gross_pay']        ?? 0);
+            $totalDeductions += (float) ($ps['total_deductions'] ?? 0);
+            $totalNet        += (float) ($ps['net_pay']          ?? 0);
+        }
+
+        $csvUrl = '?' . http_build_query(array_merge($_GET, ['format' => 'csv']));
+        $pdfUrl = '?' . http_build_query(array_merge($_GET, ['format' => 'pdf']));
+
+        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
+        $html .= '<title>Employee Payslip Report</title>';
+        $html .= '<style>
+            body{font-family:Arial,sans-serif;font-size:11px;margin:20px}
+            h2{margin:0 0 4px;font-size:15px}
+            .meta{font-size:10px;color:#555;margin-bottom:12px}
+            .payslip-card{border:1px solid #ccc;border-radius:6px;padding:14px;margin-bottom:16px;page-break-inside:avoid}
+            .card-header{display:flex;justify-content:space-between;border-bottom:2px solid #e5e7eb;padding-bottom:6px;margin-bottom:10px}
+            .grid{display:table;width:100%;border-spacing:10px 0}
+            .col{display:table-cell;width:50%;vertical-align:top}
+            table{width:100%;border-collapse:collapse}
+            th,td{padding:4px 6px;font-size:10px;text-align:left}
+            th{border-bottom:1px solid #ccc;text-transform:uppercase;font-size:9px}
+            td.amt,th.amt{text-align:right}
+            .earn th{color:#166534}
+            .ded th{color:#991b1b}
+            .total-row td{font-weight:bold;background:#f9f9f9}
+            .net-box{background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px 10px;margin-top:10px;display:flex;justify-content:space-between}
+            .net-label{font-size:9px;text-transform:uppercase;color:#1e40af;font-weight:bold}
+            .net-amount{font-size:14px;font-weight:bold;color:#1d4ed8}
+            .no-data{text-align:center;padding:20px;color:#999}
+            .report-totals{border-top:3px solid #1d4ed8;padding:10px 14px;background:#f8fafc;margin-top:16px;display:flex;justify-content:space-between}
+            .report-totals .t{display:inline-block;margin-left:20px}
+            @media print{.no-print{display:none}}
+        </style></head><body>';
+        $html .= '<h2>Employee Payslip Report</h2>';
+        $html .= '<div class="meta">Light Diamond Enterprises &nbsp;|&nbsp; Generated: ' . $generatedDate
+               . ' &nbsp;|&nbsp; ' . count($payslips) . ' payslip(s)</div>';
+
+        if ($includeControls) {
+            $html .= '<div class="no-print" style="margin-bottom:10px;display:flex;gap:8px;align-items:center">'
+                   . '<button onclick="window.print()" style="padding:4px 12px;cursor:pointer">🖨 Print</button>'
+                   . '<a href="' . $e($pdfUrl) . '" style="padding:4px 10px;background:#374151;color:#fff;text-decoration:none;border-radius:4px;font-size:11px">⬇ PDF</a>'
+                   . '<a href="' . $e($csvUrl) . '" style="padding:4px 10px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:4px;font-size:11px">⬇ CSV</a>'
+                   . '<button onclick="history.back()" style="padding:4px 10px;cursor:pointer">← Back</button>'
+                   . '</div>';
+        }
+
+        if ($payslips === []) {
+            $html .= '<p class="no-data">No payslips available for the selected filters.</p>';
+        } else {
+            foreach ($payslips as $ps) {
+                $empName    = (string) ($ps['employee_name']   ?? '');
+                $empNumber  = (string) ($ps['employee_number'] ?? '');
+                $position   = (string) ($ps['position']       ?? '—');
+                $branchName = (string) ($ps['branch_name']    ?? '');
+                $period     = (string) ($ps['period']          ?? '');
+                $payDate    = $f($ps['pay_date'] ?? null);
+                $gross      = (float) ($ps['gross_pay']       ?? 0);
+                $deductions = (float) ($ps['total_deductions'] ?? 0);
+                $net        = (float) ($ps['net_pay']         ?? 0);
+                $earnings   = is_array($ps['earnings']   ?? null) ? $ps['earnings']   : [];
+                $dedRows    = is_array($ps['deductions'] ?? null) ? $ps['deductions'] : [];
+
+                $html .= '<div class="payslip-card">';
+                // header
+                $html .= '<div class="card-header">';
+                $html .= '<div><b style="font-size:12px">' . $e($empName) . '</b>'
+                       . '<br><small style="color:#555">' . $e($empNumber) . ' · ' . $e($position) . '</small></div>';
+                $html .= '<div style="text-align:right"><b>' . $e($period) . '</b>'
+                       . '<br><small style="color:#555">Branch: ' . $e($branchName)
+                       . ($payDate !== '' ? ' · Pay date: ' . $e($payDate) : '') . '</small></div>';
+                $html .= '</div>';
+
+                // earnings + deductions side by side
+                $html .= '<div class="grid"><div class="col">';
+                $html .= '<table class="earn"><thead><tr><th>Earnings</th><th class="amt">Amount</th></tr></thead><tbody>';
+                foreach ($earnings as $row) {
+                    $html .= '<tr><td>' . $e((string)($row['description'] ?? '')) . '</td>'
+                           . '<td class="amt">₱' . $n((float)($row['amount'] ?? 0)) . '</td></tr>';
+                }
+                if ($earnings === []) {
+                    $html .= '<tr><td colspan="2" style="color:#999">No earnings recorded.</td></tr>';
+                }
+                $html .= '</tbody><tfoot><tr class="total-row" style="background:#f0fdf4"><td>Gross Pay</td>'
+                       . '<td class="amt" style="color:#15803d">₱' . $n($gross) . '</td></tr></tfoot></table>';
+                $html .= '</div>';
+
+                $html .= '<div class="col">';
+                $html .= '<table class="ded"><thead><tr><th>Deductions</th><th class="amt">Amount</th></tr></thead><tbody>';
+                foreach ($dedRows as $row) {
+                    $html .= '<tr><td>' . $e((string)($row['description'] ?? '')) . '</td>'
+                           . '<td class="amt" style="color:#dc2626">₱' . $n((float)($row['amount'] ?? 0)) . '</td></tr>';
+                }
+                if ($dedRows === []) {
+                    $html .= '<tr><td colspan="2" style="color:#999">No deductions recorded.</td></tr>';
+                }
+                $html .= '</tbody><tfoot><tr class="total-row" style="background:#fef2f2"><td>Total Deductions</td>'
+                       . '<td class="amt" style="color:#dc2626">₱' . $n($deductions) . '</td></tr></tfoot></table>';
+                $html .= '</div></div>';
+
+                // net pay
+                $html .= '<div class="net-box"><span class="net-label">Net Pay</span>'
+                       . '<span class="net-amount">₱' . $n($net) . '</span></div>';
+                $html .= '</div>';
+            }
+
+            // report totals
+            $html .= '<div class="report-totals"><b>Report Totals (' . count($payslips) . ')</b>'
+                   . '<div><span class="t">Total Gross: ₱' . $n($totalGross) . '</span>'
+                   . '<span class="t">Total Deductions: ₱' . $n($totalDeductions) . '</span>'
+                   . '<span class="t">Total Net Pay: ₱' . $n($totalNet) . '</span></div></div>';
+        }
+
+        $html .= '</body></html>';
+        return $html;
+    }
 
     private function makeConnection(): Connection
     {

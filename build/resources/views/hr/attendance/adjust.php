@@ -16,7 +16,7 @@ $timeValue = static fn (?string $time): string => $time === null ? '' : substr($
         <h1>Adjust Attendance</h1>
         <p>Correct a biometric exception or enter approved manual overtime. The original punches remain unchanged.</p>
     </div>
-    <a href="<?= $base ?>/hr/attendance" class="btn btn-secondary">Back to Attendance</a>
+    <a href="<?= $base ?>/hr/attendance" class="btn btn-secondary">← Back to Attendance</a>
 </div>
 
 <?php if ($errors !== []): ?>

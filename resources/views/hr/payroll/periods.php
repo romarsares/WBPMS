@@ -25,8 +25,9 @@ $statusBadge = static function (string $s): string {
 <div class="page-head">
     <div>
         <h1>Payroll Periods</h1>
-        <p>Weekly pay windows (Sunday → Friday). <a href="<?= $base ?>/hr/payroll">← Back to Payroll</a></p>
+        <p>Weekly pay windows (Sunday → Friday).</p>
     </div>
+    <a href="<?= $base ?>/hr/payroll" class="btn btn-secondary">← Back to Payroll</a>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 2fr;gap:1.5rem;align-items:start">

@@ -155,7 +155,7 @@ $nav = match ($roleName) {
             </button>
 
             <div class="topbar-date" aria-live="off">
-                <?= date('m/d/y') ?>
+                <?= date('m/d/Y') ?>
                 <span><?= date('H:i') ?></span>
             </div>
 

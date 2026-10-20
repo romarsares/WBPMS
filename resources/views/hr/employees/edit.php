@@ -53,7 +53,7 @@ $err = static fn(string $key): string => isset($errors[$key])
 
 <div class="page-header">
     <h1><?= $title ?></h1>
-    <a href="<?= $base ?>/hr/employees" class="btn btn-secondary">← Back to employees</a>
+    <a href="<?= $base ?>/hr/employees" class="btn btn-secondary">← Back to Employees</a>
 </div>
 
 <div class="card" style="max-width:720px">

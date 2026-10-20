@@ -11,7 +11,7 @@ $fieldError = static fn(string $key): string => isset($errors[$key])
 
 <div class="page-header">
     <h1>Archive Employee</h1>
-    <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/edit" class="btn btn-secondary">&larr; Back</a>
+    <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/edit" class="btn btn-secondary">← Back to Employee</a>
 </div>
 
 <div class="card" style="max-width:720px">

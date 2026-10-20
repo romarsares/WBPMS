@@ -7,8 +7,9 @@
 <div class="page-head">
     <div>
         <h1>Contribution Policies</h1>
-        <p>SSS, PhilHealth, and Pag-IBIG policy versions. <a href="<?= $base ?>/hr/benefits">← Back to Benefits</a></p>
+        <p>SSS, PhilHealth, and Pag-IBIG policy versions.</p>
     </div>
+    <a href="<?= $base ?>/hr/benefits" class="btn btn-secondary">← Back to Benefits</a>
 </div>
 
 <div class="card">

@@ -9,8 +9,9 @@ $errors ??= [];
 <div class="page-head">
     <div>
         <h1>New Payroll Run</h1>
-        <p><a href="<?= $base ?>/hr/payroll">← Back to Payroll</a></p>
+        <p>Create a new payroll computation run for a pay period and branch.</p>
     </div>
+    <a href="<?= $base ?>/hr/payroll" class="btn btn-secondary">← Back to Payroll</a>
 </div>
 
 <?php if ($errors !== []): ?>

@@ -16,8 +16,9 @@ $label = $reportLabels[$type] ?? ($type !== '' ? htmlspecialchars($type) : 'Repo
 <div class="page-head">
     <div>
         <h1><?= htmlspecialchars($label) ?></h1>
-        <p><a href="<?= $base ?>/hr/reports">← Back to Reports</a></p>
+        <p>Configure and export this report as HTML or CSV.</p>
     </div>
+    <a href="<?= $base ?>/hr/reports" class="btn btn-secondary">← Back to Reports</a>
 </div>
 
 <div class="card" style="max-width:520px">

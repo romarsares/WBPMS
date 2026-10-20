@@ -41,7 +41,7 @@ $statusBadge = static function (string $status): string {
 <div class="page-header">
     <div>
         <h1>My Requests</h1>
-        <a href="<?= $base ?>/employee/dashboard" class="btn btn-secondary" style="font-size:.85rem;margin-top:.3rem;display:inline-block">← Back to Dashboard</a>
+        <a href="<?= $base ?>/employee/dashboard" class="btn btn-secondary">← Back to Dashboard</a>
     </div>
     <a href="<?= $base ?>/employee/requests/new" class="btn btn-primary">New Request</a>
 </div>

@@ -96,7 +96,7 @@ final class UserController
         ]);
 
         ViewRenderer::render('users/reset-password-done', [
-            'username'     => $user['username'],
+            'email'        => $user['account_email'],
             'tempPassword' => $tempPwd,
             'resetBy'      => $actorRole,
         ], 'Password Reset');
