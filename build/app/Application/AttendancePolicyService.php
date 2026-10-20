@@ -214,10 +214,9 @@ final class AttendancePolicyService
 
         $stmt = $this->connection->pdo()->prepare($sql);
         $stmt->execute($params);
-        return $this->withAbsenceEvidenceDates($stmt->fetchAll());
+        $flags = $this->withAbsenceEvidenceDates($stmt->fetchAll());
+        return $this->withReviewHistory($flags);
     }
-
-    /** @return array<string,int> Counts by status plus a Total key. */
     public function counts(): array
     {
         $rows = $this->connection->pdo()->query(
@@ -481,6 +480,53 @@ final class AttendancePolicyService
                 $dates[] = $end->modify("-{$offset} days")->format('Y-m-d');
             }
             $flag['absence_dates'] = implode(', ', $dates);
+        }
+        unset($flag);
+
+        return $flags;
+    }
+
+    /**
+     * Attach review history entries from audit_logs to each flag.
+     *
+     * Each flag gains a 'review_history' key: a list of rows ordered oldest
+     * first, each with keys: reviewed_by_name, action_at, description.
+     *
+     * @param list<array<string,mixed>> $flags
+     * @return list<array<string,mixed>>
+     */
+    private function withReviewHistory(array $flags): array
+    {
+        if ($flags === []) {
+            return $flags;
+        }
+
+        $flagIds = array_map(static fn(array $f): int => (int) $f['flag_id'], $flags);
+        $placeholders = implode(',', array_fill(0, count($flagIds), '?'));
+
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT al.record_id AS flag_id,
+                    COALESCE(CONCAT(e.last_name, ', ', e.first_name), u.username, 'System') AS reviewed_by_name,
+                    al.action_at,
+                    al.description
+               FROM audit_logs al
+               LEFT JOIN users u ON u.user_id = al.user_id
+               LEFT JOIN employee e ON e.employee_id = u.employee_id
+              WHERE al.event_type = 'attendance_policy_flag_reviewed'
+                AND al.table_affected = 'attendance_policy_flag'
+                AND al.record_id IN ({$placeholders})
+              ORDER BY al.action_at ASC"
+        );
+        $stmt->execute($flagIds);
+        $historyRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $byFlag = [];
+        foreach ($historyRows as $row) {
+            $byFlag[(int) $row['flag_id']][] = $row;
+        }
+
+        foreach ($flags as &$flag) {
+            $flag['review_history'] = $byFlag[(int) $flag['flag_id']] ?? [];
         }
         unset($flag);
 

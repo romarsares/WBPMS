@@ -41,6 +41,16 @@ $statusColor = static function (string $status): string {
 };
 
 $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'ConsecutiveAWOL'];
+
+$typeLabel = static function (string $type): string {
+    return match ($type) {
+        'ConsecutiveLate'  => '3 Consecutive Lates',
+        'TardinessMemoCap' => '3rd Tardiness Memo',
+        'TwoWeekAbsence'   => '2-Week Absence',
+        'ConsecutiveAWOL'  => '3 Consecutive AWOL',
+        default            => $type,
+    };
+};
 ?>
 
 <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem">
@@ -102,7 +112,7 @@ $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'Consecut
         <select name="type" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
             <option value="">All types</option>
             <?php foreach ($flagTypes as $t): ?>
-            <option value="<?= Formatter::escape($t) ?>" <?= ($filters['type'] ?? '') === $t ? 'selected' : '' ?>><?= Formatter::escape($t) ?></option>
+            <option value="<?= Formatter::escape($t) ?>" <?= ($filters['type'] ?? '') === $t ? 'selected' : '' ?>><?= Formatter::escape($typeLabel($t)) ?></option>
             <?php endforeach; ?>
         </select>
     </div>
@@ -146,7 +156,7 @@ $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'Consecut
                 </td>
                 <td style="padding:.65rem 1rem">
                     <span style="background:<?= $typeColor((string) $r['flag_type']) ?>;color:#fff;padding:2px 8px;border-radius:9999px;font-size:.75rem;white-space:nowrap">
-                        <?= Formatter::escape((string) $r['flag_type']) ?>
+                        <?= Formatter::escape($typeLabel((string) $r['flag_type'])) ?>
                     </span>
                 </td>
                 <td style="padding:.65rem 1rem;font-size:.85rem;white-space:nowrap"><?= Formatter::date((string) $r['triggering_date']) ?></td>
@@ -174,32 +184,57 @@ $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'Consecut
                         <span class="badge badge-gray">Acknowledged</span>
                     <?php endif; ?>
                 </td>
-                <td style="padding:.65rem 1rem;min-width:280px">
+                <td style="padding:.65rem 1rem;min-width:300px">
                     <details>
                         <summary style="font-size:.8rem;color:#2563eb;cursor:pointer">
                             <?= ($r['status'] === 'Pending') ? 'Review now' : 'Edit review' ?>
                         </summary>
                         <div style="margin-top:.4rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:.6rem .7rem">
+
+                            <?php $history = $r['review_history'] ?? []; ?>
+                            <?php if ($history !== []): ?>
+                            <!-- Review history -->
+                            <div style="margin-bottom:.6rem">
+                                <div style="font-size:.75rem;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem">Review History</div>
+                                <?php foreach ($history as $h): ?>
+                                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:.4rem .6rem;margin-bottom:.3rem;font-size:.78rem;color:#374151;line-height:1.55">
+                                    <div style="display:flex;gap:.5rem;justify-content:space-between;flex-wrap:wrap">
+                                        <strong><?= Formatter::escape((string) $h['reviewed_by_name']) ?></strong>
+                                        <span style="color:#6b7280;white-space:nowrap"><?= Formatter::date((string) $h['action_at']) ?></span>
+                                    </div>
+                                    <div style="margin-top:.2rem;color:#4b5563"><?= Formatter::escape((string) $h['description']) ?></div>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
+
                             <?php if (($r['status'] ?? '') !== 'Pending' && ($r['reviewed_at'] ?? null) !== null): ?>
-                            <!-- Current review summary (read-only) -->
+                            <!-- Current saved values (read-only snapshot) -->
                             <div style="background:#fff;border:1px solid #e5e7eb;border-radius:4px;padding:.5rem .65rem;margin-bottom:.55rem;font-size:.78rem;color:#374151;line-height:1.6">
-                                <div><span style="color:#6b7280">Reviewed:</span> <strong><?= Formatter::date((string) $r['reviewed_at']) ?></strong></div>
+                                <div><span style="color:#6b7280">Last reviewed:</span> <strong><?= Formatter::date((string) $r['reviewed_at']) ?></strong></div>
                                 <?php if (($r['action_taken'] ?? '') !== ''): ?>
                                 <div style="margin-top:.15rem"><span style="color:#6b7280">Action taken:</span> <strong><?= Formatter::escape((string) $r['action_taken']) ?></strong></div>
                                 <?php endif; ?>
+                                <?php if (($r['notes'] ?? '') !== ''): ?>
+                                <div style="margin-top:.15rem"><span style="color:#6b7280">Notes:</span> <?= Formatter::escape((string) $r['notes']) ?></div>
+                                <?php endif; ?>
                             </div>
                             <?php endif; ?>
+
                             <form method="POST" action="<?= $base ?>/hr/attendance/policy/flags/<?= (int) $r['flag_id'] ?>/review"
                                   style="display:flex;flex-direction:column;gap:.35rem">
                                 <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
+                                <label style="font-size:.78rem;font-weight:500;color:#374151">Review status</label>
                                 <select name="status" style="padding:.4rem .6rem;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem">
                                     <?php foreach (['Reviewed', 'Closed'] as $s): ?>
                                     <option value="<?= Formatter::escape($s) ?>" <?= ($r['status'] ?? '') === $s ? 'selected' : '' ?>><?= Formatter::escape($s) ?></option>
                                     <?php endforeach; ?>
                                 </select>
+                                <label style="font-size:.78rem;font-weight:500;color:#374151">Action taken</label>
                                 <input type="text" name="action_taken" value="<?= Formatter::escape((string) ($r['action_taken'] ?? '')) ?>"
-                                       placeholder="Action taken (e.g. memorandum issued, warning letter)"
+                                       placeholder="e.g. memorandum issued, warning letter"
                                        maxlength="255" style="padding:.4rem .6rem;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem">
+                                <label style="font-size:.78rem;font-weight:500;color:#374151">Notes</label>
                                 <textarea name="notes" rows="2" maxlength="4000"
                                           style="padding:.4rem .6rem;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem"><?= Formatter::escape((string) ($r['notes'] ?? '')) ?></textarea>
                                 <?php if (($r['notice_id'] ?? null) === null): ?>
@@ -212,11 +247,12 @@ $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'Consecut
                                            placeholder="Notice title"
                                            style="padding:.4rem .6rem;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem">
                                     <textarea name="notice_body" rows="3" maxlength="4000"
-                                              placeholder="Message the employee will see in their portal. Include the required next step."></textarea>
+                                              placeholder="Message the employee will see in their portal. Include the required next step."
+                                              style="padding:.4rem .6rem;border:1px solid #d1d5db;border-radius:4px;font-size:.8rem"></textarea>
                                 <?php elseif (($r['notice_acknowledged_at'] ?? null) === null): ?>
-                                    <div style="font-size:.78rem;color:#a16207">Notice issued <?= Formatter::date((string) $r['notice_issued_at']) ?>; awaiting employee acknowledgment.</div>
+                                    <div style="font-size:.78rem;color:#a16207;padding:.3rem 0">📋 Notice issued <?= Formatter::date((string) $r['notice_issued_at']) ?>; awaiting employee acknowledgment.</div>
                                 <?php else: ?>
-                                    <div style="font-size:.78rem;color:#4b5563">Employee acknowledged <?= Formatter::date((string) $r['notice_acknowledged_at']) ?>.</div>
+                                    <div style="font-size:.78rem;color:#4b5563;padding:.3rem 0">✔ Employee acknowledged <?= Formatter::date((string) $r['notice_acknowledged_at']) ?>.</div>
                                 <?php endif; ?>
                                 <button type="submit" class="btn btn-sm btn-primary" style="font-size:.78rem;padding:.3rem .6rem">Save review</button>
                             </form>
@@ -238,7 +274,7 @@ $flagTypes = ['ConsecutiveLate', 'TardinessMemoCap', 'TwoWeekAbsence', 'Consecut
         <div class="policy-evidence-modal__header">
             <div>
                 <h2><?= $isLateEvidence ? 'Late Attendance Evidence' : 'Absence Evidence' ?></h2>
-                <p><?= Formatter::escape((string) $r['employee_name']) ?> · Flag #<?= (int) $r['flag_id'] ?></p>
+                <p><?= Formatter::escape((string) $r['employee_name']) ?> · <?= Formatter::escape($typeLabel((string) $r['flag_type'])) ?> · Flag #<?= (int) $r['flag_id'] ?></p>
             </div>
             <form method="dialog"><button type="submit" class="btn btn-secondary" aria-label="Close evidence">Close</button></form>
         </div>
