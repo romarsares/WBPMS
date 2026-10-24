@@ -293,16 +293,13 @@ final class AuthController
         // In production, reject immediately if a usable delivery driver is not
         // configured — prevents the user from waiting on a silent no-op.
         //
-        // Accepted production drivers:
-        //   smtp   — requires MAIL_HOST to be set
-        //   resend — requires RESEND_API_KEY to be set
+        // Accepted production driver: smtp (Gmail App Password or any SMTP server).
+        // MAIL_HOST must be set and MAIL_DRIVER must be 'smtp'.
         $appEnv = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'local')));
         if ($appEnv === 'production') {
-            $resendKey = trim((string) ($_ENV['RESEND_API_KEY'] ?? ''));
-            $smtpReady   = ($mailDriver === 'smtp'   && $mailHost !== '');
-            $resendReady = ($mailDriver === 'resend' && $resendKey !== '');
+            $smtpReady = ($mailDriver === 'smtp' && $mailHost !== '');
 
-            if (!$smtpReady && !$resendReady) {
+            if (!$smtpReady) {
                 $_SESSION['_forgot_error'] =
                     'Password reset emails cannot be sent because the mail server is not '
                     . 'configured. Please contact your system administrator.';

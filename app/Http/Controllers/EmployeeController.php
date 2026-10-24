@@ -668,18 +668,18 @@ final class EmployeeController
 
         if ($data['first_name'] === '') {
             $errors['first_name'] = 'First name is required.';
-        } elseif (!preg_match("/^[A-Za-zÀ-ÖØ-öø-ÿ](?:[A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.])?$/u", $data['first_name'])) {
+        } elseif (!preg_match("/^[\p{L}][\p{L} .'\-]{0,48}[\p{L}.]$|^[\p{L}.]$/u", $data['first_name'])) {
             $errors['first_name'] = 'First name may only contain letters, spaces, hyphens, apostrophes, and periods.';
         }
 
         // Issue 2.2: validate middle name characters when provided
-        if ($data['middle_name'] !== '' && !preg_match("/^[A-Za-zÀ-ÖØ-öø-ÿ](?:[A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.])?$/u", $data['middle_name'])) {
+        if ($data['middle_name'] !== '' && !preg_match("/^[\p{L}][\p{L} .'\-]{0,48}[\p{L}.]$|^[\p{L}.]$/u", $data['middle_name'])) {
             $errors['middle_name'] = 'Middle name may only contain letters, spaces, hyphens, apostrophes, and periods.';
         }
 
         if ($data['last_name'] === '') {
             $errors['last_name'] = 'Last name is required.';
-        } elseif (!preg_match("/^[A-Za-zÀ-ÖØ-öø-ÿ](?:[A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.])?$/u", $data['last_name'])) {
+        } elseif (!preg_match("/^[\p{L}][\p{L} .'\-]{0,48}[\p{L}.]$|^[\p{L}.]$/u", $data['last_name'])) {
             $errors['last_name'] = 'Last name may only contain letters, spaces, hyphens, apostrophes, and periods.';
         }
 

@@ -109,8 +109,17 @@ final class Mailer
             return;
         }
 
-        // Default: log driver
-        $this->logEmail($to, $subject, $body);
+        if ($this->driver === 'log') {
+            $this->logEmail($to, $subject, $body);
+            return;
+        }
+
+        // Unsupported driver — fail explicitly rather than silently swallowing the email.
+        // A misconfigured MAIL_DRIVER value would otherwise log the email and give the
+        // impression of delivery when nothing was actually sent.
+        throw new RuntimeException(
+            "Mailer: unsupported driver '{$this->driver}'. Supported drivers: smtp, log."
+        );
     }
 
     // -----------------------------------------------------------------------

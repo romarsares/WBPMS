@@ -85,11 +85,6 @@ final class ScheduleController
             return;
         }
 
-        // Resolve effective_from: default to today when the field was left empty.
-        $effectiveFrom = ($data['effective_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data['effective_from']))
-            ? $data['effective_from']
-            : date('Y-m-d');
-
         try {
             $this->repo()->create([
                 'schedule_name'     => $data['schedule_name'],
@@ -104,7 +99,7 @@ final class ScheduleController
                 'break_start_time'  => $data['break_start'] !== '' ? $data['break_start'] : null,
                 'break_end_time'    => $data['break_end'] !== '' ? $data['break_end'] : null,
                 'notes'             => $data['notes'] !== '' ? $data['notes'] : null,
-                'effective_from'    => $effectiveFrom,
+                'effective_from'    => $data['effective_from'],
                 'status'            => $data['status'] !== '' ? ucfirst($data['status']) : 'Active',
             ]);
         } catch (\RuntimeException $e) {
@@ -205,7 +200,7 @@ final class ScheduleController
             'break_start_time'  => $data['break_start'] !== '' ? $data['break_start'] : null,
             'break_end_time'    => $data['break_end'] !== '' ? $data['break_end'] : null,
             'notes'             => $data['notes'] !== '' ? $data['notes'] : null,
-            'effective_from'    => $data['effective_from'] !== '' ? $data['effective_from'] : date('Y-m-d'),
+            'effective_from'    => $data['effective_from'],
             'status'            => $data['status'] !== '' ? ucfirst($data['status']) : 'Active',
         ]);
 
@@ -561,6 +556,16 @@ final class ScheduleController
         $grace = (int) $data['grace_minutes'];
         if ($grace < 0 || $grace > 120) {
             $errors['grace_minutes'] = 'Grace period must be between 0 and 120 minutes.';
+        }
+
+        // Issue 4.1: effective_from must be a real calendar date — do not silently default to today.
+        if ($data['effective_from'] === '') {
+            $errors['effective_from'] = 'Effective date is required.';
+        } else {
+            $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['effective_from']);
+            if ($parsed === false || $parsed->format('Y-m-d') !== $data['effective_from']) {
+                $errors['effective_from'] = 'Effective date must be a valid calendar date (YYYY-MM-DD).';
+            }
         }
 
         return $errors;

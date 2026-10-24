@@ -70,7 +70,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="text" id="first_name" name="first_name"
                     value="<?= $v('first_name') ?>"
                     maxlength="50"
-                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,49}"
+                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.]|[A-Za-zÀ-ÖØ-öø-ÿ.]"
                     title="Letters, spaces, hyphens, apostrophes, and periods only."
                     class="<?= isset($errors['first_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('first_name') ?>
@@ -80,7 +80,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="text" id="middle_name" name="middle_name"
                     value="<?= $v('middle_name') ?? $v('middle_initial') ?>"
                     maxlength="50"
-                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,49}"
+                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.]|[A-Za-zÀ-ÖØ-öø-ÿ.]"
                     title="Letters, spaces, hyphens, apostrophes, and periods only."
                     class="<?= isset($errors['middle_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('middle_name') ?>
@@ -90,7 +90,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="text" id="last_name" name="last_name"
                     value="<?= $v('last_name') ?>"
                     maxlength="50"
-                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,49}"
+                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.]|[A-Za-zÀ-ÖØ-öø-ÿ.]"
                     title="Letters, spaces, hyphens, apostrophes, and periods only."
                     class="<?= isset($errors['last_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('last_name') ?>
