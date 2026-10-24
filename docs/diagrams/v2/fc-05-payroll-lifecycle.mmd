@@ -1,0 +1,20 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TD
+    A([Start]) --> B[/"HR Creates Payroll Run\n(Select Period & Branch)"/]
+    B --> C["Insert payroll_run\nStatus = Draft"]
+    C --> D[/"HR Triggers Compute"/]
+    D --> E["Fetch Attendance, Salary,\nRequests, Holidays per Employee"]
+    E --> F["Compute Basic Pay\nOvertime & Holiday Pay\nDeductions & Contributions"]
+    F --> G["Insert payroll, earnings,\ndeductions, contributions"]
+    G --> H{"More Employees?"}
+    H -->|Yes| E
+    H -->|No| I["Update Run: Status = Computed"]
+    I --> J[/"HR Reviews & Adjusts Entries"/]
+    J --> K[/"HR Submits for Owner Approval"/]
+    K --> L["Status = Pending Owner Approval"]
+    L --> M[/"Owner Reviews"/]
+    M --> N{"Decision?"}
+    N -->|Return| O["Status = Returned"] --> J
+    N -->|Cancel| P["Status = Cancelled"] --> Z([End])
+    N -->|Approve| Q["Status = Approved\nGenerate Payslips\nCreate Disbursement Batch"]
+    Q --> R[/"HR Prints Disbursement Summary"/] --> Z

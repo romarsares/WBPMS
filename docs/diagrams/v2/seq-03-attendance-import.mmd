@@ -1,0 +1,36 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "actorBkg": "#ffffff", "actorBorder": "#000000", "actorTextColor": "#000000", "noteBkgColor": "#ffffff", "noteBorderColor": "#000000", "activationBkgColor": "#ffffff", "activationBorderColor": "#000000", "signalColor": "#000000", "signalTextColor": "#000000"}}}%%
+sequenceDiagram
+    participant HRHead
+    participant AttendanceController
+    participant AttendanceImportService
+    participant LdeXlsParser
+    participant Gateway
+    participant TimesheetGenerator
+    participant Database
+
+    HRHead->>AttendanceController: POST /hr/attendance/import (XLS file)
+    AttendanceController->>AttendanceImportService: import(file, context, userId)
+    AttendanceImportService->>Gateway: hasCompletedChecksum(sha256)
+
+    alt Duplicate file
+        Gateway-->>AttendanceImportService: true
+        AttendanceImportService-->>AttendanceController: throw DuplicateFileException
+        AttendanceController-->>HRHead: Show duplicate error
+    else New file
+        AttendanceImportService->>LdeXlsParser: parse(file, context)
+        LdeXlsParser-->>AttendanceImportService: ParsedAttendanceFile (punches[])
+        AttendanceImportService->>Gateway: createImportBatch(...)
+        Gateway->>Database: INSERT attendance_import_batch
+        loop For each punch
+            AttendanceImportService->>Gateway: match(punch)
+            Gateway->>Database: SELECT employee via biometric_enrollment
+            AttendanceImportService->>Database: INSERT biometric_punch
+        end
+        AttendanceImportService->>TimesheetGenerator: generate(punches, schedules)
+        TimesheetGenerator-->>AttendanceImportService: GeneratedAttendance rows
+        AttendanceImportService->>Database: UPSERT attendance, UPDATE batch=Completed
+        AttendanceController-->>HRHead: Show import summary
+        HRHead->>AttendanceController: POST /hr/attendance/import/{id}/approve
+        AttendanceController->>Database: UPDATE batch=Approved, delete temp file
+        AttendanceController-->>HRHead: Redirect to attendance list
+    end

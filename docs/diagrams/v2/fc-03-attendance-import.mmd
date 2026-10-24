@@ -1,0 +1,20 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TD
+    A([Start]) --> B[/"HR Selects Device & Uploads XLS"/]
+    B --> C{"File Valid?"}
+    C -->|No| D[/"Reject: Invalid Format"/] --> Z([End])
+    C -->|Yes| E["Compute SHA-256 Checksum"]
+    E --> F{"Duplicate Checksum?"}
+    F -->|Yes| G[/"Reject: Duplicate File"/] --> Z
+    F -->|No| H["Parse Workbook\nCreate Import Batch"]
+    H --> I["For Each Punch:\nCheck Duplicate"]
+    I --> J{"Duplicate Punch?"}
+    J -->|Yes| K["Skip Punch"] --> I
+    J -->|No| L["Match to Employee\nInsert biometric_punch"]
+    L --> M{"More Punches?"}
+    M -->|Yes| I
+    M -->|No| N["Generate Attendance\nUpsert Rows\nMark Batch Completed"]
+    N --> O[/"Show Import Summary"/]
+    O --> P{"HR Approves?"}
+    P -->|No| Q["Mark Batch Rejected"] --> Z
+    P -->|Yes| R["Mark Batch Approved\nDelete Temp File"] --> Z

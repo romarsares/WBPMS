@@ -1,0 +1,27 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart LR
+    subgraph HR["HR Head"]
+        H1([Start])
+        H2["Upload XLS File"]
+        H3{"Summary OK?"}
+        H4["Approve Import"]
+        H5["Cancel Import"]
+    end
+
+    subgraph SYS["System"]
+        S1["Validate File & Checksum"]
+        S2{"Duplicate?"}
+        S3["Parse Workbook"]
+        S4["Match Punches to Employees"]
+        S5["Generate Attendance Records"]
+        S6["Mark Batch Completed"]
+        S7["Mark Batch Rejected"]
+        S8["Mark Batch Approved"]
+        R1[/"Reject: Duplicate"/]
+    end
+
+    H1 --> H2 --> S1 --> S2
+    S2 -->|Yes| R1
+    S2 -->|No| S3 --> S4 --> S5 --> S6 --> H3
+    H3 -->|No| H5 --> S7
+    H3 -->|Yes| H4 --> S8

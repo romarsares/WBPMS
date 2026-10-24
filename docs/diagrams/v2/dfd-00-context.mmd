@@ -1,0 +1,19 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TD
+    BO(["Business Owner"])
+    HR(["HR Head"])
+    EMP(["Employee"])
+    BIO(["Biometric Device"])
+
+    SYSTEM["WBPMS\nWeb-Based Payroll Management System"]
+
+    BO -->|"Approval decisions, policy confirmations"| SYSTEM
+    SYSTEM -->|"Payroll reports, dashboards, payslips"| BO
+
+    HR -->|"Attendance XLS, employee data, schedule, salary"| SYSTEM
+    SYSTEM -->|"Payroll, timesheets, reports, disbursement"| HR
+
+    EMP -->|"Leave, overtime, cash advance requests"| SYSTEM
+    SYSTEM -->|"Payslips, attendance, request status, notices"| EMP
+
+    BIO -->|"Monthly XLS daily log export"| SYSTEM

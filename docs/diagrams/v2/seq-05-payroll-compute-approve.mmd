@@ -1,0 +1,34 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "actorBkg": "#ffffff", "actorBorder": "#000000", "actorTextColor": "#000000", "noteBkgColor": "#ffffff", "noteBorderColor": "#000000", "activationBkgColor": "#ffffff", "activationBorderColor": "#000000", "signalColor": "#000000", "signalTextColor": "#000000"}}}%%
+sequenceDiagram
+    participant HRHead
+    participant PayrollController
+    participant PayrollService
+    participant Database
+    participant BusinessOwner
+    participant OwnerController
+
+    HRHead->>PayrollController: POST /hr/payroll (period, branch)
+    PayrollController->>PayrollService: createRun(periodId, branchId)
+    PayrollService->>Database: INSERT payroll_run (status=Draft)
+    PayrollController-->>HRHead: Redirect to run detail
+
+    HRHead->>PayrollController: POST /hr/payroll/{id}/compute
+    PayrollController->>PayrollService: computeRun(runId)
+    loop For each employee
+        PayrollService->>Database: SELECT attendance, salary, requests, holidays
+        PayrollService->>PayrollService: Compute earnings, deductions, contributions
+        PayrollService->>Database: INSERT payroll, earnings, deductions, contributions
+    end
+    PayrollService->>Database: UPDATE payroll_run status=Computed
+    PayrollController-->>HRHead: Show payroll summary
+
+    HRHead->>PayrollController: POST /hr/payroll/{id}/submit
+    PayrollController->>PayrollService: submitRun(runId, submittedBy)
+    PayrollService->>Database: UPDATE payroll_run status=PendingOwnerApproval
+
+    BusinessOwner->>OwnerController: POST /owner/payroll/{id}/approve
+    OwnerController->>PayrollService: approveRun(runId, reviewedBy)
+    PayrollService->>Database: UPDATE payroll_run status=Approved
+    PayrollService->>Database: INSERT payslip per employee
+    PayrollService->>Database: INSERT disbursement_batch, deposit_slips
+    OwnerController-->>BusinessOwner: Redirect with success

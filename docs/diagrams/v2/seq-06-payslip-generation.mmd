@@ -1,0 +1,24 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "actorBkg": "#ffffff", "actorBorder": "#000000", "actorTextColor": "#000000", "noteBkgColor": "#ffffff", "noteBorderColor": "#000000", "activationBkgColor": "#ffffff", "activationBorderColor": "#000000", "signalColor": "#000000", "signalTextColor": "#000000"}}}%%
+sequenceDiagram
+    participant Employee
+    participant EmployeePortalController
+    participant Database
+
+    Employee->>EmployeePortalController: GET /employee/payslips
+    EmployeePortalController->>Database: SELECT payslips WHERE employee_id = auth
+    Database-->>EmployeePortalController: Payslip list
+    EmployeePortalController-->>Employee: Payslip list page
+
+    Employee->>EmployeePortalController: GET /employee/payslips/{id}
+    EmployeePortalController->>Database: SELECT payslip, earnings, deductions WHERE id
+    alt Not found or not owned by employee
+        EmployeePortalController-->>Employee: 404 response
+    else
+        Database-->>EmployeePortalController: Payslip detail
+        EmployeePortalController-->>Employee: Payslip detail page
+    end
+
+    Employee->>EmployeePortalController: GET /employee/payslips/{id}/download
+    EmployeePortalController->>Database: SELECT payslip WHERE id AND employee_id = auth
+    EmployeePortalController->>EmployeePortalController: Generate PDF (Dompdf)
+    EmployeePortalController-->>Employee: PDF download

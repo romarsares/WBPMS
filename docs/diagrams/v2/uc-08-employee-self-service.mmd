@@ -1,0 +1,24 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart LR
+    EMP(["Employee"])
+
+    subgraph SYS["Employee Self-Service Portal"]
+        UC1(["View Dashboard"])
+        UC2(["View Attendance"])
+        UC3(["View HR Notices"])
+        UC4(["Acknowledge Notice"])
+        UC5(["View Requests"])
+        UC6(["Submit Request"])
+        UC7(["Cancel Request"])
+        UC8(["View Payslips"])
+        UC9(["View Payslip Detail"])
+        UC10(["Print Payslip"])
+        UC11(["Download Payslip PDF"])
+    end
+
+    EMP --- UC1 & UC2 & UC3 & UC4
+    EMP --- UC5 & UC6 & UC7
+    EMP --- UC8 & UC9 & UC10 & UC11
+
+    UC6 -.->|"<<extend>>"| UC7
+    UC9 -.->|"<<include>>"| UC10

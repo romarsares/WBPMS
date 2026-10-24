@@ -1,0 +1,56 @@
+## Task: Export All Markdown Diagrams to High-Resolution PNG
+
+Analyze all existing Markdown (`.md`) diagram files in the project's `docs/diagrams/` directory and convert every Mermaid diagram into a high-quality PNG image.
+
+### Requirements
+
+1. **File Discovery**
+   - Locate all `.md` files containing Mermaid diagrams.
+   - Process every Mermaid diagram found.
+   - Preserve the original diagram content, structure, labels, entities, and relationships.
+
+2. **PNG Export**
+   - Export each diagram as a separate PNG file.
+   - Use high resolution (preferably 300 DPI or equivalent high-resolution scaling).
+   - Ensure all text, labels, connectors, and relationships are clearly readable.
+   - Avoid blurry images, overlapping elements, cropped content, or missing components.
+   - Automatically adjust image dimensions based on diagram complexity.
+   - Do not force large diagrams into small image dimensions.
+
+3. **Output Organization**
+   - Create an `exports/png/` directory inside `docs/diagrams/`.
+   - Save all generated PNG files in that directory.
+   - Preserve descriptive filenames corresponding to the original Markdown files.
+   - If a Markdown file contains multiple diagrams, export each diagram separately with a numbered filename.
+
+4. **Validation**
+   - Verify that every PNG file was successfully generated.
+   - Check for rendering errors, missing elements, clipping, and unreadable text.
+   - Ensure all diagrams are complete and visually consistent.
+   - If a diagram has Mermaid syntax errors, fix only the minimum syntax necessary for rendering. Do not change its underlying meaning or relationships.
+   - Report any diagrams that could not be rendered successfully.
+
+5. **Tools**
+   - Prefer Mermaid CLI (`@mermaid-js/mermaid-cli`) or other free, local rendering tools.
+   - Do not use Eraser MCP, paid APIs, or services requiring payment.
+   - Do not use paid services without explicit approval.
+
+### Strict Rules
+
+- Do not modify the original Markdown files.
+- Do not modify application source code, database, migrations, or configuration files.
+- Do not commit, push, or deploy anything.
+- Only create output files inside `docs/diagrams/exports/png/`.
+- Do not install dependencies globally or modify project dependencies without approval.
+- If any diagram fails, report the exact error and filename.
+
+### Expected Output
+
+- High-resolution PNG images for all diagrams.
+- Complete diagrams without cropped content.
+- Clear and readable labels, relationships, and connectors.
+- A final summary showing the total diagrams found, successfully exported, and failed, including their filenames and output locations.
+
+
+
+SAVE IT IN THIS FOLDER.

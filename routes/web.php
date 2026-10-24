@@ -147,8 +147,10 @@ $router->add('GET',  '/hr/schedules/assign',        [ScheduleController::class, 
 $router->add('POST', '/hr/schedules/assign',        [ScheduleController::class, 'assign'],      ['HRHead']);
 // Legacy: /hr/schedules/holidays* redirect to /hr/settings/holidays
 $router->add('GET',  '/hr/schedules/holidays',      [ScheduleController::class, 'redirectHolidays'], ['HRHead']);
-$router->add('GET',  '/hr/schedules/{id}/edit',     [ScheduleController::class, 'editForm'],    ['HRHead']);
-$router->add('PUT',  '/hr/schedules/{id}',          [ScheduleController::class, 'update'],      ['HRHead']);
+$router->add('GET',  '/hr/schedules/{id}/edit',     [ScheduleController::class, 'editForm'],        ['HRHead']);
+$router->add('PUT',  '/hr/schedules/{id}',          [ScheduleController::class, 'update'],          ['HRHead']);
+$router->add('POST', '/hr/schedules/{id}/archive',  [ScheduleController::class, 'archiveSchedule'], ['HRHead']);
+$router->add('POST', '/hr/schedules/{id}/restore',  [ScheduleController::class, 'restoreSchedule'], ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Attendance import  (REQ018–REQ024)

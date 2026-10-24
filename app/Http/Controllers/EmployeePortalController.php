@@ -609,7 +609,7 @@ final class EmployeePortalController
         $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
         $html .= '<title>Payslip — ' . $e($data['period']) . '</title>';
         $html .= '<style>
-            body{font-family:Arial,sans-serif;font-size:12px;margin:20px}
+            body{font-family:"DejaVu Sans",Arial,sans-serif;font-size:12px;margin:20px}
             h2{margin:0 0 4px}
             .header{display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:12px}
             .meta{margin-bottom:12px;font-size:11px}

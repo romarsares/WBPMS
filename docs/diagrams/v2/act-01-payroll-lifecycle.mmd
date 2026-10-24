@@ -1,0 +1,41 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart LR
+    subgraph HR["HR Head"]
+        H1([Start])
+        H2["Upload Biometric XLS"]
+        H3{"Valid?"}
+        H4["Approve Import"]
+        H5["Create Payroll Run"]
+        H6["Compute Payroll"]
+        H7["Review Summary"]
+        H8{"Adjust?"}
+        H9["Adjust Entry"]
+        H10["Submit for Approval"]
+    end
+
+    subgraph SYS["System"]
+        S1["Parse & Match Punches"]
+        S2["Generate Attendance"]
+        S3["Compute Earnings & Deductions"]
+        S4["Generate Payslips & Disbursement"]
+    end
+
+    subgraph BO["Business Owner"]
+        B1["Review Payroll"]
+        B2{"Decision?"}
+        B3["Approve"]
+        B4["Return"]
+    end
+
+    subgraph EMP["Employee"]
+        E1["View Payslip"]
+        E2["Download / Print"]
+    end
+
+    H1 --> H2 --> S1 --> H3
+    H3 -->|No| H2
+    H3 -->|Yes| H4 --> S2 --> H5 --> H6 --> S3 --> H7 --> H8
+    H8 -->|Yes| H9 --> H7
+    H8 -->|No| H10 --> B1 --> B2
+    B2 -->|Return| B4 --> H7
+    B2 -->|Approve| B3 --> S4 --> E1 --> E2

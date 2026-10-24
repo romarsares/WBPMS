@@ -69,18 +69,29 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <label for="first_name">First name <span style="color:#dc2626">*</span></label>
                 <input type="text" id="first_name" name="first_name"
                     value="<?= $v('first_name') ?>"
+                    maxlength="50"
+                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,49}"
+                    title="Letters, spaces, hyphens, apostrophes, and periods only."
                     class="<?= isset($errors['first_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('first_name') ?>
             </div>
             <div class="form-group">
                 <label for="middle_name">Middle name</label>
                 <input type="text" id="middle_name" name="middle_name"
-                    value="<?= $v('middle_name') ?? $v('middle_initial') ?>">
+                    value="<?= $v('middle_name') ?? $v('middle_initial') ?>"
+                    maxlength="50"
+                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,49}"
+                    title="Letters, spaces, hyphens, apostrophes, and periods only."
+                    class="<?= isset($errors['middle_name']) ? 'is-invalid' : '' ?>">
+                <?= $err('middle_name') ?>
             </div>
             <div class="form-group">
                 <label for="last_name">Last name <span style="color:#dc2626">*</span></label>
                 <input type="text" id="last_name" name="last_name"
                     value="<?= $v('last_name') ?>"
+                    maxlength="50"
+                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,49}"
+                    title="Letters, spaces, hyphens, apostrophes, and periods only."
                     class="<?= isset($errors['last_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('last_name') ?>
             </div>
@@ -96,7 +107,13 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <label for="contact_number">Contact number</label>
                 <input type="text" id="contact_number" name="contact_number"
                     value="<?= $v('contact_number') ?>"
-                    placeholder="09XXXXXXXXX">
+                    placeholder="09XXXXXXXXX"
+                    maxlength="11"
+                    pattern="09[0-9]{9}"
+                    title="Philippine mobile number starting with 09, exactly 11 digits (e.g. 09171234567)."
+                    inputmode="numeric"
+                    class="<?= isset($errors['contact_number']) ? 'is-invalid' : '' ?>">
+                <?= $err('contact_number') ?>
             </div>
             <div class="form-group">
                 <label for="email">Email <span style="color:#dc2626">*</span></label>

@@ -1,0 +1,31 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "actorBkg": "#ffffff", "actorBorder": "#000000", "actorTextColor": "#000000", "noteBkgColor": "#ffffff", "noteBorderColor": "#000000", "activationBkgColor": "#ffffff", "activationBorderColor": "#000000", "signalColor": "#000000", "signalTextColor": "#000000"}}}%%
+sequenceDiagram
+    participant Employee
+    participant EmployeePortalController
+    participant RequestService
+    participant Database
+    participant HRHead
+    participant RequestsController
+    participant BusinessOwner
+    participant OwnerController
+
+    Employee->>EmployeePortalController: POST /employee/requests
+    EmployeePortalController->>RequestService: createRequest(employeeId, type, detail)
+    alt Leave request - insufficient balance
+        RequestService-->>EmployeePortalController: throw InsufficientLeaveBalanceException
+        EmployeePortalController-->>Employee: Show error
+    end
+    RequestService->>Database: INSERT request (status=Pending)
+    RequestService->>Database: INSERT request detail
+    EmployeePortalController-->>Employee: Show success
+
+    HRHead->>RequestsController: POST /hr/requests/{id}/approve
+    RequestsController->>RequestService: approveRequest(requestId, reviewedBy)
+    RequestService->>Database: UPDATE request status=Approved
+    RequestService->>Database: INSERT leave_ledger / cash_advance_history
+    RequestsController-->>HRHead: Redirect with success
+
+    BusinessOwner->>OwnerController: POST /owner/requests/{id}/approve
+    OwnerController->>RequestService: approveRequest(requestId, reviewedBy)
+    RequestService->>Database: UPDATE request reviewed_by, reviewed_at
+    OwnerController-->>BusinessOwner: Redirect with success

@@ -1,0 +1,30 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "actorBkg": "#ffffff", "actorBorder": "#000000", "actorTextColor": "#000000", "noteBkgColor": "#ffffff", "noteBorderColor": "#000000", "activationBkgColor": "#ffffff", "activationBorderColor": "#000000", "loopTextColor": "#000000", "labelBoxBkgColor": "#ffffff", "labelBoxBorderColor": "#000000", "labelTextColor": "#000000", "signalColor": "#000000", "signalTextColor": "#000000"}}}%%
+sequenceDiagram
+    participant User
+    participant AuthController
+    participant AuthService
+    participant Database
+
+    User->>AuthController: POST /login (email, password)
+    AuthController->>AuthService: attemptLogin(email, password)
+    AuthService->>Database: SELECT user WHERE email = ?
+    Database-->>AuthService: User row or null
+
+    alt Invalid credentials or Inactive
+        AuthService->>Database: INSERT audit_logs (login_failure)
+        AuthService-->>AuthController: null
+        AuthController-->>User: Redirect /login with error
+    else Unlinked Employee
+        AuthService->>Database: INSERT audit_logs (login_failure)
+        AuthService-->>AuthController: throw UnlinkedEmployeeException
+        AuthController-->>User: Redirect /login with error
+    else Valid
+        AuthService->>Database: INSERT audit_logs (login_success)
+        AuthService-->>AuthController: identity array
+        AuthController->>AuthController: setIdentity / regenerate session
+        alt Requires password change
+            AuthController-->>User: Redirect /change-password
+        else
+            AuthController-->>User: Redirect to role dashboard
+        end
+    end

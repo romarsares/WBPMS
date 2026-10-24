@@ -480,7 +480,7 @@ final class ReportsController
    Each .slip is 99mm × 139mm on paper; the grid arranges them 2×2.
    ----------------------------------------------------------------------- */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,Helvetica,sans-serif;font-size:10px;background:#fff;color:#111}
+body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;background:#fff;color:#111}
 .no-print{display:block}
 .slip-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
 .slip{
@@ -872,7 +872,7 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:10px;background:#fff;color
         $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
         $html .= '<title>' . $e($title) . '</title>';
         $html .= '<style>
-            body{font-family:Arial,sans-serif;font-size:11px;margin:20px}
+            body{font-family:"DejaVu Sans",Arial,sans-serif;font-size:11px;margin:20px}
             h2{margin:0 0 4px;font-size:15px}
             .meta{font-size:10px;color:#555;margin-bottom:12px}
             table{width:100%;border-collapse:collapse}
@@ -950,7 +950,7 @@ body{font-family:Arial,Helvetica,sans-serif;font-size:10px;background:#fff;color
         $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
         $html .= '<title>Employee Payslip Report</title>';
         $html .= '<style>
-            body{font-family:Arial,sans-serif;font-size:11px;margin:20px}
+            body{font-family:"DejaVu Sans",Arial,sans-serif;font-size:11px;margin:20px}
             h2{margin:0 0 4px;font-size:15px}
             .meta{font-size:10px;color:#555;margin-bottom:12px}
             .payslip-card{border:1px solid #ccc;border-radius:6px;padding:14px;margin-bottom:16px;page-break-inside:avoid}

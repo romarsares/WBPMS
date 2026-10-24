@@ -1,0 +1,18 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TD
+    A([Start]) --> B[/"Employee Submits Request"/]
+    B --> C{"Request Type?"}
+    C -->|Leave| D{"Sufficient Balance?"}
+    D -->|No| E[/"Reject: Insufficient Balance"/] --> Z([End])
+    D -->|Yes| F["Create Request\nStatus = Pending"]
+    C -->|Overtime| F
+    C -->|Cash Advance| F
+    F --> G[/"HR Head Reviews"/]
+    G --> H{"HR Decision?"}
+    H -->|Cancel| I["Status = Cancelled"] --> Z
+    H -->|Approve| J["Status = Approved\nUpdate Leave Ledger / CA History"]
+    J --> K[/"Business Owner Reviews"/]
+    K --> L{"Owner Decision?"}
+    L -->|Approve| M["Final Approval"] --> Z
+    L -->|Return| N["Status = Pending"] --> G
+    L -->|Cancel| O["Status = Cancelled"] --> Z

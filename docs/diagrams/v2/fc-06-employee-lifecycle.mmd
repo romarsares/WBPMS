@@ -1,0 +1,15 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TD
+    A([Start]) --> B[/"HR Creates Employee Record"/]
+    B --> C["Insert Employee\nstatus = Active\nCreate Branch Assignment\nCreate Work Schedule"]
+    C --> D[/"Optional: User Account\nDocuments, Bank, Salary"/]
+    D --> E{{"Employee Status"}}
+    E -->|Active| F[/"HR Transfers Employee"/]
+    F --> G["Close Current Assignment\nCreate New Assignment"] --> E
+    E -->|Active| H[/"HR Archives Employee"/]
+    H --> I["status = Archived\nClose Employment Episode\nDeactivate User Account"]
+    I --> J{{"Status: Archived"}}
+    J -->|Rehire| K[/"HR Rehires Employee"/]
+    K --> L["status = Active\nNew Employment Episode\nReactivate User Account"] --> E
+    J -->|Remains Archived| Z([End])
+    E -->|No Action| Z

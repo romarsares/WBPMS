@@ -1,0 +1,63 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TD
+    BO(["Business Owner"])
+    HR(["HR Head"])
+    EMP(["Employee"])
+    BIO(["Biometric Device"])
+
+    P1["1.0 Authentication"]
+    P2["2.0 Employee Management"]
+    P3["3.0 Attendance Import"]
+    P4["4.0 Work Schedules"]
+    P5["5.0 Request Management"]
+    P6["6.0 Salary Management"]
+    P7["7.0 Payroll Computation"]
+    P8["8.0 Benefits & Contributions"]
+    P9["9.0 Reports"]
+    P10["10.0 Employee Self-Service"]
+
+    DS1[("Users / Sessions")]
+    DS2[("Employee / Branch")]
+    DS3[("Attendance / Punches")]
+    DS4[("Schedules / Holidays")]
+    DS5[("Requests / Leave / CA")]
+    DS6[("Salary")]
+    DS7[("Payroll / Payslips")]
+    DS8[("Contributions")]
+
+    HR & BO & EMP -->|"Credentials"| P1
+    P1 <--> DS1
+
+    HR -->|"Employee data"| P2
+    P2 <--> DS2
+
+    BIO -->|"XLS file"| P3
+    P3 <--> DS3
+    DS2 --> P3
+    DS4 --> P3
+
+    HR -->|"Schedule data"| P4
+    P4 <--> DS4
+
+    EMP -->|"Submit request"| P5
+    HR & BO -->|"Review request"| P5
+    P5 <--> DS5
+
+    HR -->|"Salary entry"| P6
+    P6 <--> DS6
+
+    HR -->|"Compute / submit"| P7
+    BO -->|"Approve / return"| P7
+    P7 <--> DS7
+    DS3 & DS5 & DS6 & DS8 --> P7
+    P7 --> P8
+
+    P8 <--> DS8
+
+    HR & BO -->|"Report request"| P9
+    DS3 & DS5 & DS7 & DS8 --> P9
+    P9 -->|"Reports / exports"| HR & BO
+
+    EMP -->|"Portal actions"| P10
+    DS3 & DS5 & DS7 --> P10
+    P10 -->|"Attendance, requests, payslips"| EMP

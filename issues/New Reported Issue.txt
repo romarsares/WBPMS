@@ -1,0 +1,198 @@
+# WBPMS – Client-Reported Issues and Required Fixes
+
+## Scope
+Investigate and fix the following client-reported issues in WBPMS. Verify the actual root cause before implementing changes. Apply fixes only within the affected modules and their directly related dependencies. Preserve existing workflows and business rules.
+
+### 1. User Management – Both Admin and HR
+**Issue:** Inconsistent margins and spacing among form fields.
+
+**Required Fix:**
+- Standardize field margins, spacing, and alignment across User Management forms.
+- Follow the existing UI design and spacing conventions.
+- Ensure consistent layout across relevant Admin and HR views.
+- Avoid unrelated UI changes.
+
+**Acceptance Criteria:**
+- Form fields have consistent margins, spacing, and alignment.
+- Layout remains usable at supported screen sizes.
+- Existing form functionality is unaffected.
+
+### 2. Employee Management – Both Admin and HR
+
+#### 2.1 Contact Number Validation
+**Issue:** The Contact Number field accepts alphanumeric characters and allows unlimited input.
+
+**Required Fix:**
+- Accept Philippine mobile numbers beginning with `09`.
+- Limit input to exactly 11 digits for a complete mobile number.
+- Reject alphabetic characters, special characters, and other invalid input.
+- Implement appropriate client-side and server-side validation.
+- Display a clear validation message when the input is invalid.
+
+**Acceptance Criteria:**
+- A valid example is `09171234567`.
+- Numbers beginning with prefixes other than `09` are rejected.
+- Inputs containing letters or special characters are rejected.
+- Numbers longer or shorter than 11 digits are rejected when submitting the form.
+- Invalid contact numbers cannot be saved through direct requests that bypass browser validation.
+
+#### 2.2 Employee Name Validation
+**Issue:** Employee name fields accept special characters. The client specifically reported an issue with the second name field.
+
+**Required Fix:**
+- Inspect all employee name fields, including the second name field, and determine why invalid characters are accepted.
+- Apply appropriate name validation consistently across the affected fields.
+- Allow legitimate name formats, including spaces, hyphens, and apostrophes where appropriate.
+- Reject inappropriate special characters and prevent invalid values from being saved.
+- Validate on both the client and server sides.
+
+**Acceptance Criteria:**
+- Invalid special characters are rejected.
+- Legitimate names containing spaces, hyphens, or apostrophes remain valid.
+- Validation is applied consistently to the relevant employee name fields.
+
+#### 2.3 Editing Archived Employees
+**Issue:** The system allows users to edit employees who are already archived.
+
+**Required Fix:**
+- Prevent archived employee records from being edited through the normal Employee Management workflow.
+- Enforce the restriction on the server side, not only by hiding or disabling the Edit button.
+- Preserve authorized archive-related workflows and existing employee history.
+
+**Acceptance Criteria:**
+- Archived employees cannot be edited through the UI.
+- Direct requests to update archived employee records are rejected.
+- Active employee records remain editable according to existing permissions.
+
+### 3. Work Schedule – Both Admin and HR
+
+#### 3.1 Server Error When Creating a Schedule
+**Issue:** A server error occurs when creating a work schedule.
+
+**Required Fix:**
+- Reproduce the issue and inspect application logs, request validation, database operations, and relevant foreign-key relationships.
+- Identify and fix the actual root cause.
+- Ensure schedule creation handles invalid or missing inputs appropriately.
+- Display a user-friendly error instead of exposing raw server errors.
+
+**Acceptance Criteria:**
+- Valid work schedules can be created successfully.
+- Invalid inputs are handled with clear validation messages.
+- Failed requests do not leave incomplete or inconsistent records.
+- Existing scheduling workflows continue to work.
+
+#### 3.2 Archived Employees Still Active in Work Schedule
+**Issue:** Employees archived in Employee Management remain active or available in Work Schedule.
+
+**Required Fix:**
+- Ensure archived employees are excluded from active employee selections and applicable scheduling operations.
+- Inspect how employee status is retrieved and interpreted by the Work Schedule module.
+- Apply the appropriate server-side restriction while preserving historical schedule records.
+
+**Acceptance Criteria:**
+- Archived employees cannot be assigned to new schedules or treated as active employees.
+- Existing historical schedules remain accessible where required.
+- Archiving an employee does not unintentionally delete historical scheduling data.
+
+#### 3.3 Missing Archive Function
+**Issue:** There is no archive function in Work Schedule.
+
+**Required Fix:**
+- Inspect existing Work Schedule requirements and the application's established archive conventions.
+- Determine whether schedules are intended to support archiving.
+- If supported by the existing requirements, implement an archive action consistent with the system's authorization and record-retention rules.
+- Do not introduce a new archive workflow without confirming that it is within the intended scope.
+
+**Acceptance Criteria:**
+- If schedule archiving is required, authorized users can archive eligible schedules.
+- Archived schedules are handled consistently with the existing system conventions.
+- Historical records and audit-related information are preserved.
+
+### 4. Salary Management – Both Admin and HR
+
+#### 4.1 Error When Using Search and Filters
+**Issue:** An error occurs when searching or filtering salary records.
+
+**Required Fix:**
+- Reproduce the error using the available search and filter options.
+- Inspect request parameters, query construction, filtering conditions, pagination, and database interactions.
+- Correct the underlying issue without removing existing search or filter capabilities.
+
+**Acceptance Criteria:**
+- Search returns the correct matching salary records.
+- Filters work individually and in combination where supported.
+- Empty results are displayed correctly.
+- Invalid filter inputs do not cause server errors.
+
+#### 4.2 Error When Updating Salary
+**Issue:** Updating a salary record produces an error.
+
+**Required Fix:**
+- Inspect the update request, validation rules, authorization checks, database constraints, and salary-related business logic.
+- Fix the actual cause while preserving existing salary history and effective-date rules.
+- Ensure unsuccessful updates do not partially modify records.
+
+**Acceptance Criteria:**
+- Authorized users can successfully update valid salary records.
+- Invalid values are rejected with clear validation messages.
+- Existing salary records and history remain consistent.
+- Unauthorized updates are rejected.
+
+### 5. Reports / PDF Export – Peso Sign Rendering
+
+**Issue:** The peso sign (`₱`) is not recognized or displayed correctly in generated PDF documents.
+
+**Required Fix:**
+- Identify the PDF generation library and the fonts used by the affected reports.
+- Ensure the selected font supports the Philippine peso symbol and the document's encoding is handled correctly.
+- Apply a compatible font or embedding strategy as appropriate.
+- Verify the fix across affected PDF reports without changing unrelated report layouts.
+
+**Acceptance Criteria:**
+- The `₱` symbol renders correctly in generated PDFs.
+- Salary amounts and other monetary values display correctly.
+- No garbled characters or missing-glyph boxes appear.
+- Existing PDF formatting and other supported characters remain intact.
+
+### 6. Payroll Processing – Additional Observed Error
+
+**Observed Screenshot:** The Payroll Run page displays the following database warning when viewing a draft payroll run:
+
+`SQLSTATE[01000]: Warning: 1265 Data truncated for column 'status' at row 1`
+
+**Required Investigation:**
+- Reproduce the issue and identify the exact operation triggering the warning.
+- Inspect the database definition for the affected `status` column, including any ENUM values, constraints, and defaults.
+- Compare the allowed database values against the values written by the application.
+- Check payroll creation, computation, submission, review, and cancellation workflows as applicable.
+- Determine whether the issue is caused by an invalid status value, a schema mismatch, or another underlying problem.
+- Implement the smallest safe fix that preserves the intended payroll state transitions and existing production data.
+
+**Acceptance Criteria:**
+- Valid payroll runs can be created and displayed without the warning.
+- Payroll statuses are stored using values supported by the database schema.
+- Existing draft, computed, submitted, reviewed, and cancelled states behave according to the established workflow.
+- Payroll computation and financial calculations remain correct.
+- Existing production records are not corrupted or unintentionally modified.
+
+## Implementation and Verification Instructions
+
+1. Inspect the existing code, database schema, routes, controllers, services, views, and applicable documentation before making changes.
+2. Reproduce each reported issue where possible and identify its root cause.
+3. Make minimal, targeted changes that follow existing project conventions.
+4. Verify authorization and server-side validation wherever access or data integrity is involved.
+5. Run the relevant existing tests and targeted regression checks.
+6. Check for unintended effects on related modules and existing production data.
+7. Do not perform unrelated refactoring, modify unrelated files, change workflow statuses, or execute Git operations without explicit authorization.
+8. Do not claim a fix is complete unless the corresponding behavior has been verified.
+
+## Required Final Report
+
+For every issue, report:
+- Root cause identified.
+- Files changed and the purpose of each change.
+- Fix implemented.
+- Tests or verification performed.
+- Pass/fail result and any remaining limitations.
+
+If an issue cannot be reproduced or verified, state that clearly instead of marking it as fixed.

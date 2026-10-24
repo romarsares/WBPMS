@@ -1,0 +1,33 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart LR
+    HR(["HR Head"])
+
+    subgraph SYS["Work Schedule and Settings"]
+        subgraph SCHED["Work Schedules"]
+            UC1(["View Schedules"])
+            UC2(["Create Schedule"])
+            UC3(["Edit Schedule"])
+            UC4(["Assign to Employee"])
+        end
+        subgraph HOL["Holiday Calendar"]
+            UC5(["View Holidays"])
+            UC6(["Add Holiday"])
+            UC7(["Edit Holiday"])
+            UC8(["Delete Holiday"])
+        end
+        subgraph POS["Job Positions"]
+            UC9(["View Positions"])
+            UC10(["Add Position"])
+            UC11(["Edit Position"])
+            UC12(["Toggle Status"])
+        end
+        subgraph PER["Payroll Periods"]
+            UC13(["View Periods"])
+            UC14(["Create Period"])
+        end
+    end
+
+    HR --- UC1 & UC2 & UC3 & UC4
+    HR --- UC5 & UC6 & UC7 & UC8
+    HR --- UC9 & UC10 & UC11 & UC12
+    HR --- UC13 & UC14

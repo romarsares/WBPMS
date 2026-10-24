@@ -101,6 +101,23 @@ $v = static fn(string $key, string $fallback = ''): string =>
                         <td>
                             <a href="<?= $base ?>/hr/schedules/<?= (int) $s['id'] ?>/edit"
                                class="btn btn-secondary" style="padding:4px 10px;font-size:12px">Edit</a>
+                            <?php if (strtolower($s['status']) === 'active'): ?>
+                            <form method="POST"
+                                  action="<?= $base ?>/hr/schedules/<?= (int) $s['id'] ?>/archive"
+                                  style="display:inline"
+                                  onsubmit="return confirm('Archive this schedule? Existing assignments are preserved.')">
+                                <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                <button type="submit" class="btn btn-secondary" style="padding:4px 10px;font-size:12px">Archive</button>
+                            </form>
+                            <?php else: ?>
+                            <form method="POST"
+                                  action="<?= $base ?>/hr/schedules/<?= (int) $s['id'] ?>/restore"
+                                  style="display:inline"
+                                  onsubmit="return confirm('Restore this schedule to Active?')">
+                                <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                                <button type="submit" class="btn btn-secondary" style="padding:4px 10px;font-size:12px">Restore</button>
+                            </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; endif; ?>

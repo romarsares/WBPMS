@@ -1,0 +1,48 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "attributeBackgroundColorEven": "#ffffff", "attributeBackgroundColorOdd": "#ffffff"}}}%%
+erDiagram
+    ROLE ||--o{ USER : "has"
+    USER }o--o| EMPLOYEE : "linked to"
+    USER ||--o{ AUDIT_LOG : "generates"
+    USER ||--o{ SESSION : "holds"
+
+    BRANCH ||--o{ EMPLOYEE : "employs"
+    BRANCH ||--o{ PAYROLL_RUN : "scoped to"
+
+    ATTENDANCE_SITE ||--o{ BIOMETRIC_DEVICE : "hosts"
+    BIOMETRIC_DEVICE }o--o{ BRANCH : "covers"
+    BIOMETRIC_DEVICE ||--o{ ATTENDANCE_IMPORT_BATCH : "source of"
+
+    EMPLOYEE ||--o{ WORK_SCHEDULE : "follows"
+    EMPLOYEE ||--o{ ATTENDANCE : "recorded in"
+    EMPLOYEE ||--o{ REQUEST : "submits"
+    EMPLOYEE ||--o{ SALARY : "earns"
+    EMPLOYEE ||--o{ PAYROLL : "paid via"
+    EMPLOYEE ||--o{ LEAVE_ENTITLEMENT : "has"
+    EMPLOYEE ||--o{ BANK_DETAILS : "holds"
+    EMPLOYEE ||--o{ EMPLOYEE_DOCUMENT : "has"
+    EMPLOYEE ||--o{ EMPLOYMENT_EPISODE : "tracked by"
+
+    ATTENDANCE_IMPORT_BATCH ||--o{ BIOMETRIC_PUNCH : "contains"
+    BIOMETRIC_PUNCH }o--o{ ATTENDANCE : "evidences"
+    ATTENDANCE ||--o{ ATTENDANCE_ADJUSTMENT : "corrected by"
+    ATTENDANCE ||--o{ ATTENDANCE_POLICY_FLAG : "triggers"
+    ATTENDANCE_POLICY_FLAG ||--o| HR_NOTICE : "issues"
+
+    REQUEST ||--o| LEAVE_DETAIL : "has"
+    REQUEST ||--o| OVERTIME_DETAIL : "has"
+    REQUEST ||--o| CASH_ADVANCE_DETAIL : "has"
+    REQUEST ||--o| CASH_ADVANCE_HISTORY : "creates"
+    LEAVE_ENTITLEMENT ||--o{ LEAVE_LEDGER : "tracked by"
+
+    PAYROLL_PERIOD ||--o{ PAYROLL_RUN : "frames"
+    PAYROLL_PERIOD ||--o| DISBURSEMENT_BATCH : "paid via"
+    PAYROLL_RUN ||--o{ PAYROLL : "groups"
+    PAYROLL ||--o{ PAYROLL_EARNINGS : "itemizes"
+    PAYROLL ||--o{ DEDUCTION : "deducts"
+    PAYROLL ||--o{ CONTRIBUTION_RECORD : "records"
+    PAYROLL ||--o| PAYSLIP : "generates"
+    DISBURSEMENT_BATCH ||--o{ DEPOSIT_SLIP : "contains"
+
+    CONTRIBUTION_POLICY ||--o{ SSS_BRACKET : "defines"
+    CONTRIBUTION_POLICY ||--o| PHILHEALTH_RATE : "defines"
+    CONTRIBUTION_POLICY ||--o| PAGIBIG_RATE : "defines"

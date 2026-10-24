@@ -1,0 +1,94 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "classText": "#000000"}}}%%
+classDiagram
+    class Router {
+        +add(method, path, handler, roles)
+        +dispatch(method, uri)
+    }
+    class AuthMiddleware {
+        +startSession()
+        +setIdentity(identity)
+        +identity() array
+        +requireRoles(roles)
+        +destroySession()
+    }
+    class CsrfMiddleware {
+        +token() string
+        +validate(token) bool
+        +invalidate()
+    }
+    class AuthController {
+        +login(req, res)
+        +logout(req, res)
+        +sendResetLink(req, res)
+        +resetPassword(req, res)
+        +changePassword(req, res)
+    }
+    class UserController {
+        +index(req, res)
+        +store(req, res)
+        +update(req, res)
+        +toggle(req, res)
+        +archive(req, res)
+        +resetPassword(req, res)
+    }
+    class EmployeeController {
+        +index(req, res)
+        +store(req, res)
+        +show(req, res)
+        +update(req, res)
+        +transfer(req, res)
+        +archive(req, res)
+        +rehire(req, res)
+        +uploadDocument(req, res)
+    }
+    class AttendanceController {
+        +index(req, res)
+        +upload(req, res)
+        +approveImport(req, res)
+        +cancelImport(req, res)
+        +adjust(req, res)
+    }
+    class PayrollController {
+        +index(req, res)
+        +store(req, res)
+        +compute(req, res)
+        +submit(req, res)
+        +adjust(req, res)
+        +cancel(req, res)
+    }
+    class RequestsController {
+        +index(req, res)
+        +store(req, res)
+        +approve(req, res)
+        +cancel(req, res)
+        +adjustLeaveCredit(req, res)
+    }
+    class OwnerController {
+        +payrollList(req, res)
+        +approve(req, res)
+        +returnRun(req, res)
+        +requestApprove(req, res)
+        +requestReturn(req, res)
+    }
+    class EmployeePortalController {
+        +attendance(req, res)
+        +requests(req, res)
+        +storeRequest(req, res)
+        +payslips(req, res)
+        +payslipPdf(req, res)
+    }
+    class ReportsController {
+        +index(req, res)
+        +preview(req, res)
+        +export(req, res)
+        +bulkPrintPayslips(req, res)
+    }
+    class DashboardController {
+        +hrDashboard(req, res)
+        +ownerDashboard(req, res)
+        +empDashboard(req, res)
+    }
+
+    Router --> AuthMiddleware : uses
+    Router --> CsrfMiddleware : uses
+    AuthController --> AuthMiddleware : calls

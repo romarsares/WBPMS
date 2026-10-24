@@ -70,33 +70,59 @@ final class ScheduleController
 
         if ($errors !== []) {
             $repo = $this->repo();
+            $all  = $repo->findAll();
             ViewRenderer::render('hr/schedules/index', [
-                'schedules'   => $repo->findAll(),
+                'schedules'   => $all,
                 'holidays'    => $repo->upcomingHolidays(),
                 'assignments' => $repo->findAllAssignments(),
-                'total'       => 0, 'active' => 0, 'hTotal' => 0, 'upcoming' => 0,
+                'total'       => count($all),
+                'active'      => count(array_filter($all, fn($s) => strtolower($s['status']) === 'active')),
+                'hTotal'      => 0,
+                'upcoming'    => 0,
                 'errors'      => $errors,
                 'input'       => $data,
             ], 'Work Schedules');
             return;
         }
 
-        $this->repo()->create([
-            'schedule_name'     => $data['schedule_name'],
-            'working_days'      => $this->buildWorkingDaysJson($data['work_days']),
-            'rest_days'         => $this->buildRestDaysJson($data['work_days']),
-            'work_start_time'   => $data['time_in'],
-            'work_end_time'     => $data['time_out'],
-            'standard_minutes'  => $this->computeStandardMinutes($data['time_in'], $data['time_out'], (int) $data['break_minutes']),
-            'break_minutes'     => (int) $data['break_minutes'],
-            'grace_minutes'     => (int) $data['grace_minutes'],
-            'overtime_allowed'  => (int) $data['overtime_allowed'],
-            'break_start_time'  => $data['break_start'] !== '' ? $data['break_start'] : null,
-            'break_end_time'    => $data['break_end'] !== '' ? $data['break_end'] : null,
-            'notes'             => $data['notes'] !== '' ? $data['notes'] : null,
-            'effective_from'    => $data['effective_from'] !== '' ? $data['effective_from'] : date('Y-m-d'),
-            'status'            => $data['status'] !== '' ? ucfirst($data['status']) : 'Active',
-        ]);
+        // Resolve effective_from: default to today when the field was left empty.
+        $effectiveFrom = ($data['effective_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data['effective_from']))
+            ? $data['effective_from']
+            : date('Y-m-d');
+
+        try {
+            $this->repo()->create([
+                'schedule_name'     => $data['schedule_name'],
+                'working_days'      => $this->buildWorkingDaysJson($data['work_days']),
+                'rest_days'         => $this->buildRestDaysJson($data['work_days']),
+                'work_start_time'   => $data['time_in'],
+                'work_end_time'     => $data['time_out'],
+                'standard_minutes'  => $this->computeStandardMinutes($data['time_in'], $data['time_out'], (int) $data['break_minutes']),
+                'break_minutes'     => (int) $data['break_minutes'],
+                'grace_minutes'     => (int) $data['grace_minutes'],
+                'overtime_allowed'  => (int) $data['overtime_allowed'],
+                'break_start_time'  => $data['break_start'] !== '' ? $data['break_start'] : null,
+                'break_end_time'    => $data['break_end'] !== '' ? $data['break_end'] : null,
+                'notes'             => $data['notes'] !== '' ? $data['notes'] : null,
+                'effective_from'    => $effectiveFrom,
+                'status'            => $data['status'] !== '' ? ucfirst($data['status']) : 'Active',
+            ]);
+        } catch (\RuntimeException $e) {
+            $repo = $this->repo();
+            $all  = $repo->findAll();
+            ViewRenderer::render('hr/schedules/index', [
+                'schedules'   => $all,
+                'holidays'    => $repo->upcomingHolidays(),
+                'assignments' => $repo->findAllAssignments(),
+                'total'       => count($all),
+                'active'      => count(array_filter($all, fn($s) => strtolower($s['status']) === 'active')),
+                'hTotal'      => 0,
+                'upcoming'    => 0,
+                'errors'      => ['schedule_name' => $e->getMessage()],
+                'input'       => $data,
+            ], 'Work Schedules');
+            return;
+        }
 
         ViewRenderer::flash('Work schedule created.');
         $this->redirect('/hr/schedules');
@@ -115,6 +141,13 @@ final class ScheduleController
         if ($schedule === null) {
             http_response_code(404);
             ViewRenderer::render('errors/404', [], '404 Not Found');
+            return;
+        }
+
+        // Archived schedules cannot be edited; redirect with a clear message.
+        if (strtolower((string) $schedule['status']) === 'archived') {
+            ViewRenderer::flashError('Archived schedules cannot be edited. Restore the schedule first.');
+            $this->redirect('/hr/schedules');
             return;
         }
 
@@ -137,6 +170,14 @@ final class ScheduleController
         if ($repo->findById($id) === null) {
             http_response_code(404);
             ViewRenderer::render('errors/404', [], '404 Not Found');
+            return;
+        }
+
+        // Archived schedules cannot be edited; restore first.
+        $existing = $repo->findById($id);
+        if ($existing !== null && strtolower((string) $existing['status']) === 'archived') {
+            ViewRenderer::flashError('Archived schedules cannot be edited. Restore the schedule first.');
+            $this->redirect('/hr/schedules');
             return;
         }
 
@@ -358,6 +399,53 @@ final class ScheduleController
         $this->repo()->deactivateHoliday($id);
         ViewRenderer::flash('Holiday deactivated.');
         $this->redirect('/hr/schedules/holidays');
+    }
+
+    // =========================================================================
+    // Archive / Restore schedule templates (Issue 3.3 — REQ029)
+    // =========================================================================
+
+    /**
+     * POST /hr/schedules/{id}/archive
+     *
+     * Soft-archives a schedule template. Archived schedules are hidden from
+     * new-assignment dropdowns; historical assignment records remain intact.
+     *
+     * @param array<string, string> $params
+     */
+    public function archiveSchedule(array $params = []): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+
+        try {
+            $this->repo()->archive($id);
+            ViewRenderer::flash('Work schedule archived. Existing assignments are unaffected.');
+        } catch (\RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/hr/schedules');
+    }
+
+    /**
+     * POST /hr/schedules/{id}/restore
+     *
+     * Restores an archived schedule template to Active status.
+     *
+     * @param array<string, string> $params
+     */
+    public function restoreSchedule(array $params = []): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+
+        try {
+            $this->repo()->restore($id);
+            ViewRenderer::flash('Work schedule restored to Active.');
+        } catch (\RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/hr/schedules');
     }
 
     // =========================================================================

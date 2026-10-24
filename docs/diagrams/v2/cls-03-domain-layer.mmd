@@ -1,0 +1,79 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "classText": "#000000"}}}%%
+classDiagram
+    class AttendanceFileParser {
+        <<interface>>
+        +parse(file, context) ParsedAttendanceFile
+    }
+    class LdeXlsDailyLogParser {
+        +VERSION string$
+        +parse(file, context) ParsedAttendanceFile
+    }
+    class ParsedAttendanceFile {
+        +sha256 string
+        +parserVersion string
+        +sourceYear int
+        +sourceMonth int
+        +punches ParsedPunch[]
+    }
+    class ParsedPunch {
+        +deviceEmployeeCode string
+        +sourceLocalAt DateTimeImmutable
+        +punchedAtUtc DateTimeImmutable
+        +rawRecord string
+    }
+    class ParserContext {
+        +deviceId int
+        +sourceYear int
+        +sourceMonth int
+        +timezone string
+    }
+    class AttendanceParseException {
+        +getErrors() ParserError[]
+    }
+    class TimesheetGenerator {
+        +generate(punches, schedules, holidays) GeneratedAttendance[]
+    }
+    class GeneratedAttendance {
+        +employeeId int
+        +attendanceDate string
+        +timeIn string
+        +timeOut string
+        +lateMinutes int
+        +overtimeMinutes int
+    }
+    class WorkSchedule {
+        +workingDays array
+        +workStartTime string
+        +workEndTime string
+        +standardMinutes int
+    }
+    class AttendancePolicyEvaluator {
+        +evaluate(attendanceHistory) PolicyFlag[]
+    }
+    class HolidayPayCalculator {
+        +calculate(attendance, holiday, dailyRate) int
+    }
+    class HolidayRecord {
+        +holidayDate string
+        +type HolidayType
+        +payMultiplier float
+    }
+    class HolidayType {
+        <<enumeration>>
+        Regular
+        Special
+        SpecialNonWorking
+    }
+    class ApprovedOvertimeCalculator {
+        +calculate(overtimeMinutes, dailyRate, stdMinutes) int
+    }
+
+    LdeXlsDailyLogParser ..|> AttendanceFileParser : implements
+    AttendanceFileParser --> ParsedAttendanceFile : returns
+    ParsedAttendanceFile --> ParsedPunch : contains
+    LdeXlsDailyLogParser --> ParserContext : uses
+    LdeXlsDailyLogParser --> AttendanceParseException : throws
+    TimesheetGenerator --> GeneratedAttendance : produces
+    TimesheetGenerator --> WorkSchedule : uses
+    HolidayPayCalculator --> HolidayRecord : uses
+    HolidayRecord --> HolidayType : has

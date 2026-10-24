@@ -1,0 +1,19 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart LR
+    HR(["HR Head"])
+    BO(["Business Owner"])
+
+    subgraph SYS["Reports"]
+        UC1(["View Dashboard"])
+        UC2(["Payroll Report"])
+        UC3(["Attendance Report"])
+        UC4(["Request Report"])
+        UC5(["Contribution Report"])
+        UC6(["13th Month Report"])
+        UC7(["Transaction Slips"])
+        UC8(["Payslips Report"])
+        UC9(["Bulk Print Payslips"])
+        UC10(["Export Report"])
+    end
+
+    HR & BO --- UC1 & UC2 & UC3 & UC4 & UC5 & UC6 & UC7 & UC8 & UC9 & UC10

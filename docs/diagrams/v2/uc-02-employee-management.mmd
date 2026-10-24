@@ -1,0 +1,37 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart LR
+    HR(["HR Head"])
+
+    subgraph SYS["Employee Management"]
+        subgraph REC["Employee Records"]
+            UC1(["View Employees"])
+            UC2(["Add Employee"])
+            UC3(["View Profile"])
+            UC4(["Edit Details"])
+            UC5(["Upload ID Photo"])
+        end
+        subgraph LC["Lifecycle"]
+            UC6(["Transfer Employee"])
+            UC7(["Archive Employee"])
+            UC8(["Rehire Employee"])
+        end
+        subgraph DOC["Documents"]
+            UC9(["View Documents"])
+            UC10(["Upload Document"])
+            UC11(["Verify Document"])
+            UC12(["Replace Document"])
+            UC13(["Archive Document"])
+        end
+        subgraph BANK["Bank Details"]
+            UC14(["Add Bank Account"])
+            UC15(["Update Bank Account"])
+        end
+    end
+
+    HR --- UC1 & UC2 & UC3 & UC4 & UC5
+    HR --- UC6 & UC7 & UC8
+    HR --- UC9 & UC10 & UC11 & UC12 & UC13
+    HR --- UC14 & UC15
+
+    UC2 -.->|"<<include>>"| UC14
+    UC10 -.->|"<<extend>>"| UC11

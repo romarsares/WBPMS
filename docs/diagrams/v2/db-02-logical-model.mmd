@@ -1,0 +1,150 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "attributeBackgroundColorEven": "#ffffff", "attributeBackgroundColorOdd": "#ffffff"}}}%%
+erDiagram
+    role_tbl {
+        PK role_id
+        string role_name
+    }
+    users_tbl {
+        PK user_id
+        FK employee_id
+        FK role_id
+        string username
+        string account_email
+        string password_hash
+        string status
+    }
+    employee_tbl {
+        PK employee_id
+        string employee_number
+        string first_name
+        string last_name
+        string email
+        date hire_date
+        string status
+    }
+    branch_tbl {
+        PK branch_id
+        string branch_code
+        string branch_name
+        string status
+    }
+    work_schedule_tbl {
+        PK schedule_id
+        FK employee_id
+        string working_days
+        time work_start_time
+        time work_end_time
+        int standard_minutes
+        date effective_from
+    }
+    holiday_calendar_tbl {
+        PK holiday_id
+        date holiday_date
+        string description
+        string holiday_type
+        decimal pay_multiplier
+    }
+    attendance_import_batch_tbl {
+        PK import_batch_id
+        FK device_id
+        FK uploaded_by
+        string file_checksum
+        int source_year
+        int source_month
+        string status
+    }
+    attendance_tbl {
+        PK attendance_id
+        FK employee_id
+        FK schedule_id
+        FK import_batch_id
+        date attendance_date
+        time time_in
+        time time_out
+        int late_minutes
+        int overtime_minutes
+    }
+    request_tbl {
+        PK request_id
+        FK employee_id
+        FK request_type_id
+        string reason
+        string status
+        datetime submitted_at
+    }
+    leave_entitlement_tbl {
+        PK entitlement_id
+        FK employee_id
+        string leave_type
+        int leave_year
+        decimal entitled_days
+    }
+    salary_tbl {
+        PK salary_id
+        FK employee_id
+        decimal daily_rate
+        date effective_from
+        string status
+    }
+    payroll_period_tbl {
+        PK payroll_period_id
+        date period_start
+        date period_end
+        date pay_date
+        string status
+    }
+    payroll_run_tbl {
+        PK payroll_run_id
+        FK payroll_period_id
+        FK branch_id
+        string status
+        decimal gross_pay
+        decimal net_pay
+    }
+    payroll_tbl {
+        PK payroll_id
+        FK payroll_run_id
+        FK employee_id
+        FK salary_id
+        decimal gross_pay
+        decimal total_deductions
+        decimal net_pay
+    }
+    contribution_policy_version_tbl {
+        PK contribution_policy_id
+        string policy_code
+        string version
+        date effective_from
+        string status
+    }
+    payslip_tbl {
+        PK payslip_id
+        FK payroll_id
+        date issue_date
+        string file_path
+    }
+    disbursement_batch_tbl {
+        PK batch_id
+        FK payroll_period_id
+        string bank_name
+        decimal cheque_total
+        string status
+    }
+
+    role_tbl ||--o{ users_tbl : "has"
+    users_tbl }o--o| employee_tbl : "linked to"
+    employee_tbl ||--o{ work_schedule_tbl : "follows"
+    employee_tbl ||--o{ attendance_tbl : "has"
+    employee_tbl ||--o{ request_tbl : "submits"
+    employee_tbl ||--o{ salary_tbl : "earns"
+    employee_tbl ||--o{ leave_entitlement_tbl : "has"
+    employee_tbl ||--o{ payroll_tbl : "paid via"
+    attendance_import_batch_tbl ||--o{ attendance_tbl : "source of"
+    work_schedule_tbl ||--o{ attendance_tbl : "applies to"
+    payroll_period_tbl ||--o{ payroll_run_tbl : "frames"
+    branch_tbl ||--o{ payroll_run_tbl : "scoped to"
+    payroll_run_tbl ||--o{ payroll_tbl : "groups"
+    salary_tbl ||--o{ payroll_tbl : "rates"
+    payroll_tbl ||--o| payslip_tbl : "generates"
+    contribution_policy_version_tbl ||--o{ payroll_tbl : "applies"
+    payroll_period_tbl ||--o| disbursement_batch_tbl : "paid via"

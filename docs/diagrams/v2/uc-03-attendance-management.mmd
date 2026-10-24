@@ -1,0 +1,30 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart LR
+    HR(["HR Head"])
+
+    subgraph SYS["Attendance Management"]
+        subgraph IMP["Biometric Import"]
+            UC1(["Upload XLS File"])
+            UC2(["Review Import Preview"])
+            UC3(["Approve Import"])
+            UC4(["Cancel Import"])
+        end
+        subgraph ATT["Attendance Records"]
+            UC5(["View Attendance"])
+            UC6(["Adjust Record"])
+            UC7(["View Frequency Report"])
+        end
+        subgraph POL["Policy Flags"]
+            UC8(["Evaluate Policy Flags"])
+            UC9(["View Flag List"])
+            UC10(["Review and Close Flag"])
+        end
+    end
+
+    HR --- UC1 & UC2 & UC3 & UC4
+    HR --- UC5 & UC6 & UC7
+    HR --- UC8 & UC9 & UC10
+
+    UC1 -.->|"<<include>>"| UC2
+    UC2 -.->|"<<include>>"| UC3
+    UC8 -.->|"<<extend>>"| UC10

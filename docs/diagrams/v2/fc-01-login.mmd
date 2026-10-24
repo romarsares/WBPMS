@@ -1,0 +1,21 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TD
+    A([Start]) --> B[/"Enter Email and Password"/]
+    B --> C["Submit Login Form"]
+    C --> D{"CSRF Valid?"}
+    D -->|No| E[/"Show 419 Error"/] --> Z([End])
+    D -->|Yes| F{"User Found?"}
+    F -->|No| G["Log: login_failure"] --> H[/"Show Invalid Credentials"/] --> B
+    F -->|Yes| I{"Password OK?"}
+    I -->|No| G
+    I -->|Yes| J{"Account Active?"}
+    J -->|No| G
+    J -->|Yes| K{"Unlinked Employee?"}
+    K -->|Yes| L["Log: login_failure"] --> M[/"Show Account Setup Error"/] --> B
+    K -->|No| N["Log: login_success\nRegenerate Session"]
+    N --> O{"Requires Password Change?"}
+    O -->|Yes| P[/"Redirect to /change-password"/] --> Z
+    O -->|No| Q{"Role?"}
+    Q -->|"Business Owner"| R[/"Owner Dashboard"/] --> Z
+    Q -->|"HR Head"| S[/"HR Dashboard"/] --> Z
+    Q -->|"Employee"| T[/"Employee Dashboard"/] --> Z

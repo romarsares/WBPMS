@@ -1,0 +1,40 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart LR
+    HR(["HR Head"])
+    BO(["Business Owner"])
+    EMP(["Employee"])
+
+    subgraph SYS["Request Management"]
+        subgraph SUB["Submission"]
+            UC1(["Submit Leave"])
+            UC2(["Submit Overtime"])
+            UC3(["Submit Cash Advance"])
+            UC4(["Cancel Own Request"])
+        end
+        subgraph HRACT["HR Actions"]
+            UC5(["View All Requests"])
+            UC6(["Create on Behalf"])
+            UC7(["Approve Request"])
+            UC8(["Cancel Request"])
+            UC9(["Archive Request"])
+        end
+        subgraph LEAVE["Leave Credits"]
+            UC10(["View Leave Credits"])
+            UC11(["Adjust Leave Credit"])
+        end
+        subgraph CA["Cash Advance"]
+            UC12(["View CA Tracker"])
+        end
+        subgraph BOACT["Owner Actions"]
+            UC13(["View Requests"])
+            UC14(["Approve Request"])
+            UC15(["Return Request"])
+            UC16(["Cancel Request"])
+        end
+    end
+
+    EMP --- UC1 & UC2 & UC3 & UC4
+    HR --- UC5 & UC6 & UC7 & UC8 & UC9 & UC10 & UC11 & UC12
+    BO --- UC12 & UC13 & UC14 & UC15 & UC16
+
+    UC1 & UC2 & UC3 -.->|"<<include>>"| UC4

@@ -1,0 +1,197 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "attributeBackgroundColorEven": "#ffffff", "attributeBackgroundColorOdd": "#ffffff"}}}%%
+erDiagram
+    role_tbl {
+        bigint_unsigned role_id PK
+        varchar_30 role_name
+    }
+    users_tbl {
+        bigint_unsigned user_id PK
+        bigint_unsigned employee_id FK
+        bigint_unsigned role_id FK
+        varchar_50 username
+        varchar_254 account_email
+        varchar_255 password_hash
+        enum status
+    }
+    employee_tbl {
+        bigint_unsigned employee_id PK
+        varchar_30 employee_number
+        varchar_100 first_name
+        varchar_100 last_name
+        varchar_254 email
+        date hire_date
+        enum status
+    }
+    branch_tbl {
+        bigint_unsigned branch_id PK
+        varchar_20 branch_code
+        varchar_100 branch_name
+        enum status
+    }
+    work_schedule_tbl {
+        bigint_unsigned schedule_id PK
+        bigint_unsigned employee_id FK
+        text working_days
+        time work_start_time
+        time work_end_time
+        smallint standard_minutes
+        date effective_from
+        enum status
+    }
+    holiday_calendar_tbl {
+        bigint_unsigned holiday_id PK
+        date holiday_date
+        varchar_100 description
+        enum holiday_type
+        decimal_4_2 pay_multiplier
+    }
+    attendance_import_batch_tbl {
+        bigint_unsigned import_batch_id PK
+        bigint_unsigned device_id FK
+        bigint_unsigned uploaded_by FK
+        char_64 file_checksum
+        smallint source_year
+        tinyint source_month
+        enum status
+    }
+    attendance_tbl {
+        bigint_unsigned attendance_id PK
+        bigint_unsigned employee_id FK
+        bigint_unsigned schedule_id FK
+        bigint_unsigned import_batch_id FK
+        date attendance_date
+        time time_in
+        time time_out
+        smallint late_minutes
+        smallint overtime_minutes
+        enum status
+    }
+    attendance_adjustment_tbl {
+        bigint_unsigned adjustment_id PK
+        bigint_unsigned attendance_id FK
+        bigint_unsigned adjusted_by FK
+        time new_time_in
+        time new_time_out
+        varchar_1000 reason
+    }
+    request_tbl {
+        bigint_unsigned request_id PK
+        bigint_unsigned employee_id FK
+        bigint_unsigned request_type_id FK
+        varchar_1000 reason
+        enum status
+        datetime submitted_at
+    }
+    leave_entitlement_tbl {
+        bigint_unsigned entitlement_id PK
+        bigint_unsigned employee_id FK
+        enum leave_type
+        smallint leave_year
+        decimal_5_2 entitled_days
+    }
+    cash_advance_history_tbl {
+        bigint_unsigned history_id PK
+        bigint_unsigned request_id FK
+        bigint_unsigned employee_id FK
+        decimal_12_2 original_amount
+        decimal_12_2 remaining_balance
+        enum status
+    }
+    salary_tbl {
+        bigint_unsigned salary_id PK
+        bigint_unsigned employee_id FK
+        decimal_12_2 daily_rate
+        date effective_from
+        enum status
+    }
+    contribution_policy_version_tbl {
+        bigint_unsigned contribution_policy_id PK
+        varchar_50 policy_code
+        varchar_30 version
+        date effective_from
+        enum status
+    }
+    payroll_period_tbl {
+        bigint_unsigned payroll_period_id PK
+        date period_start
+        date period_end
+        date pay_date
+        enum status
+    }
+    payroll_run_tbl {
+        bigint_unsigned payroll_run_id PK
+        bigint_unsigned payroll_period_id FK
+        bigint_unsigned branch_id FK
+        enum status
+        decimal_15_2 gross_pay
+        decimal_15_2 total_deductions
+        decimal_15_2 net_pay
+    }
+    payroll_tbl {
+        bigint_unsigned payroll_id PK
+        bigint_unsigned payroll_run_id FK
+        bigint_unsigned employee_id FK
+        bigint_unsigned salary_id FK
+        decimal_12_2 daily_rate_snapshot
+        decimal_12_2 gross_pay
+        decimal_12_2 net_pay
+    }
+    deduction_tbl {
+        bigint_unsigned deduction_id PK
+        bigint_unsigned payroll_id FK
+        enum deduction_type
+        varchar_255 description
+        decimal_12_2 amount
+    }
+    contribution_record_tbl {
+        bigint_unsigned contribution_id PK
+        bigint_unsigned payroll_id FK
+        bigint_unsigned deduction_id FK
+        enum contribution_type
+        decimal_12_2 employee_share
+        decimal_12_2 employer_share
+        enum status
+    }
+    payslip_tbl {
+        bigint_unsigned payslip_id PK
+        bigint_unsigned payroll_id FK
+        date issue_date
+        varchar_500 file_path
+    }
+    disbursement_batch_tbl {
+        bigint_unsigned batch_id PK
+        bigint_unsigned payroll_period_id FK
+        varchar_100 bank_name
+        decimal_15_2 cheque_total
+        enum status
+    }
+    bank_details_tbl {
+        bigint_unsigned bank_id PK
+        bigint_unsigned employee_id FK
+        varchar_100 bank_name
+        varchar_50 account_number
+        enum status
+    }
+
+    role_tbl ||--o{ users_tbl : "role_id"
+    users_tbl }o--o| employee_tbl : "employee_id"
+    employee_tbl ||--o{ work_schedule_tbl : "employee_id"
+    employee_tbl ||--o{ attendance_tbl : "employee_id"
+    attendance_import_batch_tbl ||--o{ attendance_tbl : "import_batch_id"
+    work_schedule_tbl ||--o{ attendance_tbl : "schedule_id"
+    attendance_tbl ||--o{ attendance_adjustment_tbl : "attendance_id"
+    employee_tbl ||--o{ request_tbl : "employee_id"
+    employee_tbl ||--o{ leave_entitlement_tbl : "employee_id"
+    request_tbl ||--o| cash_advance_history_tbl : "request_id"
+    employee_tbl ||--o{ salary_tbl : "employee_id"
+    payroll_period_tbl ||--o{ payroll_run_tbl : "payroll_period_id"
+    branch_tbl ||--o{ payroll_run_tbl : "branch_id"
+    payroll_run_tbl ||--o{ payroll_tbl : "payroll_run_id"
+    employee_tbl ||--o{ payroll_tbl : "employee_id"
+    salary_tbl ||--o{ payroll_tbl : "salary_id"
+    payroll_tbl ||--o{ deduction_tbl : "payroll_id"
+    deduction_tbl ||--o| contribution_record_tbl : "deduction_id"
+    contribution_policy_version_tbl ||--o{ contribution_record_tbl : "contribution_policy_id"
+    payroll_tbl ||--o| payslip_tbl : "payroll_id"
+    payroll_period_tbl ||--o| disbursement_batch_tbl : "payroll_period_id"
+    employee_tbl ||--o{ bank_details_tbl : "employee_id"

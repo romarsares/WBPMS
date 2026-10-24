@@ -276,6 +276,17 @@ final class EmployeeController
             return;
         }
 
+        // Issue 2.3: Archived employees cannot be edited through the normal
+        // workflow; they must be rehired first. Redirect with a clear message
+        // rather than displaying an editable form that would only fail on save.
+        if (strtolower((string) $row['status']) === 'archived') {
+            ViewRenderer::flashError(
+                'Archived employees cannot be edited. Use the Rehire workflow to restore this employee before making changes.'
+            );
+            $this->redirect('/hr/employees/' . $id);
+            return;
+        }
+
         [$branches, $schedules, $devices, $positions] = $this->dropdownData();
 
         ViewRenderer::render('hr/employees/edit', [
@@ -657,10 +668,26 @@ final class EmployeeController
 
         if ($data['first_name'] === '') {
             $errors['first_name'] = 'First name is required.';
+        } elseif (!preg_match("/^[A-Za-zÀ-ÖØ-öø-ÿ](?:[A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.])?$/u", $data['first_name'])) {
+            $errors['first_name'] = 'First name may only contain letters, spaces, hyphens, apostrophes, and periods.';
+        }
+
+        // Issue 2.2: validate middle name characters when provided
+        if ($data['middle_name'] !== '' && !preg_match("/^[A-Za-zÀ-ÖØ-öø-ÿ](?:[A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.])?$/u", $data['middle_name'])) {
+            $errors['middle_name'] = 'Middle name may only contain letters, spaces, hyphens, apostrophes, and periods.';
         }
 
         if ($data['last_name'] === '') {
             $errors['last_name'] = 'Last name is required.';
+        } elseif (!preg_match("/^[A-Za-zÀ-ÖØ-öø-ÿ](?:[A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.])?$/u", $data['last_name'])) {
+            $errors['last_name'] = 'Last name may only contain letters, spaces, hyphens, apostrophes, and periods.';
+        }
+
+        // Issue 2.1: contact number must be a Philippine mobile number (09XXXXXXXXX, 11 digits)
+        if ($data['contact_number'] !== '') {
+            if (!preg_match('/^09\d{9}$/', $data['contact_number'])) {
+                $errors['contact_number'] = 'Contact number must be a valid Philippine mobile number starting with 09 and exactly 11 digits (e.g. 09171234567).';
+            }
         }
 
         if ($data['position'] === '') {

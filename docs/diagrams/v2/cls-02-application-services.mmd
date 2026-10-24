@@ -1,0 +1,70 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "classText": "#000000"}}}%%
+classDiagram
+    class AuthService {
+        +attemptLogin(email, password) array
+        +currentIdentity(userId) array
+    }
+    class PasswordResetService {
+        +sendResetLink(email)
+        +resetPassword(token, newPassword) bool
+    }
+    class UserService {
+        +create(data) int
+        +update(userId, data)
+        +toggle(userId)
+        +archive(userId)
+        +resetPassword(userId, newPassword)
+    }
+    class AttendanceImportService {
+        +import(file, context, userId) Summary
+    }
+    class AttendancePolicyService {
+        +evaluate(employeeId, referenceDate)
+        +reviewFlag(flagId, reviewedBy, actionTaken)
+    }
+    class AttendanceAdjustmentService {
+        +adjust(attendanceId, adjustedBy, timeIn, timeOut, reason)
+    }
+    class EmployeeSetupService {
+        +create(data) int
+        +update(employeeId, data)
+    }
+    class EmployeeLifecycleService {
+        +archive(employeeId, reason, actedBy)
+        +rehire(employeeId, reason, actedBy)
+        +transfer(employeeId, branchId, reason, actedBy)
+    }
+    class EmployeeDocumentService {
+        +upload(employeeId, file, type, label) int
+        +replace(documentId, file) int
+        +verify(documentId, verifiedBy)
+        +archive(documentId)
+    }
+    class RequestService {
+        +createRequest(employeeId, typeId, reason, detail) int
+        +approveRequest(requestId, reviewedBy, notes)
+        +cancelRequest(requestId, cancelledBy, notes)
+        +adjustLeaveCredit(entitlementId, delta, notes)
+    }
+    class SalaryService {
+        +create(employeeId, dailyRate, effectiveFrom) int
+        +archive(salaryId)
+    }
+    class PayrollService {
+        +createRun(periodId, branchId) int
+        +computeRun(runId)
+        +submitRun(runId, submittedBy)
+        +approveRun(runId, reviewedBy)
+        +returnRun(runId, reason)
+        +cancelRun(runId)
+        +adjustEntry(payrollId, adjustments)
+    }
+    class EmployeeScope {
+        +getAttendance(from, to) array
+        +getRequests() array
+        +getPayslips() array
+    }
+
+    AuthService --> PasswordResetService : related
+    AttendanceImportService --> AttendancePolicyService : triggers
+    PayrollService --> SalaryService : reads

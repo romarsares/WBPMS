@@ -224,6 +224,47 @@ final class ScheduleRepository extends AbstractRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Archive a work schedule template (soft-delete).
+     *
+     * Archived schedules remain in historical records but are excluded
+     * from new-assignment dropdowns and treated as inactive.
+     *
+     * @throws \RuntimeException if the schedule does not exist or is already archived
+     */
+    public function archive(int $scheduleId): void
+    {
+        $row = $this->findById($scheduleId);
+        if ($row === null) {
+            throw new \RuntimeException('Schedule not found.');
+        }
+        if (strtolower((string) $row['status']) === 'archived') {
+            throw new \RuntimeException('Schedule is already archived.');
+        }
+        $this->pdo()->prepare(
+            "UPDATE work_schedule SET status = 'Archived', updated_at = NOW() WHERE schedule_id = :id"
+        )->execute([':id' => $scheduleId]);
+    }
+
+    /**
+     * Restore an archived work schedule to Active status.
+     *
+     * @throws \RuntimeException if the schedule does not exist or is not archived
+     */
+    public function restore(int $scheduleId): void
+    {
+        $row = $this->findById($scheduleId);
+        if ($row === null) {
+            throw new \RuntimeException('Schedule not found.');
+        }
+        if (strtolower((string) $row['status']) !== 'archived') {
+            throw new \RuntimeException('Only archived schedules can be restored.');
+        }
+        $this->pdo()->prepare(
+            "UPDATE work_schedule SET status = 'Active', updated_at = NOW() WHERE schedule_id = :id"
+        )->execute([':id' => $scheduleId]);
+    }
+
     /** @return list<array<string, mixed>> */
     public function upcomingHolidays(): array
     {

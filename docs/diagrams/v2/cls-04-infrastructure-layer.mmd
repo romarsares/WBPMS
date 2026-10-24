@@ -1,0 +1,60 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "classText": "#000000"}}}%%
+classDiagram
+    class Connection {
+        +pdo() PDO
+        +transactional(callable) mixed
+    }
+    class DatabaseSessionHandler {
+        <<implements SessionHandlerInterface>>
+        +open(savePath, name) bool
+        +read(id) string
+        +write(id, data) bool
+        +destroy(id) bool
+        +gc(maxLifetime) int
+    }
+    class AbstractRepository {
+        #connection Connection
+    }
+    class EmployeeRepository {
+        +findById(id) array
+        +findAll(filters) array
+        +create(data) int
+        +update(id, data)
+    }
+    class EmployeeLifecycleRepository {
+        +archive(employeeId, reason, actedBy)
+        +rehire(employeeId, reason, actedBy)
+        +transfer(employeeId, branchId, reason, actedBy)
+    }
+    class EmployeeDocumentRepository {
+        +findByEmployee(employeeId) array
+        +create(data) int
+        +verify(documentId, verifiedBy)
+        +archive(documentId)
+    }
+    class ScheduleRepository {
+        +findByEmployee(employeeId) array
+        +findActive(employeeId, date) array
+        +create(data) int
+        +assign(employeeId, scheduleId, effectiveFrom)
+    }
+    class PdoAttendanceImportGateway {
+        <<implements AttendanceImportGateway>>
+        +hasCompletedChecksum(sha256) bool
+        +match(punch) AttendancePunchMatch
+        +createImportBatch(...) int
+    }
+    class AuditRepository {
+        +log(userId, eventType, action, description)
+    }
+    class Mailer {
+        +send(to, subject, body)
+    }
+
+    AbstractRepository --> Connection : uses
+    EmployeeRepository --|> AbstractRepository : extends
+    EmployeeLifecycleRepository --|> AbstractRepository : extends
+    EmployeeDocumentRepository --|> AbstractRepository : extends
+    ScheduleRepository --|> AbstractRepository : extends
+    AuditRepository --|> AbstractRepository : extends
+    PdoAttendanceImportGateway --> Connection : uses

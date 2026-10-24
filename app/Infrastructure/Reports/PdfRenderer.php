@@ -101,7 +101,11 @@ final class PdfRenderer
     private static function createDompdf(): Dompdf
     {
         $options = new \Dompdf\Options();
-        $options->set('defaultFont', 'Arial');
+        // DejaVu Sans ships with Dompdf and covers the Philippine Peso sign
+        // (U+20B1 ₱) as well as the full Latin character set required for
+        // employee names and monetary amounts.  Arial (Latin-1 only) was
+        // replaced here to fix the missing-glyph box for ₱ in generated PDFs.
+        $options->set('defaultFont', 'DejaVu Sans');
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', false);
         $options->set('isPhpEnabled', false);

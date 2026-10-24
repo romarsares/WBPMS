@@ -1,0 +1,29 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart LR
+    BO(["Business Owner"])
+    HR(["HR Head"])
+    EMP(["Employee"])
+
+    subgraph SYS["Authentication and User Management"]
+        subgraph AUTH["Authentication"]
+            UC1(["Login"])
+            UC2(["Forgot Password"])
+            UC3(["Reset Password"])
+            UC4(["Change Password"])
+            UC5(["Logout"])
+        end
+        subgraph UMGT["User Management"]
+            UC6(["View Users"])
+            UC7(["Create User"])
+            UC8(["Edit User"])
+            UC9(["Activate / Deactivate"])
+            UC10(["Archive User"])
+            UC11(["Reset User Password"])
+        end
+    end
+
+    BO & HR & EMP --- UC1 & UC2 & UC3 & UC4 & UC5
+    BO & HR --- UC6 & UC8 & UC11
+    BO --- UC7 & UC9 & UC10
+
+    UC1 -.->|"<<include>>"| UC4

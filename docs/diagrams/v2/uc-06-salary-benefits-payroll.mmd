@@ -1,0 +1,43 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart LR
+    HR(["HR Head"])
+    BO(["Business Owner"])
+
+    subgraph SYS["Salary, Benefits, and Payroll"]
+        subgraph SAL["Salary"]
+            UC1(["View Salaries"])
+            UC2(["Create Salary"])
+            UC3(["Edit Salary"])
+            UC4(["Archive Salary"])
+        end
+        subgraph BEN["Benefits & Contributions"]
+            UC5(["View Policies"])
+            UC6(["Approve Policy"])
+            UC7(["Lock Contribution"])
+            UC8(["Unlock Contribution"])
+        end
+        subgraph PAY["Payroll"]
+            UC9(["View Payroll Runs"])
+            UC10(["Create Run"])
+            UC11(["Compute Payroll"])
+            UC12(["Adjust Entry"])
+            UC13(["Submit for Approval"])
+            UC14(["Cancel Run"])
+            UC15(["Print Timesheet"])
+            UC16(["View Disbursement"])
+            UC17(["Export CSV"])
+        end
+        subgraph OWNR["Owner Review"]
+            UC18(["View Runs for Review"])
+            UC19(["Approve Run"])
+            UC20(["Return for Revision"])
+        end
+    end
+
+    HR --- UC1 & UC2 & UC3 & UC4
+    HR --- UC5 & UC6 & UC7 & UC8
+    HR --- UC9 & UC10 & UC11 & UC12 & UC13 & UC14 & UC15 & UC16 & UC17
+    BO --- UC15 & UC16 & UC17 & UC18 & UC19 & UC20
+
+    UC10 -.->|"<<include>>"| UC11
+    UC11 -.->|"<<include>>"| UC13
