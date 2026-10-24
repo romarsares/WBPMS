@@ -285,7 +285,28 @@ final class AuthController
         $connection = $this->makeConnection();
         $mailer     = new Mailer();
         $service    = new PasswordResetService($connection, $mailer);
-        $baseUrl    = (string) ($_ENV['APP_BASE_URL'] ?? '');
+
+        // Resolve the base URL used inside the password-reset link.
+        //
+        // Priority:
+        //   1. APP_BASE_URL from environment — the canonical value for production.
+        //   2. Derived from the current HTTP request — fallback when APP_BASE_URL
+        //      is missing or still set to a localhost value (common misconfiguration
+        //      when the Railway variable was never updated from the .env default).
+        //
+        // Using a localhost base URL would produce a reset link that only works
+        // on the server itself, not for the end user clicking the email.
+        $baseUrl = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+
+        $isLocalhost = $baseUrl === ''
+            || str_contains($baseUrl, '://localhost')
+            || str_contains($baseUrl, '://127.0.0.1');
+
+        if ($isLocalhost && isset($_SERVER['HTTP_HOST'])) {
+            $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host    = (string) $_SERVER['HTTP_HOST'];
+            $baseUrl = $scheme . '://' . $host;
+        }
 
         $mailDriver = strtolower(trim((string) ($_ENV['MAIL_DRIVER'] ?? 'log')));
         $mailHost   = trim((string) ($_ENV['MAIL_HOST'] ?? ''));
@@ -312,11 +333,29 @@ final class AuthController
             // initiateReset() returns false only when the address is unknown or
             // the account is inactive. It re-throws RuntimeException on SMTP failure.
             $service->initiateReset($email, $baseUrl);
-        } catch (\RuntimeException) {
-            // SMTP delivery failed — surface a meaningful error to the user.
-            $_SESSION['_forgot_error'] =
-                'We could not send the reset email. Please try again in a few minutes '
-                . 'or contact your system administrator if the problem persists.';
+        } catch (\RuntimeException $e) {
+            // Write the specific SMTP error to mail.log so it is traceable
+            // without exposing details to the end user.
+            $logPath = defined('APP_ROOT')
+                ? APP_ROOT . '/storage/private/mail.log'
+                : sys_get_temp_dir() . '/wbpms-mail.log';
+            $entry = PHP_EOL
+                . str_repeat('-', 72) . PHP_EOL
+                . 'Date:    ' . date('Y-m-d H:i:s') . PHP_EOL
+                . 'Event:   SMTP delivery failed for password reset' . PHP_EOL
+                . 'Error:   ' . $e->getMessage() . PHP_EOL
+                . str_repeat('-', 72) . PHP_EOL;
+            @file_put_contents($logPath, $entry, FILE_APPEND | LOCK_EX);
+
+            $appEnvNow = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'production')));
+            if ($appEnvNow === 'development') {
+                $_SESSION['_forgot_error'] =
+                    'SMTP delivery failed: ' . $e->getMessage();
+            } else {
+                $_SESSION['_forgot_error'] =
+                    'We could not send the reset email. Please try again in a few minutes '
+                    . 'or contact your system administrator if the problem persists.';
+            }
             $this->redirect('/forgot-password');
             return;
         }

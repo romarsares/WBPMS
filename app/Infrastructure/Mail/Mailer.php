@@ -148,11 +148,15 @@ final class Mailer
             );
         }
 
+        // Use the local hostname for EHLO (RFC 5321 §4.1.1.1).
+        // gethostname() returns false on failure; fall back to 'localhost'.
+        $localHostname = gethostname() ?: 'localhost';
+
         try {
             $this->expectCode($socket, 220, 'banner');
 
             // EHLO
-            $this->send_($socket, "EHLO {$this->host}");
+            $this->send_($socket, "EHLO {$localHostname}");
             $capabilities = $this->readResponse($socket, 250);
 
             // STARTTLS upgrade for tls encryption
@@ -168,7 +172,7 @@ final class Mailer
                 }
 
                 // Re-send EHLO after TLS upgrade
-                $this->send_($socket, "EHLO {$this->host}");
+                $this->send_($socket, "EHLO {$localHostname}");
                 $this->readResponse($socket, 250);
             }
 
@@ -199,7 +203,7 @@ final class Mailer
             $messageId = sprintf(
                 '<%s@%s>',
                 bin2hex(random_bytes(16)),
-                $this->host
+                $localHostname
             );
 
             $headers  = "From: {$this->fromName} <{$this->fromAddress}>\r\n";
@@ -211,8 +215,10 @@ final class Mailer
             $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
             $headers .= "Content-Transfer-Encoding: 8bit\r\n";
 
-            // Dot-stuff body lines starting with a period (RFC 5321)
-            $safeBody = preg_replace('/^\./', '..', $body) ?? $body;
+            // Dot-stuff: RFC 5321 §4.5.2 requires that any line beginning with
+            // a period be prefixed with an additional period.  The 'm' flag makes
+            // ^ match the start of each line in the body, not just the string start.
+            $safeBody = preg_replace('/^\./m', '..', $body) ?? $body;
 
             fwrite($socket, $headers . "\r\n" . $safeBody . "\r\n.\r\n");
             $this->expectCode($socket, 250, 'message accepted');
