@@ -9,13 +9,39 @@ use Wbpms\Infrastructure\Database\Connection;
 use Wbpms\Infrastructure\Session\DatabaseSessionHandler;
 
 // Load environment variables from .env file if present.
-// In production, variables are injected by the server/container environment.
-// A single Dotenv instance handles both: load() is skipped when .env is absent
-// (e.g. CI/production) but required() always validates the final environment.
+// In production (e.g. Railway), variables are injected by the container into
+// the process environment (accessible via getenv()) rather than $_ENV.
+// Whether PHP populates $_ENV from the process environment depends on the
+// `variables_order` INI setting; on many production stacks it is "GPCS"
+// (no "E"), so $_ENV stays empty for container-injected variables.
+//
+// Strategy:
+//   1. If a .env file exists, load it via phpdotenv (writes to both $_ENV and
+//      putenv/getenv via createUnsafeMutable).
+//   2. After loading, back-fill $_ENV from getenv() for any variable that is
+//      not already present in $_ENV.  This makes Railway-injected variables
+//      visible to all application code that reads $_ENV directly, without
+//      overwriting values that were explicitly set by the .env file.
 $dotenv = Dotenv::createUnsafeMutable(APP_ROOT);
 if (file_exists(APP_ROOT . '/.env')) {
     $dotenv->load();
 }
+
+// Back-fill $_ENV from the process environment for variables present in
+// getenv() but absent from $_ENV.  This handles production hosts (Railway,
+// Heroku, Docker) that inject variables through the process environment when
+// no .env file is deployed and PHP's variables_order does not include "E".
+// Existing $_ENV entries (written by phpdotenv above) are never overwritten.
+$_wbpmsProcessEnv = getenv();
+if (is_array($_wbpmsProcessEnv)) {
+    foreach ($_wbpmsProcessEnv as $_wbpmsKey => $_wbpmsVal) {
+        if (!array_key_exists($_wbpmsKey, $_ENV)) {
+            $_ENV[$_wbpmsKey] = $_wbpmsVal;
+        }
+    }
+    unset($_wbpmsProcessEnv, $_wbpmsKey, $_wbpmsVal);
+}
+
 $dotenv->required([
     'APP_ENV',
     'APP_BASE_URL',
