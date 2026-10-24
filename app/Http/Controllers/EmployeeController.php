@@ -545,29 +545,78 @@ final class EmployeeController
             return;
         }
 
-        $repo->updateEmployee($id, [
-            'employee_type'     => $data['employee_type'] ?: 'Regular',
-            'first_name'        => $data['first_name'],
-            'middle_initial'    => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
-            'last_name'         => $data['last_name'],
-            'email'             => $data['email']          !== '' ? $data['email']          : null,
-            'contact_number'    => $data['contact_number'] !== '' ? $data['contact_number'] : null,
-            'birthdate'         => $data['birthdate']      !== '' ? $data['birthdate']      : null,
-            'position'          => $data['position']       !== '' ? $data['position']       : null,
-            'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
-            'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
-            'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
-            'sss_number'        => $data['sss_number']        !== '' ? $data['sss_number']        : null,
-            'status'            => ucfirst(strtolower($data['status'] ?? 'active')),
-        ]);
+        $connection = $this->makeConnection();
+        $actorId    = (int) (AuthMiddleware::identity()['user_id'] ?? 0);
 
-        // Salary is effective-dated. Do not create a new row merely because an
-        // employee profile was saved with the unchanged current rate; doing so
-        // can create an invalid zero-length same-day salary period.
-        if ($data['daily_rate'] !== ''
-            && (float) $data['daily_rate'] > 0
-            && abs((float) $data['daily_rate'] - (float) $row['daily_rate']) > 0.00001) {
-            $repo->updateSalary($id, (float) $data['daily_rate']);
+        try {
+            $connection->transaction(function (\PDO $pdo) use (
+                $id, $data, $row, $repo, $connection, $actorId
+            ): void {
+                $repo->updateEmployee($id, [
+                    'employee_type'     => $data['employee_type'] ?: 'Regular',
+                    'first_name'        => $data['first_name'],
+                    'middle_initial'    => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
+                    'last_name'         => $data['last_name'],
+                    'email'             => $data['email']          !== '' ? $data['email']          : null,
+                    'contact_number'    => $data['contact_number'] !== '' ? $data['contact_number'] : null,
+                    'birthdate'         => $data['birthdate']      !== '' ? $data['birthdate']      : null,
+                    'position'          => $data['position']       !== '' ? $data['position']       : null,
+                    'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
+                    'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
+                    'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
+                    'sss_number'        => $data['sss_number']        !== '' ? $data['sss_number']        : null,
+                    'status'            => ucfirst(strtolower($data['status'] ?? 'active')),
+                ]);
+
+                // Salary is effective-dated. Do not create a new row merely because an
+                // employee profile was saved with the unchanged current rate; doing so
+                // can create an invalid zero-length same-day salary period.
+                if ($data['daily_rate'] !== ''
+                    && (float) $data['daily_rate'] > 0
+                    && abs((float) $data['daily_rate'] - (float) $row['daily_rate']) > 0.00001) {
+                    $repo->updateSalary($id, (float) $data['daily_rate']);
+                }
+
+                // Sync employee.email → users.account_email for the linked user account.
+                // When HR changes the employee's email address the linked login account must
+                // reflect that change so the employee can still log in with the new address.
+                // Only runs when (a) an email was supplied, (b) it actually changed, and
+                // (c) the employee has an active or inactive (non-archived) linked account.
+                $newEmail = $data['email'];
+                $oldEmail = (string) ($row['email'] ?? '');
+                if ($newEmail !== '' && $newEmail !== $oldEmail) {
+                    $stmt = $pdo->prepare(
+                        "SELECT user_id FROM users
+                          WHERE employee_id = :emp
+                            AND status != 'Archived'
+                          LIMIT 1"
+                    );
+                    $stmt->execute([':emp' => $id]);
+                    $linkedUserId = $stmt->fetchColumn();
+
+                    if ($linkedUserId !== false) {
+                        (new UserService($connection))->update(
+                            (int) $linkedUserId,
+                            ['account_email' => $newEmail],
+                            $actorId
+                        );
+                    }
+                }
+            });
+        } catch (\RuntimeException $e) {
+            // Surface domain errors (e.g. email already used by another account)
+            // as a field-level form error rather than a fatal crash.
+            [$branches, $schedules, $devices, $positions] = $this->dropdownData();
+            $merged = array_merge($row, $data, ['id' => $id]);
+            ViewRenderer::render('hr/employees/edit', [
+                'employee'  => $merged,
+                'branches'  => $branches,
+                'schedules' => $schedules,
+                'devices'   => $devices,
+                'positions' => $positions,
+                'errors'    => ['email' => $e->getMessage()],
+            ], 'Edit Employee');
+            return;
         }
 
         ViewRenderer::flash('Employee updated successfully.');

@@ -365,7 +365,7 @@ final class UserService
         }
 
         $this->connection->transaction(function (PDO $pdo) use (
-            $userId, $username, $email, $roleId, $employeeId, $status, $actingUserId
+            $userId, $username, $email, $roleId, $employeeId, $status, $user, $actingUserId
         ): void {
             $stmt = $pdo->prepare(
                 "UPDATE users
@@ -381,6 +381,15 @@ final class UserService
                 ':status'=> $status,
                 ':id'    => $userId,
             ]);
+
+            // Sync users.account_email → employee.email for the linked employee profile.
+            // When HR changes the login email from User Management the employee's
+            // contact email must also be updated so both records stay consistent.
+            if ($employeeId !== null && $email !== (string) $user['account_email']) {
+                $pdo->prepare(
+                    "UPDATE employee SET email = :email WHERE employee_id = :emp"
+                )->execute([':email' => $email, ':emp' => $employeeId]);
+            }
 
             $this->insertAudit($pdo, $actingUserId, 'user_updated', 'users', $userId,
                 "Updated user_id={$userId}: username='{$username}', role_id={$roleId}, status='{$status}'");
