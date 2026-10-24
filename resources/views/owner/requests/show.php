@@ -156,7 +156,7 @@ $statusLabel = $statusLabels[$status] ?? $status;
                   style="margin-bottom:1rem"
                   onsubmit="return confirm('Finally approve this request? This action cannot be undone.')">
                 <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
-                <button type="submit" class="btn btn-primary" style="width:100%;padding:.6rem 1rem;font-size:.95rem">
+                <button type="submit" class="btn btn-primary" style="width:100%">
                     ✓ Approve Request
                 </button>
             </form>
@@ -175,10 +175,11 @@ $statusLabel = $statusLabels[$status] ?? $status;
                     <textarea id="owner_notes_return" name="owner_notes" rows="3"
                               placeholder="Explain what needs to be corrected before you can approve…"
                               style="width:100%;padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem;resize:vertical"
+                              maxlength="1000"
                               required></textarea>
                 </div>
-                <button type="submit"
-                        style="width:100%;background:#f97316;color:#fff;border:none;padding:.5rem 1rem;border-radius:6px;cursor:pointer;font-size:.875rem;font-weight:500">
+                <button type="submit" class="btn btn-secondary"
+                        style="width:100%;border-color:#f97316;color:#f97316">
                     ↩ Return to HR
                 </button>
             </form>
@@ -197,10 +198,10 @@ $statusLabel = $statusLabels[$status] ?? $status;
                     </label>
                     <textarea id="owner_notes_cancel" name="owner_notes" rows="2"
                               placeholder="Optional reason for cancellation…"
-                              style="width:100%;padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem;resize:vertical"></textarea>
+                              style="width:100%;padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem;resize:vertical"
+                              maxlength="1000"></textarea>
                 </div>
-                <button type="submit"
-                        style="width:100%;background:#6b7280;color:#fff;border:none;padding:.5rem 1rem;border-radius:6px;cursor:pointer;font-size:.875rem;font-weight:500">
+                <button type="submit" class="btn btn-secondary" style="width:100%">
                     ✗ Cancel Request
                 </button>
             </form>

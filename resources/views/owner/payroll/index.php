@@ -50,7 +50,7 @@ $recentRuns  ??= [];
             ⚠ The following payroll runs require your review and approval.
         </strong>
     </div>
-    <table>
+    <table class="data-table">
         <thead>
             <tr>
                 <th>Branch</th>

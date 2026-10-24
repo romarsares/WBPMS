@@ -116,9 +116,11 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <?= $err('contact_number') ?>
             </div>
             <div class="form-group">
-                <label for="email">Email <span style="color:#dc2626">*</span></label>
-                <input type="text" id="email" name="email"
+                <label for="email">Email <?= !$isEdit ? '<span style="color:#dc2626">*</span>' : '' ?></label>
+                <input type="email" id="email" name="email"
                     value="<?= $v('email') ?>"
+                    maxlength="254"
+                    <?= !$isEdit ? 'required' : '' ?>
                     class="<?= isset($errors['email']) ? 'is-invalid' : '' ?>"
                     placeholder="e.g. juan@lightdiamond.com">
                 <?= $err('email') ?>
@@ -192,6 +194,8 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <label for="employee_number">Employee number <span style="color:#dc2626">*</span></label>
                 <input type="text" id="employee_number" name="employee_number"
                     value="<?= $v('employee_number') ?>"
+                    maxlength="30"
+                    <?= !$isEdit ? 'required' : '' ?>
                     <?= $isEdit ? 'readonly style="background:#f3f4f6"' : '' ?>
                     class="<?= isset($errors['employee_number']) ? 'is-invalid' : '' ?>">
                 <?= $err('employee_number') ?>
@@ -211,24 +215,52 @@ $err = static fn(string $key): string => isset($errors[$key])
             <div class="form-group">
                 <label for="sss_number">SSS number</label>
                 <input type="text" id="sss_number" name="sss_number"
-                    value="<?= $v('sss_number') ?>" placeholder="optional">
+                    value="<?= $v('sss_number') ?>"
+                    placeholder="XX-XXXXXXX-X"
+                    maxlength="13"
+                    pattern="\d{2}-?\d{7}-?\d"
+                    title="SSS number must be in XX-XXXXXXX-X format (10 digits, e.g. 34-5678901-2)."
+                    inputmode="numeric"
+                    class="<?= isset($errors['sss_number']) ? 'is-invalid' : '' ?>">
+                <?= $err('sss_number') ?>
             </div>
             <div class="form-group">
                 <label for="philhealth_number">PhilHealth number</label>
                 <input type="text" id="philhealth_number" name="philhealth_number"
-                    value="<?= $v('philhealth_number') ?>" placeholder="optional">
+                    value="<?= $v('philhealth_number') ?>"
+                    placeholder="12-digit number"
+                    maxlength="15"
+                    pattern="[\d\- ]{12,15}"
+                    title="PhilHealth number must be 12 digits."
+                    inputmode="numeric"
+                    class="<?= isset($errors['philhealth_number']) ? 'is-invalid' : '' ?>">
+                <?= $err('philhealth_number') ?>
             </div>
             <div class="form-group">
                 <label for="pagibig_number">Pag-IBIG number</label>
                 <input type="text" id="pagibig_number" name="pagibig_number"
-                    value="<?= $v('pagibig_number') ?>" placeholder="optional">
+                    value="<?= $v('pagibig_number') ?>"
+                    placeholder="12-digit number"
+                    maxlength="15"
+                    pattern="[\d\- ]{12,15}"
+                    title="Pag-IBIG number must be 12 digits."
+                    inputmode="numeric"
+                    class="<?= isset($errors['pagibig_number']) ? 'is-invalid' : '' ?>">
+                <?= $err('pagibig_number') ?>
             </div>
         </div>
         <div class="form-row">
             <div class="form-group">
                 <label for="tin_number">TIN</label>
                 <input type="text" id="tin_number" name="tin_number"
-                    value="<?= $v('tin_number') ?>" placeholder="optional">
+                    value="<?= $v('tin_number') ?>"
+                    placeholder="XXX-XXX-XXX"
+                    maxlength="16"
+                    pattern="\d{3}-?\d{3}-?\d{3}(-?\d{3})?"
+                    title="TIN must be 9 or 12 digits (e.g. 123-456-789 or 123-456-789-000)."
+                    inputmode="numeric"
+                    class="<?= isset($errors['tin_number']) ? 'is-invalid' : '' ?>">
+                <?= $err('tin_number') ?>
             </div>
         </div>
 

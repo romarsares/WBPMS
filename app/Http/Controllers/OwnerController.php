@@ -181,6 +181,18 @@ final class OwnerController
         $identity = AuthMiddleware::identity();
         $reason   = trim((string) ($_POST['return_reason'] ?? ''));
 
+        // Server-side: return reason is required and capped at 1,000 characters.
+        if ($reason === '') {
+            ViewRenderer::flashError('A return reason is required.');
+            $this->redirect('/owner/payroll/' . $id . '/review');
+            return;
+        }
+        if (mb_strlen($reason) > 1000) {
+            ViewRenderer::flashError('Return reason must be 1,000 characters or fewer.');
+            $this->redirect('/owner/payroll/' . $id . '/review');
+            return;
+        }
+
         try {
             (new PayrollService($this->makeConnection()))
                 ->returnForRevision($id, (int) ($identity['user_id'] ?? 0), $reason);
@@ -270,6 +282,18 @@ final class OwnerController
         $identity = AuthMiddleware::identity();
         $note     = trim((string) ($_POST['owner_notes'] ?? ''));
 
+        // Server-side: return note is required and capped at 1,000 characters.
+        if ($note === '') {
+            ViewRenderer::flashError('A return note is required when sending a request back to HR.');
+            $this->redirect('/owner/requests/' . $id);
+            return;
+        }
+        if (mb_strlen($note) > 1000) {
+            ViewRenderer::flashError('Return note must be 1,000 characters or fewer.');
+            $this->redirect('/owner/requests/' . $id);
+            return;
+        }
+
         try {
             $this->makeRequestService()->ownerReturn($id, (int) ($identity['user_id'] ?? 0), $note);
             ViewRenderer::flash('Request returned to HR for revision.');
@@ -293,6 +317,13 @@ final class OwnerController
         $id       = (int) ($params['id'] ?? 0);
         $identity = AuthMiddleware::identity();
         $note     = trim((string) ($_POST['owner_notes'] ?? ''));
+
+        // Server-side: cancel note is optional but capped at 1,000 characters.
+        if (mb_strlen($note) > 1000) {
+            ViewRenderer::flashError('Cancellation note must be 1,000 characters or fewer.');
+            $this->redirect('/owner/requests/' . $id);
+            return;
+        }
 
         try {
             $this->makeRequestService()->ownerCancel($id, (int) ($identity['user_id'] ?? 0), $note);

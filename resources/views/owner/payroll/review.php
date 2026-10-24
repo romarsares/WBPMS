@@ -193,6 +193,7 @@ foreach ($deductions as $deduction) {
                 </label>
                 <textarea id="return_reason" name="return_reason" rows="4" class="form-control"
                           placeholder="Describe what needs correction…" required
+                          maxlength="1000"
                           style="width:100%;resize:vertical"></textarea>
                 <?php if (isset($errors['return_reason'])): ?>
                 <small style="color:#ef4444"><?= htmlspecialchars($errors['return_reason']) ?></small>

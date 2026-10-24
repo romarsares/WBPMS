@@ -507,6 +507,8 @@ final class ScheduleController
 
         if (trim((string) $data['schedule_name']) === '') {
             $errors['schedule_name'] = 'Schedule name is required.';
+        } elseif (mb_strlen(trim((string) $data['schedule_name'])) > 100) {
+            $errors['schedule_name'] = 'Schedule name must be 100 characters or fewer.';
         }
 
         $workDays = is_array($data['work_days']) ? $data['work_days'] : [];
@@ -579,16 +581,21 @@ final class ScheduleController
     {
         $errors = [];
 
-        if ($data['employee_id'] === '') {
+        if ($data['employee_id'] === '' || (int) $data['employee_id'] <= 0) {
             $errors['employee_id'] = 'Employee is required.';
         }
 
-        if ($data['schedule_id'] === '') {
+        if ($data['schedule_id'] === '' || (int) $data['schedule_id'] <= 0) {
             $errors['schedule_id'] = 'Schedule is required.';
         }
 
         if ($data['effective_from'] === '') {
             $errors['effective_from'] = 'Effective date is required.';
+        } else {
+            $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['effective_from']);
+            if ($parsed === false || $parsed->format('Y-m-d') !== $data['effective_from']) {
+                $errors['effective_from'] = 'Effective date must be a valid calendar date (YYYY-MM-DD).';
+            }
         }
 
         return $errors;

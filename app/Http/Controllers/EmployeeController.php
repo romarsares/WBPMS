@@ -350,8 +350,8 @@ final class EmployeeController
         if ($newBranchId <= 0) {
             $errors['branch_id'] = 'Destination branch is required.';
         }
-        if ($transferDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $transferDate)) {
-            $errors['transfer_date'] = 'Transfer date is required (YYYY-MM-DD).';
+        if ($transferDate === '' || !$this->isIsoDate($transferDate)) {
+            $errors['transfer_date'] = 'Transfer date is required and must be a valid date (YYYY-MM-DD).';
         }
 
         if ($errors === []) {
@@ -646,6 +646,8 @@ final class EmployeeController
 
         if (!$isEdit && $data['employee_number'] === '') {
             $errors['employee_number'] = 'Employee number is required.';
+        } elseif ($data['employee_number'] !== '' && mb_strlen($data['employee_number']) > 30) {
+            $errors['employee_number'] = 'Employee number must be 30 characters or fewer.';
         }
 
         if (!$isEdit && $data['employee_number'] !== '' && $repo !== null
@@ -672,7 +674,6 @@ final class EmployeeController
             $errors['first_name'] = 'First name may only contain letters, spaces, hyphens, apostrophes, and periods.';
         }
 
-        // Issue 2.2: validate middle name characters when provided
         if ($data['middle_name'] !== '' && !preg_match("/^[\p{L}][\p{L} .'\-]{0,48}[\p{L}.]$|^[\p{L}.]$/u", $data['middle_name'])) {
             $errors['middle_name'] = 'Middle name may only contain letters, spaces, hyphens, apostrophes, and periods.';
         }
@@ -683,24 +684,77 @@ final class EmployeeController
             $errors['last_name'] = 'Last name may only contain letters, spaces, hyphens, apostrophes, and periods.';
         }
 
-        // Issue 2.1: contact number must be a Philippine mobile number (09XXXXXXXXX, 11 digits)
+        // Birthdate: optional, but must be a real calendar date when provided.
+        if ($data['birthdate'] !== '') {
+            $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['birthdate']);
+            if ($parsed === false || $parsed->format('Y-m-d') !== $data['birthdate']) {
+                $errors['birthdate'] = 'Birthdate must be a valid date (YYYY-MM-DD).';
+            }
+        }
+
+        // Contact number: Philippine mobile 09XXXXXXXXX (11 digits), optional.
         if ($data['contact_number'] !== '') {
             if (!preg_match('/^09\d{9}$/', $data['contact_number'])) {
                 $errors['contact_number'] = 'Contact number must be a valid Philippine mobile number starting with 09 and exactly 11 digits (e.g. 09171234567).';
             }
         }
 
+        // Government IDs: optional, but enforce format and length when provided.
+        // SSS: XX-XXXXXXX-X (10 digits with dashes) or plain 10 digits.
+        if ($data['sss_number'] !== '') {
+            $sssClean = str_replace('-', '', $data['sss_number']);
+            if (!preg_match('/^\d{10}$/', $sssClean) || mb_strlen($data['sss_number']) > 13) {
+                $errors['sss_number'] = 'SSS number must be in XX-XXXXXXX-X format (10 digits).';
+            }
+        }
+        // PhilHealth: 12-digit number.
+        if ($data['philhealth_number'] !== '') {
+            $phClean = str_replace(['-', ' '], '', $data['philhealth_number']);
+            if (!preg_match('/^\d{12}$/', $phClean) || mb_strlen($data['philhealth_number']) > 15) {
+                $errors['philhealth_number'] = 'PhilHealth number must be 12 digits.';
+            }
+        }
+        // Pag-IBIG: 12-digit number.
+        if ($data['pagibig_number'] !== '') {
+            $piClean = str_replace(['-', ' '], '', $data['pagibig_number']);
+            if (!preg_match('/^\d{12}$/', $piClean) || mb_strlen($data['pagibig_number']) > 15) {
+                $errors['pagibig_number'] = 'Pag-IBIG number must be 12 digits.';
+            }
+        }
+        // TIN: 9 or 12 digits, optionally formatted with dashes (XXX-XXX-XXX or XXX-XXX-XXX-XXX).
+        if ($data['tin_number'] !== '') {
+            $tinClean = str_replace('-', '', $data['tin_number']);
+            if (!preg_match('/^\d{9}(\d{3})?$/', $tinClean) || mb_strlen($data['tin_number']) > 16) {
+                $errors['tin_number'] = 'TIN must be 9 or 12 digits (e.g. 123-456-789 or 123-456-789-000).';
+            }
+        }
+
         if ($data['position'] === '') {
             $errors['position'] = 'Position is required.';
+        } elseif (mb_strlen($data['position']) > 100) {
+            $errors['position'] = 'Position title must be 100 characters or fewer.';
+        }
+
+        // Employee type: only two valid values.
+        if (!in_array($data['employee_type'], ['Regular', 'Contractual'], true)) {
+            $errors['employee_type'] = 'Employee type must be Regular or Contractual.';
         }
 
         if ($data['daily_rate'] === '' || (float) $data['daily_rate'] <= 0) {
             $errors['daily_rate'] = 'Daily rate is required and must be greater than 0.';
+        } elseif ((float) $data['daily_rate'] > 999999.99) {
+            $errors['daily_rate'] = 'Daily rate cannot exceed ₱999,999.99.';
         }
 
         if (!$isEdit) {
+            // Effective-from must be a real calendar date on create.
             if ($data['effective_from'] === '') {
                 $errors['effective_from'] = 'Effective date is required.';
+            } else {
+                $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['effective_from']);
+                if ($parsed === false || $parsed->format('Y-m-d') !== $data['effective_from']) {
+                    $errors['effective_from'] = 'Effective date must be a valid calendar date (YYYY-MM-DD).';
+                }
             }
             if ($data['branch_id'] === '') {
                 $errors['branch_id'] = 'Branch is required.';

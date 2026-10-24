@@ -132,10 +132,7 @@ $typeIcons = [
         </thead>
         <tbody>
         <?php foreach ($actioned as $r):
-            $isApproved = $r['status'] === 'Approved';
-            $statusStyle = $isApproved
-                ? 'background:#d1fae5;color:#065f46'
-                : 'background:#f3f4f6;color:#374151';
+            $badgeClass = $r['status'] === 'Approved' ? 'badge-green' : 'badge-gray';
         ?>
         <tr>
             <td style="color:#9ca3af;font-size:.8rem"><?= (int) $r['request_id'] ?></td>
@@ -148,7 +145,7 @@ $typeIcons = [
                 <?= Formatter::escape((string) $r['type_name']) ?>
             </td>
             <td>
-                <span style="<?= $statusStyle ?>;padding:2px 8px;border-radius:9999px;font-size:.75rem;font-weight:600">
+                <span class="badge <?= $badgeClass ?>">
                     <?= Formatter::escape((string) $r['status']) ?>
                 </span>
             </td>
@@ -161,7 +158,7 @@ $typeIcons = [
             </td>
             <td style="white-space:nowrap">
                 <a href="<?= $base ?>/owner/requests/<?= (int) $r['request_id'] ?>"
-                   style="font-size:.8rem;color:#6366f1">
+                   class="btn btn-secondary btn-sm">
                     View →
                 </a>
             </td>

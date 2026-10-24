@@ -110,6 +110,7 @@ $BANK_NAMES = ['BDO', 'BPI', 'Metrobank', 'UnionBank', 'Landbank', 'PNB', 'RCBC'
                 <input type="text" id="account_name" name="account_name"
                        value="<?= $pv('account_name') ?>"
                        placeholder="Full name as on the bank account"
+                       maxlength="100"
                        class="<?= isset($errors['account_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('account_name') ?>
             </div>
