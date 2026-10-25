@@ -206,27 +206,49 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     /**
-     * Insert a work_schedule row and return its schedule_id.
+     * Insert a work_schedule template and an employee_schedule_assignment row.
+     * Returns the schedule_id.
+     *
+     * Since migration 20260902000007 decoupled work_schedule from employee_id,
+     * work_schedule is now a reusable template. This helper creates one template
+     * per call (with a unique name) and links it to the employee via
+     * employee_schedule_assignment.
      */
     protected function insertWorkSchedule(
         int $employeeId,
         string $effectiveFrom = '2026-01-01',
         ?string $effectiveTo = null
     ): int {
+        $name = 'Test Shift ' . uniqid();
         $stmt = $this->pdo->prepare(
             "INSERT INTO work_schedule
-                (employee_id, working_days, rest_days, break_minutes,
-                 work_start_time, work_end_time, standard_minutes, effective_from, effective_to)
-             VALUES (:emp, :wd, :rd, 60, '07:00:00', '16:00:00', 480, :from, :to)"
+                (schedule_name, working_days, rest_days, break_minutes,
+                 work_start_time, work_end_time, standard_minutes,
+                 effective_from, effective_to)
+             VALUES (:name, :wd, :rd, 60, '07:00:00', '16:00:00', 480, :from, :to)"
         );
         $stmt->execute([
-            ':emp'  => $employeeId,
+            ':name' => $name,
             ':wd'   => '["Monday","Tuesday","Wednesday","Thursday","Friday"]',
             ':rd'   => '["Saturday","Sunday"]',
             ':from' => $effectiveFrom,
             ':to'   => $effectiveTo,
         ]);
-        return (int) $this->pdo->lastInsertId();
+        $scheduleId = (int) $this->pdo->lastInsertId();
+
+        $stmt = $this->pdo->prepare(
+            "INSERT INTO employee_schedule_assignment
+                (employee_id, schedule_id, effective_from, effective_to, status)
+             VALUES (:emp, :sched, :from, :to, 'Active')"
+        );
+        $stmt->execute([
+            ':emp'   => $employeeId,
+            ':sched' => $scheduleId,
+            ':from'  => $effectiveFrom,
+            ':to'    => $effectiveTo,
+        ]);
+
+        return $scheduleId;
     }
 
     /**

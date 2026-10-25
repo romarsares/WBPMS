@@ -809,7 +809,9 @@ final class SchemaInvariantsTest extends IntegrationTestCase
     }
 
     /**
-     * A Special holiday with pay_multiplier = 1.30 must be accepted.
+     * A SpecialNonWorking holiday with pay_multiplier = 1.30 must be accepted.
+     * (Since migration 20260912000017, 'Special' = Special Working Holiday at 1.00;
+     * 'SpecialNonWorking' = Special Non-Working Holiday at 1.30.)
      */
     public function testHolidaySpecialWithCorrectMultiplierAccepted(): void
     {
@@ -817,9 +819,9 @@ final class SchemaInvariantsTest extends IntegrationTestCase
             fn () => $this->pdo->exec(
                 "INSERT INTO holiday_calendar
                     (holiday_date, description, holiday_type, pay_multiplier)
-                 VALUES ('2026-11-01', 'All Saints Day', 'Special', 1.30)"
+                 VALUES ('2026-11-01', 'All Saints Day', 'SpecialNonWorking', 1.30)"
             ),
-            'Special holiday with pay_multiplier = 1.30'
+            'SpecialNonWorking holiday with pay_multiplier = 1.30'
         );
     }
 

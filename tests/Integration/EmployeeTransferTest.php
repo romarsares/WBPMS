@@ -55,6 +55,10 @@ final class EmployeeTransferTest extends IntegrationTestCase
             'Old assignment effective_to should equal the transfer date.');
 
         // New assignment must be open (effective_to IS NULL)
+        $stmt = $this->pdo->prepare(
+            "SELECT effective_from, effective_to FROM employee_branch_assignment
+              WHERE employee_id = :emp AND branch_id = :br"
+        );
         $stmt->execute([':emp' => $employeeId, ':br' => $branchB]);
         $new = $stmt->fetch();
         $this->assertNotFalse($new, 'New branch assignment should exist.');
