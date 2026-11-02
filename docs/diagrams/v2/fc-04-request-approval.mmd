@@ -2,17 +2,17 @@
 flowchart TD
     A([Start]) --> B[/"Employee Submits Request"/]
     B --> C{"Request Type?"}
-    C -->|Leave| D{"Sufficient Balance?"}
-    D -->|No| E[/"Reject: Insufficient Balance"/] --> Z([End])
-    D -->|Yes| F["Create Request\nStatus = Pending"]
+    C -->|Leave| D["Validate leave balance"]
+    D -->|Insufficient| E[/"Show insufficient balance error"/] --> Z([End])
+    D -->|Sufficient| F["Create Request + Leave Detail\nStatus = Pending"]
     C -->|Overtime| F
     C -->|Cash Advance| F
     F --> G[/"HR Head Reviews"/]
     G --> H{"HR Decision?"}
     H -->|Cancel| I["Status = Cancelled"] --> Z
-    H -->|Approve| J["Status = Approved\nUpdate Leave Ledger / CA History"]
+    H -->|Approve| J["Status = HRApproved"]
     J --> K[/"Business Owner Reviews"/]
     K --> L{"Owner Decision?"}
-    L -->|Approve| M["Final Approval"] --> Z
-    L -->|Return| N["Status = Pending"] --> G
+    L -->|Approve| M["Status = Approved\nDebit leave ledger / create CA history"] --> Z
+    L -->|Return| N["Status = Returned\nRecord return note"] --> G
     L -->|Cancel| O["Status = Cancelled"] --> Z

@@ -1,0 +1,7 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    ADMIN["Authorized Business Owner / HR Head"] -->|"Create or update account; assign role; activate/deactivate"| P(["1.0L\nManage user accounts"])
+    P <--> D1[("D1 Users / roles")]
+    P -->|"Account change audit event"| D2[("D2 Audit log")]
+    D1 -->|"Account and role details"| P
+    P -->|"User list / account result"| ADMIN

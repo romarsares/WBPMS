@@ -108,7 +108,7 @@
 
 - [x] 12. Dashboard module
   - [ ] 12.1 Role-based dashboard queries: HR Head (analytics, pending approvals, payroll summaries), Owner (payroll status, cross-branch summaries), Employee (own snapshot) — **`DashboardController` pending**; query repositories pending
-  - [ ] 12.2 Attendance-alert widget sourced from `AttendanceService.flagIncomplete`
+  - [x] 12.2 Attendance-alert widget sourced from `AttendanceService.flagIncomplete` — live `attendance WHERE status='Incomplete'` query in `DashboardController`; top-20 most recent records shown in `hr/dashboard.php`
   - [x] 12.3 `DashboardController` + views — **views scaffolded** (`hr/dashboard.php`, `owner/dashboard.php`, `employee/dashboard.php`); controller and live queries pending
   - _Requirements: 2_
 

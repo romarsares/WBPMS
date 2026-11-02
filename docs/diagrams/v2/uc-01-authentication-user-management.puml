@@ -1,0 +1,77 @@
+@startuml uc-01-authentication-user-management
+skinparam backgroundColor #FFFFFF
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam actor {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam rectangle {
+    BackgroundColor #F9F9F9
+    BorderColor #000000
+    FontColor #000000
+    BorderThickness 2
+}
+skinparam ArrowColor #000000
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title Use Case Diagram: Authentication and User Management
+
+left to right direction
+
+actor "Business\nOwner" as BO
+actor "HR Head" as HR
+actor "Employee" as EMP
+
+rectangle "WBPMS (Web-Based Payroll Management System)" {
+    package "Authentication" {
+        usecase "Login" as UC1
+        usecase "Forgot Password" as UC2
+        usecase "Reset Password" as UC3
+        usecase "Change Password" as UC4
+        usecase "Logout" as UC5
+    }
+    package "User Management" {
+        usecase "View Users" as UC6
+        usecase "Create User" as UC7
+        usecase "Edit User" as UC8
+        usecase "Activate / Deactivate" as UC9
+        usecase "Archive User" as UC10
+        usecase "Reset User Password" as UC11
+    }
+}
+
+BO --> UC1
+BO --> UC2
+BO --> UC4
+BO --> UC5
+BO --> UC6
+BO --> UC7
+BO --> UC8
+BO --> UC9
+BO --> UC10
+BO --> UC11
+
+HR --> UC1
+HR --> UC2
+HR --> UC4
+HR --> UC5
+HR --> UC6
+HR --> UC8
+HR --> UC11
+
+EMP --> UC1
+EMP --> UC2
+EMP --> UC4
+EMP --> UC5
+
+UC2 ..> UC3 : <<include>>
+UC1 ..> UC4 : <<extend>>
+
+@enduml

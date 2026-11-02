@@ -1,0 +1,18 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    OWNER["Business Owner"]
+    HR["HR Head"]
+    EMP["Employee"]
+    SMTP["SMTP Provider"]
+    SYS(["WBPMS\nWeb-Based Payroll Management System\nfor Light Diamond Enterprises"])
+
+    OWNER -->|"Payroll review decisions; user administration"| SYS
+    SYS -->|"Payroll summaries; dashboards; reports"| OWNER
+    HR -->|"Employee, schedule, salary data; attendance XLS; payroll preparation"| SYS
+    SYS -->|"Attendance summaries; request queues; payroll and reports"| HR
+    EMP -->|"Login; leave, overtime and cash advance requests"| SYS
+    SYS -->|"Own attendance; request status; approved payslips; HR notices"| EMP
+    SYS -->|"Password reset email"| SMTP
+    SMTP -->|"Reset link delivery"| EMP
+    SMTP -->|"Reset link delivery"| HR
+    SMTP -->|"Reset link delivery"| OWNER

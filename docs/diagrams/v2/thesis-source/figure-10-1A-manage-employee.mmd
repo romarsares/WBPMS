@@ -1,0 +1,13 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    HR["HR Head"] -->|"Create / update employee profile"| P(["1.0A\nManage employee records"])
+    P -->|"Employee profile and status"| D1[("D1 Employee")]
+    D1 -->|"Existing employee data"| P
+    HR -->|"Branch assignment / transfer"| P
+    P <--> D2[("D2 Branch assignments")]
+    HR -->|"Biometric enrollment code"| P
+    P <--> D3[("D3 Device enrollments")]
+    HR -->|"Employee documents and bank details"| P
+    P <--> D4[("D4 Documents / bank details")]
+    HR -->|"Archive / rehire decision"| P
+    P -->|"Employment episode and lifecycle event"| D5[("D5 Employment history")]

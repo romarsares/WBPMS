@@ -1,24 +1,46 @@
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
-flowchart LR
-    EMP(["Employee"])
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#f9f9f9", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+graph LR
+    EMP(["👤 Employee"])
 
-    subgraph SYS["Employee Self-Service Portal"]
-        UC1(["View Dashboard"])
-        UC2(["View Attendance"])
-        UC3(["View HR Notices"])
-        UC4(["Acknowledge Notice"])
-        UC5(["View Requests"])
-        UC6(["Submit Request"])
-        UC7(["Cancel Request"])
-        UC8(["View Payslips"])
-        UC9(["View Payslip Detail"])
-        UC10(["Print Payslip"])
-        UC11(["Download Payslip PDF"])
+    subgraph SYS["Web-Based Payroll Management System (WBPMS)"]
+        subgraph DASH["Dashboard"]
+            UC1(["View Employee Dashboard"])
+        end
+        subgraph ATT["Attendance"]
+            UC2(["View Own Attendance"])
+            UC3(["View HR Notices"])
+            UC4(["Acknowledge HR Notice"])
+        end
+        subgraph REQ["Requests"]
+            UC5(["View Own Requests"])
+            UC6(["Submit Request"])
+            UC7(["Cancel Own Request"])
+        end
+        subgraph PAY["Payslips"]
+            UC8(["View Payslip List"])
+            UC9(["View Payslip Detail"])
+            UC10(["Print Payslip"])
+            UC11(["Download Payslip PDF"])
+        end
     end
 
-    EMP --- UC1 & UC2 & UC3 & UC4
+    EMP --- UC1
+    EMP --- UC2 & UC3 & UC4
     EMP --- UC5 & UC6 & UC7
     EMP --- UC8 & UC9 & UC10 & UC11
 
-    UC6 -.->|"<<extend>>"| UC7
-    UC9 -.->|"<<include>>"| UC10
+    UC6 -.->|"&lt;&lt;extend&gt;&gt;"| UC7
+    UC9 -.->|"&lt;&lt;include&gt;&gt;"| UC10
+    UC9 -.->|"&lt;&lt;include&gt;&gt;"| UC11
+
+    style UC1 rx:50,ry:50
+    style UC2 rx:50,ry:50
+    style UC3 rx:50,ry:50
+    style UC4 rx:50,ry:50
+    style UC5 rx:50,ry:50
+    style UC6 rx:50,ry:50
+    style UC7 rx:50,ry:50
+    style UC8 rx:50,ry:50
+    style UC9 rx:50,ry:50
+    style UC10 rx:50,ry:50
+    style UC11 rx:50,ry:50

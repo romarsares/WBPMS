@@ -20,8 +20,9 @@ use Wbpms\Infrastructure\Database\Connection;
  *   POST   /users                → store()        — persist new user (Owner only)
  *   GET    /users/{id}/edit      → edit()         — show edit form (Owner + HRHead)
  *   POST   /users/{id}  (_method=PUT)  → update() — persist edits (Owner + HRHead)
- *   POST   /users/{id}/toggle         → toggle()  — activate/deactivate (Owner only)
- *   POST   /users/{id}/archive        → archive() — archive (Owner only)
+ *   POST   /users/{id}/toggle         → toggle()    — activate/deactivate (Owner only)
+ *   POST   /users/{id}/archive        → archive()   — archive (Owner only)
+ *   POST   /users/{id}/unarchive      → unarchive() — restore archived user (Owner only)
  *
  * HRHead edit scope: HRHead may only edit Employee-role accounts.
  * BusinessOwner edit scope: may edit any account.
@@ -355,6 +356,26 @@ final class UserController
         try {
             $service->archive($userId, (int) $identity['user_id']);
             ViewRenderer::flash('User archived successfully.');
+        } catch (RuntimeException $e) {
+            ViewRenderer::flashError($e->getMessage());
+        }
+
+        $this->redirect('/users');
+    }
+
+    // -----------------------------------------------------------------------
+    // POST /users/{id}/unarchive
+    // -----------------------------------------------------------------------
+
+    /** @param array<string,string> $params */
+    public function unarchive(array $params = []): void
+    {
+        [$service, $identity] = $this->setup();
+        $userId = (int) ($params['id'] ?? 0);
+
+        try {
+            $service->unarchive($userId, (int) $identity['user_id']);
+            ViewRenderer::flash('User unarchived. Account is now Inactive — activate it to restore access.');
         } catch (RuntimeException $e) {
             ViewRenderer::flashError($e->getMessage());
         }

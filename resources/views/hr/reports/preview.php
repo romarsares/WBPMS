@@ -16,7 +16,7 @@ $hasStatusFilter = in_array($type, ['attendance', 'requests', 'employees'], true
 $printQuery = http_build_query(array_filter(['type' => $type] + $filters, static fn(mixed $value): bool => $value !== '' && $value !== 0));
 $statusOptions = match ($type) {
     'attendance' => ['Complete', 'Approved', 'Incomplete', 'ReviewRequired'],
-    'requests' => ['Pending', 'Approved', 'Rejected', 'Cancelled'],
+    'requests' => ['Pending', 'HRApproved', 'Approved', 'Cancelled'],
     'employees' => ['Active', 'Inactive', 'Separated', 'Archived'],
     default => [],
 };

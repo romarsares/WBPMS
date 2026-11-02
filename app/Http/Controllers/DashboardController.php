@@ -84,6 +84,23 @@ final class DashboardController
         );
         $payrollRuns = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Attendance-alert widget: most recent incomplete records (Task 12.5)
+        $stmt = $pdo->query(
+            "SELECT a.attendance_id,
+                    a.attendance_date,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    e.employee_number,
+                    a.time_in,
+                    a.time_out,
+                    a.status
+               FROM attendance a
+               JOIN employee e ON e.employee_id = a.employee_id
+              WHERE a.status = 'Incomplete'
+              ORDER BY a.attendance_date DESC, e.last_name
+              LIMIT 20"
+        );
+        $incompleteAlerts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
         ViewRenderer::render('hr/dashboard', [
             'totalEmployees'       => $totalEmployees,
             'pendingRequests'      => $pendingRequests,
@@ -91,6 +108,7 @@ final class DashboardController
             'payrollDrafts'        => $payrollDrafts,
             'recentRequests'       => $recentRequests,
             'payrollRuns'          => $payrollRuns,
+            'incompleteAlerts'     => $incompleteAlerts,
         ], 'HR Dashboard');
     }
 
@@ -259,7 +277,7 @@ final class DashboardController
             'employeeName'     => $employeeName,
             'branchName'       => $branchName,
             'scheduleName'     => $scheduleName,
-            'sickLeaveBalance' => 4, // ADR-0001: 4 paid sick days; live balance deferred
+            'sickLeaveBalance' => (new \Wbpms\Application\RequestService($connection))->leaveBalance((int) $employeeId),
             'pendingRequests'  => $pendingRequests,
             'unacknowledgedNotices' => $unacknowledgedNotices,
             'recentPayslips'   => [],

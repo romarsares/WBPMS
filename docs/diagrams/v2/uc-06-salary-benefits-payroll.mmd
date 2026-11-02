@@ -1,36 +1,36 @@
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
-flowchart LR
-    HR(["HR Head"])
-    BO(["Business Owner"])
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#f9f9f9", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+graph LR
+    HR(["👤 HR Head"])
+    BO(["👤 Business Owner"])
 
-    subgraph SYS["Salary, Benefits, and Payroll"]
-        subgraph SAL["Salary"]
+    subgraph SYS["Web-Based Payroll Management System (WBPMS)"]
+        subgraph SAL["Salary Management"]
             UC1(["View Salaries"])
-            UC2(["Create Salary"])
-            UC3(["Edit Salary"])
-            UC4(["Archive Salary"])
+            UC2(["Create Salary Record"])
+            UC3(["Edit Salary Record"])
+            UC4(["Archive Salary Record"])
         end
         subgraph BEN["Benefits & Contributions"]
-            UC5(["View Policies"])
-            UC6(["Approve Policy"])
-            UC7(["Lock Contribution"])
-            UC8(["Unlock Contribution"])
+            UC5(["View Contribution Policies"])
+            UC6(["Approve Policy Version"])
+            UC7(["Lock Contribution Record"])
+            UC8(["Unlock Contribution Record"])
         end
-        subgraph PAY["Payroll"]
+        subgraph PAY["Payroll Operations"]
             UC9(["View Payroll Runs"])
-            UC10(["Create Run"])
+            UC10(["Create Payroll Run"])
             UC11(["Compute Payroll"])
-            UC12(["Adjust Entry"])
-            UC13(["Submit for Approval"])
-            UC14(["Cancel Run"])
+            UC12(["Adjust Payroll Entry"])
+            UC13(["Submit for Owner Approval"])
+            UC14(["Cancel Payroll Run"])
             UC15(["Print Timesheet"])
             UC16(["View Disbursement"])
-            UC17(["Export CSV"])
+            UC17(["Export Payroll CSV"])
         end
-        subgraph OWNR["Owner Review"]
-            UC18(["View Runs for Review"])
-            UC19(["Approve Run"])
-            UC20(["Return for Revision"])
+        subgraph OWNR["Business Owner Review"]
+            UC18(["View Runs Pending Approval"])
+            UC19(["Approve Payroll Run"])
+            UC20(["Return Run for Revision"])
         end
     end
 
@@ -39,5 +39,27 @@ flowchart LR
     HR --- UC9 & UC10 & UC11 & UC12 & UC13 & UC14 & UC15 & UC16 & UC17
     BO --- UC15 & UC16 & UC17 & UC18 & UC19 & UC20
 
-    UC10 -.->|"<<include>>"| UC11
-    UC11 -.->|"<<include>>"| UC13
+    UC10 -.->|"&lt;&lt;include&gt;&gt;"| UC11
+    UC11 -.->|"&lt;&lt;include&gt;&gt;"| UC13
+    UC19 -.->|"&lt;&lt;extend&gt;&gt;"| UC20
+
+    style UC1 rx:50,ry:50
+    style UC2 rx:50,ry:50
+    style UC3 rx:50,ry:50
+    style UC4 rx:50,ry:50
+    style UC5 rx:50,ry:50
+    style UC6 rx:50,ry:50
+    style UC7 rx:50,ry:50
+    style UC8 rx:50,ry:50
+    style UC9 rx:50,ry:50
+    style UC10 rx:50,ry:50
+    style UC11 rx:50,ry:50
+    style UC12 rx:50,ry:50
+    style UC13 rx:50,ry:50
+    style UC14 rx:50,ry:50
+    style UC15 rx:50,ry:50
+    style UC16 rx:50,ry:50
+    style UC17 rx:50,ry:50
+    style UC18 rx:50,ry:50
+    style UC19 rx:50,ry:50
+    style UC20 rx:50,ry:50

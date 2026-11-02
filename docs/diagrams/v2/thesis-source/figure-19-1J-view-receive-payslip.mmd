@@ -1,0 +1,6 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    EMP["Employee"] -->|"View, print or download request"| P(["1.0J\nView and receive own payslip"])
+    D1[("D1 Signed-in employee scope")] -->|"Employee identity"| P
+    D2[("D2 Approved payroll and payslip records")] -->|"Only matching employee's approved pay details"| P
+    P -->|"Payslip details / printable PDF response"| EMP

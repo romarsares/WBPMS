@@ -1,0 +1,91 @@
+@startuml uc-06-salary-benefits-payroll
+skinparam backgroundColor #FFFFFF
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam actor {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam rectangle {
+    BackgroundColor #F9F9F9
+    BorderColor #000000
+    FontColor #000000
+    BorderThickness 2
+}
+skinparam ArrowColor #000000
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title Use Case Diagram: Salary, Benefits, and Payroll
+
+left to right direction
+
+actor "HR Head" as HR
+actor "Business\nOwner" as BO
+
+rectangle "WBPMS (Web-Based Payroll Management System)" {
+    package "Salary Management" {
+        usecase "View Salaries" as UC1
+        usecase "Create Salary Record" as UC2
+        usecase "Edit Salary Record" as UC3
+        usecase "Archive Salary Record" as UC4
+    }
+    package "Benefits and Contributions" {
+        usecase "View Contribution\nPolicies" as UC5
+        usecase "Approve Policy Version" as UC6
+        usecase "Lock Contribution" as UC7
+        usecase "Unlock Contribution" as UC8
+    }
+    package "Payroll Operations" {
+        usecase "View Payroll Runs" as UC9
+        usecase "Create Payroll Run" as UC10
+        usecase "Compute Payroll" as UC11
+        usecase "Adjust Payroll Entry" as UC12
+        usecase "Submit for Approval" as UC13
+        usecase "Cancel Payroll Run" as UC14
+        usecase "Print Timesheet" as UC15
+        usecase "View Disbursement" as UC16
+        usecase "Export CSV" as UC17
+    }
+    package "Business Owner Review" {
+        usecase "View Pending Runs" as UC18
+        usecase "Approve Payroll Run" as UC19
+        usecase "Return for Revision" as UC20
+    }
+}
+
+HR --> UC1
+HR --> UC2
+HR --> UC3
+HR --> UC4
+HR --> UC5
+HR --> UC6
+HR --> UC7
+HR --> UC8
+HR --> UC9
+HR --> UC10
+HR --> UC11
+HR --> UC12
+HR --> UC13
+HR --> UC14
+HR --> UC15
+HR --> UC16
+HR --> UC17
+
+BO --> UC15
+BO --> UC16
+BO --> UC17
+BO --> UC18
+BO --> UC19
+BO --> UC20
+
+UC10 ..> UC11 : <<include>>
+UC11 ..> UC13 : <<include>>
+UC19 ..> UC20 : <<extend>>
+
+@enduml

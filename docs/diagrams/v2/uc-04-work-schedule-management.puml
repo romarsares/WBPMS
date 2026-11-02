@@ -1,0 +1,70 @@
+@startuml uc-04-work-schedule-management
+skinparam backgroundColor #FFFFFF
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam actor {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam rectangle {
+    BackgroundColor #F9F9F9
+    BorderColor #000000
+    FontColor #000000
+    BorderThickness 2
+}
+skinparam ArrowColor #000000
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title Use Case Diagram: Work Schedule and Settings Management
+
+left to right direction
+
+actor "HR Head" as HR
+
+rectangle "WBPMS (Web-Based Payroll Management System)" {
+    package "Work Schedules" {
+        usecase "View Schedules" as UC1
+        usecase "Create Schedule" as UC2
+        usecase "Edit Schedule" as UC3
+        usecase "Assign to Employee" as UC4
+    }
+    package "Holiday Calendar" {
+        usecase "View Holidays" as UC5
+        usecase "Add Holiday" as UC6
+        usecase "Edit Holiday" as UC7
+        usecase "Delete Holiday" as UC8
+    }
+    package "Job Positions" {
+        usecase "View Positions" as UC9
+        usecase "Add Position" as UC10
+        usecase "Edit Position" as UC11
+        usecase "Toggle Status" as UC12
+    }
+    package "Payroll Periods" {
+        usecase "View Payroll Periods" as UC13
+        usecase "Create Payroll Period" as UC14
+    }
+}
+
+HR --> UC1
+HR --> UC2
+HR --> UC3
+HR --> UC4
+HR --> UC5
+HR --> UC6
+HR --> UC7
+HR --> UC8
+HR --> UC9
+HR --> UC10
+HR --> UC11
+HR --> UC12
+HR --> UC13
+HR --> UC14
+
+@enduml

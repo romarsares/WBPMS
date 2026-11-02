@@ -30,5 +30,9 @@ sequenceDiagram
     OwnerController->>PayrollService: approveRun(runId, reviewedBy)
     PayrollService->>Database: UPDATE payroll_run status=Approved
     PayrollService->>Database: INSERT payslip per employee
-    PayrollService->>Database: INSERT disbursement_batch, deposit_slips
+    OwnerController-->>BusinessOwner: Redirect with success
+
+    BusinessOwner->>OwnerController: POST /owner/payroll/{id}/return
+    OwnerController->>PayrollService: returnRun(runId, reviewedBy, reason)
+    PayrollService->>Database: UPDATE payroll_run status=Returned, save return_reason
     OwnerController-->>BusinessOwner: Redirect with success

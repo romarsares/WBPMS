@@ -1,150 +1,506 @@
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "attributeBackgroundColorEven": "#ffffff", "attributeBackgroundColorOdd": "#ffffff"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "attributeBackgroundColorEven": "#ffffff", "attributeBackgroundColorOdd": "#f0f0f0"}}}%%
 erDiagram
-    role_tbl {
-        PK role_id
+    ROLE {
+        int role_id PK
         string role_name
     }
-    users_tbl {
-        PK user_id
-        FK employee_id
-        FK role_id
+    USERS {
+        int user_id PK
+        int employee_id FK
+        int role_id FK
         string username
         string account_email
         string password_hash
         string status
     }
-    employee_tbl {
-        PK employee_id
+    SESSIONS {
+        string session_id PK
+        int expires_at
+        text data
+    }
+    AUDIT_LOGS {
+        int log_id PK
+        int user_id FK
+        string event_type
+        string action_performed
+        string table_affected
+        string ip_address
+        string description
+        datetime action_at
+    }
+    BRANCH {
+        int branch_id PK
+        string branch_code
+        string branch_name
+        string status
+    }
+    EMPLOYEE {
+        int employee_id PK
         string employee_number
+        string employee_type
         string first_name
         string last_name
         string email
         date hire_date
         string status
+        string philhealth_number
+        string pagibig_number
+        string tin_number
+        string position
     }
-    branch_tbl {
-        PK branch_id
-        string branch_code
-        string branch_name
-        string status
+    EMPLOYEE_BRANCH_ASSIGNMENT {
+        int branch_assignment_id PK
+        int employee_id FK
+        int branch_id FK
+        date effective_from
+        date effective_to
     }
-    work_schedule_tbl {
-        PK schedule_id
-        FK employee_id
+    WORK_SCHEDULE {
+        int schedule_id PK
+        string schedule_name
         string working_days
+        string rest_days
+        int break_minutes
+        int grace_minutes
+        boolean overtime_allowed
         time work_start_time
         time work_end_time
         int standard_minutes
         date effective_from
+        date effective_to
+        string status
     }
-    holiday_calendar_tbl {
-        PK holiday_id
+    EMPLOYEE_SCHEDULE_ASSIGNMENT {
+        int assignment_id PK
+        int employee_id FK
+        int schedule_id FK
+        date effective_from
+        date effective_to
+        string status
+    }
+    HOLIDAY_CALENDAR {
+        int holiday_id PK
         date holiday_date
         string description
         string holiday_type
         decimal pay_multiplier
+        string status
     }
-    attendance_import_batch_tbl {
-        PK import_batch_id
-        FK device_id
-        FK uploaded_by
+    ATTENDANCE_SITE {
+        int site_id PK
+        string site_code
+        string site_name
+        string timezone
+        string status
+    }
+    BIOMETRIC_DEVICE {
+        int device_id PK
+        int site_id FK
+        string device_code
+        string file_format
+        string timezone
+        string status
+    }
+    BIOMETRIC_DEVICE_BRANCH {
+        int device_branch_id PK
+        int device_id FK
+        int branch_id FK
+        date effective_from
+        date effective_to
+        string status
+    }
+    ATTENDANCE_IMPORT_BATCH {
+        int import_batch_id PK
+        int device_id FK
+        int uploaded_by FK
         string file_checksum
         int source_year
         int source_month
         string status
     }
-    attendance_tbl {
-        PK attendance_id
-        FK employee_id
-        FK schedule_id
-        FK import_batch_id
+    ATTENDANCE {
+        int attendance_id PK
+        int employee_id FK
+        int branch_assignment_id FK
+        int schedule_id FK
+        int import_batch_id FK
         date attendance_date
         time time_in
         time time_out
         int late_minutes
+        int undertime_minutes
         int overtime_minutes
+        string status
     }
-    request_tbl {
-        PK request_id
-        FK employee_id
-        FK request_type_id
+    ATTENDANCE_ADJUSTMENT {
+        int adjustment_id PK
+        int attendance_id FK
+        int adjusted_by FK
+        time old_time_in
+        time new_time_in
+        time old_time_out
+        time new_time_out
+        string reason
+        datetime adjustment_at
+    }
+    ATTENDANCE_POLICY_FLAG {
+        int flag_id PK
+        int employee_id FK
+        string flag_type
+        date triggering_date
+        string status
+        int reviewed_by FK
+    }
+    REQUEST_TYPE {
+        int request_type_id PK
+        string type_name
+        string status
+    }
+    REQUEST {
+        int request_id PK
+        int employee_id FK
+        int request_type_id FK
         string reason
         string status
         datetime submitted_at
+        int reviewed_by FK
+        int owner_reviewed_by FK
+        string owner_decision
     }
-    leave_entitlement_tbl {
-        PK entitlement_id
-        FK employee_id
+    LEAVE_ENTITLEMENT {
+        int entitlement_id PK
+        int employee_id FK
         string leave_type
         int leave_year
         decimal entitled_days
     }
-    salary_tbl {
-        PK salary_id
-        FK employee_id
+    CASH_ADVANCE_HISTORY {
+        int history_id PK
+        int request_id FK
+        int employee_id FK
+        decimal original_amount
+        decimal remaining_balance
+        string status
+    }
+    SALARY {
+        int salary_id PK
+        int employee_id FK
         decimal daily_rate
         date effective_from
+        date effective_to
         string status
     }
-    payroll_period_tbl {
-        PK payroll_period_id
-        date period_start
-        date period_end
-        date pay_date
-        string status
-    }
-    payroll_run_tbl {
-        PK payroll_run_id
-        FK payroll_period_id
-        FK branch_id
-        string status
-        decimal gross_pay
-        decimal net_pay
-    }
-    payroll_tbl {
-        PK payroll_id
-        FK payroll_run_id
-        FK employee_id
-        FK salary_id
-        decimal gross_pay
-        decimal total_deductions
-        decimal net_pay
-    }
-    contribution_policy_version_tbl {
-        PK contribution_policy_id
+    CONTRIBUTION_POLICY_VERSION {
+        int contribution_policy_id PK
         string policy_code
         string version
         date effective_from
         string status
     }
-    payslip_tbl {
-        PK payslip_id
-        FK payroll_id
+    PAYROLL_PERIOD {
+        int payroll_period_id PK
+        date period_start
+        date period_end
+        date pay_date
+        string status
+    }
+    PAYROLL_RUN {
+        int payroll_run_id PK
+        int payroll_period_id FK
+        int branch_id FK
+        string status
+        decimal gross_pay
+        decimal total_deductions
+        decimal net_pay
+    }
+    PAYROLL {
+        int payroll_id PK
+        int payroll_run_id FK
+        int payroll_period_id FK
+        int employee_id FK
+        int salary_id FK
+        decimal daily_rate_snapshot
+        decimal gross_pay
+        decimal total_deductions
+        decimal net_pay
+    }
+    PAYROLL_EARNINGS {
+        int earning_id PK
+        int payroll_id FK
+        string earning_type
+        string description
+        decimal amount
+    }
+    DEDUCTION {
+        int deduction_id PK
+        int payroll_id FK
+        string deduction_type
+        string description
+        decimal amount
+    }
+    CONTRIBUTION_RECORD {
+        int contribution_id PK
+        int payroll_id FK
+        int deduction_id FK
+        int contribution_policy_id FK
+        string contribution_type
+        decimal employee_share
+        decimal employer_share
+        string status
+    }
+    PAYSLIP {
+        int payslip_id PK
+        int payroll_id FK
         date issue_date
         string file_path
     }
-    disbursement_batch_tbl {
-        PK batch_id
-        FK payroll_period_id
+    DISBURSEMENT_BATCH {
+        int batch_id PK
+        int payroll_period_id FK
         string bank_name
         decimal cheque_total
         string status
     }
+    BANK_DETAILS {
+        int bank_id PK
+        int employee_id FK
+        string bank_name
+        string account_number
+        string status
+    }
+    EMPLOYEE_DOCUMENT {
+        int document_id PK
+        int employee_id FK
+        string document_type
+        string label
+        string file_path
+        string status
+    }
+    PAYROLL_POLICY_VERSION {
+        int policy_id PK
+        string policy_code
+        string version
+        date effective_from
+        date effective_to
+        int days_per_month
+        decimal monthly_ceiling
+        decimal overtime_multiplier
+        string rounding_mode
+        string status
+    }
+    LEAVE_REQUEST_DETAIL {
+        int request_id PK, FK
+        string leave_type
+        date start_date
+        date end_date
+        decimal days_requested
+    }
+    OVERTIME_REQUEST_DETAIL {
+        int request_id PK, FK
+        date overtime_date
+        time start_time
+        time end_time
+        int requested_minutes
+    }
+    CASH_ADVANCE_REQUEST_DETAIL {
+        int request_id PK, FK
+        decimal amount
+    }
+    LEAVE_LEDGER {
+        int entry_id PK
+        int entitlement_id FK
+        int request_id FK
+        string entry_type
+        decimal days_delta
+    }
+    CASH_ADVANCE_REPAYMENT {
+        int repayment_id PK
+        int history_id FK
+        int payroll_id FK
+        int deduction_id FK
+        decimal amount
+        date deducted_on
+    }
+    PAYROLL_ADJUSTMENT {
+        int adjustment_id PK
+        int payroll_run_id FK
+        int payroll_id FK
+        string adjustment_type
+        int earning_id FK
+        int deduction_id FK
+        decimal amount
+        string reason
+        int adjusted_by FK
+    }
+    DEPOSIT_SLIP {
+        int slip_id PK
+        int batch_id FK
+        int payroll_id FK
+        int bank_id FK
+        decimal amount
+        string status
+    }
+    EMPLOYEE_EMPLOYMENT_EPISODE {
+        int episode_id PK
+        int employee_id FK
+        date started_on
+        date ended_on
+        string start_reason
+        string end_reason
+    }
+    EMPLOYEE_LIFECYCLE_EVENT {
+        int event_id PK
+        int employee_id FK
+        string event_type
+        date effective_date
+        string reason
+    }
+    EMPLOYEE_HR_NOTICE {
+        int notice_id PK
+        int employee_id FK
+        int policy_flag_id FK
+        int issued_by FK
+        string title
+        string body
+        datetime issued_at
+        datetime acknowledged_at
+    }
+    JOB_POSITION {
+        int position_id PK
+        string position_title
+        string department
+        string status
+        int sort_order
+    }
+    EMPLOYEE_BIOMETRIC_ENROLLMENT {
+        int enrollment_id PK
+        int employee_id FK
+        int device_id FK
+        string device_employee_code
+        date effective_from
+        date effective_to
+        string status
+    }
+    ATTENDANCE_PUNCH {
+        int attendance_id PK, FK
+        int punch_id PK, FK
+        string evidence_role
+    }
+    EMPLOYMENT_CONTRACT_REVIEW {
+        int review_id PK
+        int employee_id FK
+        date review_due_date
+        string outcome
+        date effective_date
+        date next_review_date
+        int reviewed_by FK
+    }
+    ADDRESS {
+        int address_id PK
+        string street
+        int province_id FK
+        int city_id FK
+        int barangay_id FK
+    }
+    PROVINCE {
+        int province_id PK
+        string province_name
+    }
+    CITY {
+        int city_id PK
+        string city_name
+    }
+    BARANGAY {
+        int barangay_id PK
+        string barangay_name
+    }
+    SSS_BRACKET {
+        int bracket_id PK
+        int contribution_policy_id FK
+        decimal salary_from
+        decimal salary_to
+        decimal employee_share
+        decimal employer_share
+    }
+    PHILHEALTH_RATE {
+        int rate_id PK
+        int contribution_policy_id FK
+        decimal rate_decimal
+        decimal basis_floor
+        decimal basis_ceiling
+        decimal employee_share_decimal
+    }
+    PAGIBIG_RATE {
+        int rate_id PK
+        int contribution_policy_id FK
+        decimal rate_decimal
+        decimal basis_ceiling
+        decimal employee_fixed_amount
+        decimal employer_fixed_amount
+    }
 
-    role_tbl ||--o{ users_tbl : "has"
-    users_tbl }o--o| employee_tbl : "linked to"
-    employee_tbl ||--o{ work_schedule_tbl : "follows"
-    employee_tbl ||--o{ attendance_tbl : "has"
-    employee_tbl ||--o{ request_tbl : "submits"
-    employee_tbl ||--o{ salary_tbl : "earns"
-    employee_tbl ||--o{ leave_entitlement_tbl : "has"
-    employee_tbl ||--o{ payroll_tbl : "paid via"
-    attendance_import_batch_tbl ||--o{ attendance_tbl : "source of"
-    work_schedule_tbl ||--o{ attendance_tbl : "applies to"
-    payroll_period_tbl ||--o{ payroll_run_tbl : "frames"
-    branch_tbl ||--o{ payroll_run_tbl : "scoped to"
-    payroll_run_tbl ||--o{ payroll_tbl : "groups"
-    salary_tbl ||--o{ payroll_tbl : "rates"
-    payroll_tbl ||--o| payslip_tbl : "generates"
-    contribution_policy_version_tbl ||--o{ payroll_tbl : "applies"
-    payroll_period_tbl ||--o| disbursement_batch_tbl : "paid via"
+    ROLE ||--o{ USERS : "assigned to"
+    USERS }o--o| EMPLOYEE : "linked to"
+    USERS ||--o{ AUDIT_LOGS : "generates"
+    USERS ||--o{ SESSIONS : "holds"
+    BRANCH ||--o{ EMPLOYEE_BRANCH_ASSIGNMENT : "includes"
+    EMPLOYEE ||--o{ EMPLOYEE_BRANCH_ASSIGNMENT : "assigned via"
+    EMPLOYEE ||--o{ EMPLOYEE_SCHEDULE_ASSIGNMENT : "assigned via"
+    WORK_SCHEDULE ||--o{ EMPLOYEE_SCHEDULE_ASSIGNMENT : "template for"
+    EMPLOYEE ||--o{ ATTENDANCE : "recorded in"
+    EMPLOYEE ||--o{ REQUEST : "submits"
+    EMPLOYEE ||--o{ SALARY : "earns"
+    EMPLOYEE ||--o{ LEAVE_ENTITLEMENT : "has"
+    EMPLOYEE ||--o{ CASH_ADVANCE_HISTORY : "has"
+    EMPLOYEE ||--o{ BANK_DETAILS : "holds"
+    EMPLOYEE ||--o{ EMPLOYEE_DOCUMENT : "has"
+    EMPLOYEE ||--o{ EMPLOYEE_EMPLOYMENT_EPISODE : "employed through"
+    EMPLOYEE ||--o{ EMPLOYEE_LIFECYCLE_EVENT : "lifecycle history"
+    EMPLOYEE ||--o{ EMPLOYEE_HR_NOTICE : "notices"
+    ATTENDANCE_POLICY_FLAG ||--o| EMPLOYEE_HR_NOTICE : "may issue"
+    USERS ||--o{ EMPLOYEE_HR_NOTICE : "issued by"
+    EMPLOYEE ||--o{ EMPLOYEE_BIOMETRIC_ENROLLMENT : "enrolled on device"
+    BIOMETRIC_DEVICE ||--o{ EMPLOYEE_BIOMETRIC_ENROLLMENT : "enrollments"
+    EMPLOYEE ||--o{ EMPLOYMENT_CONTRACT_REVIEW : "contract reviews"
+    PROVINCE ||--o{ ADDRESS : "address region"
+    CITY ||--o{ ADDRESS : "address region"
+    BARANGAY ||--o{ ADDRESS : "address region"
+    EMPLOYEE ||--o{ PAYROLL : "paid via"
+    EMPLOYEE ||--o{ ATTENDANCE_POLICY_FLAG : "triggers"
+    ATTENDANCE_SITE ||--o{ BIOMETRIC_DEVICE : "hosts"
+    BIOMETRIC_DEVICE ||--o{ BIOMETRIC_DEVICE_BRANCH : "covers"
+    BRANCH ||--o{ BIOMETRIC_DEVICE_BRANCH : "covered by"
+    BIOMETRIC_DEVICE ||--o{ ATTENDANCE_IMPORT_BATCH : "source of"
+    ATTENDANCE_IMPORT_BATCH ||--o{ ATTENDANCE : "produces"
+    WORK_SCHEDULE ||--o{ ATTENDANCE : "applies to"
+    ATTENDANCE ||--o{ ATTENDANCE_ADJUSTMENT : "corrected by"
+    ATTENDANCE ||--o{ ATTENDANCE_PUNCH : "supported by"
+    BIOMETRIC_PUNCH ||--o{ ATTENDANCE_PUNCH : "evidence link"
+    REQUEST_TYPE ||--o{ REQUEST : "categorises"
+    REQUEST ||--o| LEAVE_REQUEST_DETAIL : "details"
+    REQUEST ||--o| OVERTIME_REQUEST_DETAIL : "details"
+    REQUEST ||--o| CASH_ADVANCE_REQUEST_DETAIL : "details"
+    REQUEST ||--o| CASH_ADVANCE_HISTORY : "creates"
+    LEAVE_ENTITLEMENT ||--o{ LEAVE_LEDGER : "balance entries"
+    CASH_ADVANCE_HISTORY ||--o{ CASH_ADVANCE_REPAYMENT : "repaid by"
+    PAYROLL ||--o{ CASH_ADVANCE_REPAYMENT : "deducts"
+    PAYROLL_RUN ||--o{ PAYROLL_ADJUSTMENT : "adjusted through"
+    PAYROLL ||--o{ PAYROLL_ADJUSTMENT : "adjusted entry"
+    PAYROLL_POLICY_VERSION ||--o{ PAYROLL_RUN : "governs"
+    PAYROLL_PERIOD ||--o{ PAYROLL_RUN : "frames"
+    BRANCH ||--o{ PAYROLL_RUN : "scoped to"
+    PAYROLL_RUN ||--o{ PAYROLL : "groups"
+    PAYROLL_PERIOD ||--o{ PAYROLL : "period"
+    SALARY ||--o{ PAYROLL : "rates"
+    PAYROLL ||--o{ PAYROLL_EARNINGS : "itemises"
+    PAYROLL ||--o{ DEDUCTION : "deducts"
+    DEDUCTION ||--o| CONTRIBUTION_RECORD : "records"
+    CONTRIBUTION_POLICY_VERSION ||--o{ CONTRIBUTION_RECORD : "governs"
+    CONTRIBUTION_POLICY_VERSION ||--o{ SSS_BRACKET : "defines"
+    CONTRIBUTION_POLICY_VERSION ||--o| PHILHEALTH_RATE : "defines"
+    CONTRIBUTION_POLICY_VERSION ||--o| PAGIBIG_RATE : "defines"
+    PAYROLL ||--o| PAYSLIP : "generates"
+    PAYROLL_PERIOD ||--o| DISBURSEMENT_BATCH : "paid via"
+    DISBURSEMENT_BATCH ||--o{ DEPOSIT_SLIP : "contains"
+    PAYROLL ||--o{ DEPOSIT_SLIP : "paid by"
+    BANK_DETAILS ||--o{ DEPOSIT_SLIP : "deposited to"

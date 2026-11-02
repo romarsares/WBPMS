@@ -1,21 +1,21 @@
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
-flowchart LR
-    HR(["HR Head"])
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#f9f9f9", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+graph LR
+    HR(["👤 HR Head"])
 
-    subgraph SYS["Employee Management"]
+    subgraph SYS["Web-Based Payroll Management System (WBPMS)"]
         subgraph REC["Employee Records"]
             UC1(["View Employees"])
             UC2(["Add Employee"])
-            UC3(["View Profile"])
-            UC4(["Edit Details"])
+            UC3(["View Employee Profile"])
+            UC4(["Edit Employee Details"])
             UC5(["Upload ID Photo"])
         end
-        subgraph LC["Lifecycle"]
+        subgraph LC["Employee Lifecycle"]
             UC6(["Transfer Employee"])
             UC7(["Archive Employee"])
             UC8(["Rehire Employee"])
         end
-        subgraph DOC["Documents"]
+        subgraph DOC["Employee Documents"]
             UC9(["View Documents"])
             UC10(["Upload Document"])
             UC11(["Verify Document"])
@@ -33,5 +33,21 @@ flowchart LR
     HR --- UC9 & UC10 & UC11 & UC12 & UC13
     HR --- UC14 & UC15
 
-    UC2 -.->|"<<include>>"| UC14
-    UC10 -.->|"<<extend>>"| UC11
+    UC2 -.->|"&lt;&lt;include&gt;&gt;"| UC14
+    UC10 -.->|"&lt;&lt;extend&gt;&gt;"| UC11
+
+    style UC1 rx:50,ry:50
+    style UC2 rx:50,ry:50
+    style UC3 rx:50,ry:50
+    style UC4 rx:50,ry:50
+    style UC5 rx:50,ry:50
+    style UC6 rx:50,ry:50
+    style UC7 rx:50,ry:50
+    style UC8 rx:50,ry:50
+    style UC9 rx:50,ry:50
+    style UC10 rx:50,ry:50
+    style UC11 rx:50,ry:50
+    style UC12 rx:50,ry:50
+    style UC13 rx:50,ry:50
+    style UC14 rx:50,ry:50
+    style UC15 rx:50,ry:50

@@ -129,7 +129,7 @@ $val = static function (string $key) use ($old, $user): string {
             <small class="help">Required for Employee accounts. Unlinking an existing Employee account deactivates it immediately.</small>
         </div>
 
-        <div class="form-actions" style="margin-top:24px;display:flex;gap:8px">
+        <div class="form-actions">
             <button type="submit" class="btn btn-primary">
                 <?= $isEdit ? '✓ Save Changes' : '＋ Create User' ?>
             </button>

@@ -9,29 +9,29 @@ flowchart LR
 
     subgraph SYS["System"]
         S1["Validate & Create Record"]
-        S2["Update Leave / CA Balance"]
+        S2["Apply leave debit / create CA obligation\non final Owner approval"]
     end
 
     subgraph HR["HR Head"]
         H1["Review Request"]
         H2{"Decision?"}
-        H3["Approve"]
+        H3["Set status = HRApproved"]
         H4["Cancel"]
     end
 
     subgraph BO["Business Owner"]
         B1["Review Request"]
         B2{"Decision?"}
-        B3["Approve"]
-        B4["Return"]
+        B3["Set status = Approved"]
+        B4["Set status = Returned"]
         B5["Cancel"]
     end
 
     E1 --> E2 --> S1 --> E3
     E3 -->|Yes| E4
     E3 -->|No| H1 --> H2
-    H2 -->|Approve| H3 --> S2 --> B1 --> B2
+    H2 -->|Approve| H3 --> B1 --> B2
     H2 -->|Cancel| H4
-    B2 -->|Approve| B3
+    B2 -->|Approve| B3 --> S2
     B2 -->|Return| B4 --> H1
     B2 -->|Cancel| B5

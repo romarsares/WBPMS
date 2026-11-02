@@ -1,0 +1,22 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","clusterBkg":"#ffffff","clusterBorder":"#000000","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    HR["HR Head\nBrowser"]
+    OWNER["Business Owner\nBrowser"]
+    EMP["Employee\nBrowser"]
+    BIO["Biometric Device"]
+    XLS["Daily log exported\nto .xls file"]
+    ROUTER["Router / Internet"]
+    WEB["Web Server\nApache + PHP\nWBPMS front controller"]
+    DB["Database Server\nMySQL"]
+    SMTP["SMTP Mail Provider"]
+    PRIVATE["Private File Storage\nTemporary uploads / generated files"]
+
+    HR <-->|"HTTPS: HR screens, employee data,\nattendance uploads, payroll actions"| ROUTER
+    OWNER <-->|"HTTPS: approvals, dashboards, reports"| ROUTER
+    EMP <-->|"HTTPS: own attendance, requests, payslips"| ROUTER
+    ROUTER <-->|"HTTPS"| WEB
+    WEB <-->|"PDO / MySQL"| DB
+    WEB -->|"SMTP / TLS"| SMTP
+    WEB <--> PRIVATE
+    BIO --> XLS
+    XLS -->|"Manual file copy; HR uploads in browser"| HR

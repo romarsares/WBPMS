@@ -1,10 +1,10 @@
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
-flowchart LR
-    BO(["Business Owner"])
-    HR(["HR Head"])
-    EMP(["Employee"])
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#f9f9f9", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+graph LR
+    BO(["👤 Business Owner"])
+    HR(["👤 HR Head"])
+    EMP(["👤 Employee"])
 
-    subgraph SYS["Authentication and User Management"]
+    subgraph SYS["Web-Based Payroll Management System (WBPMS)"]
         subgraph AUTH["Authentication"]
             UC1(["Login"])
             UC2(["Forgot Password"])
@@ -16,14 +16,29 @@ flowchart LR
             UC6(["View Users"])
             UC7(["Create User"])
             UC8(["Edit User"])
-            UC9(["Activate / Deactivate"])
+            UC9(["Activate / Deactivate User"])
             UC10(["Archive User"])
             UC11(["Reset User Password"])
         end
     end
 
-    BO & HR & EMP --- UC1 & UC2 & UC3 & UC4 & UC5
-    BO & HR --- UC6 & UC8 & UC11
-    BO --- UC7 & UC9 & UC10
+    BO --- UC1 & UC2 & UC3 & UC4 & UC5
+    HR --- UC1 & UC2 & UC3 & UC4 & UC5
+    EMP --- UC1 & UC2 & UC3 & UC4 & UC5
 
-    UC1 -.->|"<<include>>"| UC4
+    BO --- UC6 & UC7 & UC8 & UC9 & UC10 & UC11
+    HR --- UC6 & UC8 & UC11
+
+    UC1 -.->|"&lt;&lt;include&gt;&gt;"| UC4
+
+    style UC1 rx:50,ry:50
+    style UC2 rx:50,ry:50
+    style UC3 rx:50,ry:50
+    style UC4 rx:50,ry:50
+    style UC5 rx:50,ry:50
+    style UC6 rx:50,ry:50
+    style UC7 rx:50,ry:50
+    style UC8 rx:50,ry:50
+    style UC9 rx:50,ry:50
+    style UC10 rx:50,ry:50
+    style UC11 rx:50,ry:50

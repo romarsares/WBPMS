@@ -1,0 +1,78 @@
+@startuml uc-07-reports
+skinparam backgroundColor #FFFFFF
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam actor {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam rectangle {
+    BackgroundColor #F9F9F9
+    BorderColor #000000
+    FontColor #000000
+    BorderThickness 2
+}
+skinparam ArrowColor #000000
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title Use Case Diagram: Reports
+
+left to right direction
+
+actor "HR Head" as HR
+actor "Business\nOwner" as BO
+
+rectangle "WBPMS (Web-Based Payroll Management System)" {
+    package "Dashboard" {
+        usecase "View Dashboard\nSummary" as UC1
+    }
+    package "Reports" {
+        usecase "Payroll Report" as UC2
+        usecase "Attendance Report" as UC3
+        usecase "Request Report" as UC4
+        usecase "Contribution Report" as UC5
+        usecase "13th Month Report" as UC6
+        usecase "Transaction Slips" as UC7
+        usecase "Payslips Report" as UC8
+        usecase "Bulk Print Payslips" as UC9
+    }
+    package "Export" {
+        usecase "Export Report\n(CSV / PDF)" as UC10
+    }
+}
+
+HR --> UC1
+HR --> UC2
+HR --> UC3
+HR --> UC4
+HR --> UC5
+HR --> UC6
+HR --> UC7
+HR --> UC8
+HR --> UC9
+HR --> UC10
+
+BO --> UC1
+BO --> UC2
+BO --> UC3
+BO --> UC4
+BO --> UC5
+BO --> UC6
+BO --> UC7
+BO --> UC8
+BO --> UC9
+BO --> UC10
+
+UC2 ..> UC10 : <<include>>
+UC3 ..> UC10 : <<include>>
+UC4 ..> UC10 : <<include>>
+UC5 ..> UC10 : <<include>>
+UC6 ..> UC10 : <<include>>
+
+@enduml

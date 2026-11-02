@@ -19,7 +19,7 @@ sequenceDiagram
     else New file
         AttendanceImportService->>LdeXlsParser: parse(file, context)
         LdeXlsParser-->>AttendanceImportService: ParsedAttendanceFile (punches[])
-        AttendanceImportService->>Gateway: createImportBatch(...)
+        AttendanceImportService->>Gateway: createImportBatch(..., status=Draft)
         Gateway->>Database: INSERT attendance_import_batch
         loop For each punch
             AttendanceImportService->>Gateway: match(punch)
@@ -28,9 +28,9 @@ sequenceDiagram
         end
         AttendanceImportService->>TimesheetGenerator: generate(punches, schedules)
         TimesheetGenerator-->>AttendanceImportService: GeneratedAttendance rows
-        AttendanceImportService->>Database: UPSERT attendance, UPDATE batch=Completed
+        AttendanceImportService->>Database: Save draft attendance rows; batch remains Draft
         AttendanceController-->>HRHead: Show import summary
         HRHead->>AttendanceController: POST /hr/attendance/import/{id}/approve
-        AttendanceController->>Database: UPDATE batch=Approved, delete temp file
-        AttendanceController-->>HRHead: Redirect to attendance list
+        AttendanceController->>Database: UPDATE batch=Approved, approved_by, approved_at
+        AttendanceController-->>HRHead: Timesheets available to payroll
     end

@@ -1,8 +1,8 @@
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
-flowchart LR
-    HR(["HR Head"])
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#f9f9f9", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+graph LR
+    HR(["👤 HR Head"])
 
-    subgraph SYS["Attendance Management"]
+    subgraph SYS["Web-Based Payroll Management System (WBPMS)"]
         subgraph IMP["Biometric Import"]
             UC1(["Upload XLS File"])
             UC2(["Review Import Preview"])
@@ -11,12 +11,12 @@ flowchart LR
         end
         subgraph ATT["Attendance Records"]
             UC5(["View Attendance"])
-            UC6(["Adjust Record"])
+            UC6(["Adjust Attendance Record"])
             UC7(["View Frequency Report"])
         end
         subgraph POL["Policy Flags"]
             UC8(["Evaluate Policy Flags"])
-            UC9(["View Flag List"])
+            UC9(["View Policy Flag List"])
             UC10(["Review and Close Flag"])
         end
     end
@@ -25,6 +25,17 @@ flowchart LR
     HR --- UC5 & UC6 & UC7
     HR --- UC8 & UC9 & UC10
 
-    UC1 -.->|"<<include>>"| UC2
-    UC2 -.->|"<<include>>"| UC3
-    UC8 -.->|"<<extend>>"| UC10
+    UC1 -.->|"&lt;&lt;include&gt;&gt;"| UC2
+    UC2 -.->|"&lt;&lt;include&gt;&gt;"| UC3
+    UC8 -.->|"&lt;&lt;extend&gt;&gt;"| UC10
+
+    style UC1 rx:50,ry:50
+    style UC2 rx:50,ry:50
+    style UC3 rx:50,ry:50
+    style UC4 rx:50,ry:50
+    style UC5 rx:50,ry:50
+    style UC6 rx:50,ry:50
+    style UC7 rx:50,ry:50
+    style UC8 rx:50,ry:50
+    style UC9 rx:50,ry:50
+    style UC10 rx:50,ry:50

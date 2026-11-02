@@ -73,6 +73,9 @@ $nav = match ($roleName) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= Formatter::escape($title ?? 'WBPMS') ?> | Light Diamond Enterprises</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= $base ?>/assets/app.css?v=<?= filemtime(APP_ROOT . '/public/assets/app.css') ?>">
 </head>
 <body>
@@ -110,10 +113,7 @@ $nav = match ($roleName) {
             <span><?= Formatter::escape($roleName) ?></span>
             <form method="POST" action="<?= $base ?>/logout" style="display:inline">
                 <input type="hidden" name="_csrf" value="<?= htmlspecialchars(CsrfMiddleware::token(), ENT_QUOTES, 'UTF-8') ?>">
-                <button type="submit" class="side-user-logout" style="
-                    display:inline-block;padding:10px 18px;background:#666;
-                    color:#fff;border:1px solid #aaa;border-radius:2px;
-                    font-weight:700;cursor:pointer;">
+                <button type="submit" class="side-user-logout">
                     ↪ Logout
                 </button>
             </form>

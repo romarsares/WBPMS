@@ -1,0 +1,11 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    HR["HR Head"] -->|"Schedule template, hours, breaks, grace and OT setting"| P(["1.0G\nManage work schedules and holidays"])
+    P <--> D1[("D1 Reusable work schedule templates")]
+    HR -->|"Employee schedule assignment dates"| P
+    P <--> D2[("D2 Employee schedule assignments")]
+    HR -->|"Holiday date, type and pay multiplier"| P
+    P <--> D3[("D3 Holiday calendar")]
+    D1 -->|"Effective schedule"| ATT(["Attendance calculation"])
+    D2 --> ATT
+    D3 -->|"Holiday rules"| PAY(["Payroll calculation"])

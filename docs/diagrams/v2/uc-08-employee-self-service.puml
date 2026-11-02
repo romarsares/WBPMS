@@ -1,0 +1,68 @@
+@startuml uc-08-employee-self-service
+skinparam backgroundColor #FFFFFF
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam actor {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam rectangle {
+    BackgroundColor #F9F9F9
+    BorderColor #000000
+    FontColor #000000
+    BorderThickness 2
+}
+skinparam ArrowColor #000000
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title Use Case Diagram: Employee Self-Service Portal
+
+left to right direction
+
+actor "Employee" as EMP
+
+rectangle "WBPMS (Web-Based Payroll Management System)" {
+    package "Dashboard" {
+        usecase "View Employee\nDashboard" as UC1
+    }
+    package "Attendance and Notices" {
+        usecase "View Own Attendance" as UC2
+        usecase "View HR Notices" as UC3
+        usecase "Acknowledge HR Notice" as UC4
+    }
+    package "Requests" {
+        usecase "View Own Requests" as UC5
+        usecase "Submit Request" as UC6
+        usecase "Cancel Own Request" as UC7
+    }
+    package "Payslips" {
+        usecase "View Payslip List" as UC8
+        usecase "View Payslip Detail" as UC9
+        usecase "Print Payslip" as UC10
+        usecase "Download Payslip PDF" as UC11
+    }
+}
+
+EMP --> UC1
+EMP --> UC2
+EMP --> UC3
+EMP --> UC4
+EMP --> UC5
+EMP --> UC6
+EMP --> UC7
+EMP --> UC8
+EMP --> UC9
+EMP --> UC10
+EMP --> UC11
+
+UC6 ..> UC7 : <<extend>>
+UC9 ..> UC10 : <<include>>
+UC9 ..> UC11 : <<include>>
+
+@enduml

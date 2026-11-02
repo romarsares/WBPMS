@@ -1,0 +1,12 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    HR["HR Head"] -->|"Report type, date range and filters"| P(["1.0N\nGenerate authorized reports"])
+    OWNER["Business Owner"] -->|"Report type, date range and filters"| P
+    D1[("D1 Employees / branches")] --> P
+    D2[("D2 Attendance")] --> P
+    D3[("D3 Requests")] --> P
+    D4[("D4 Payroll / payslips / deductions / contributions")] --> P
+    P -->|"Payroll, attendance, request, contribution and employee reports"| HR
+    P -->|"Role-authorized reports"| OWNER
+    P -->|"View / print / download export"| HR
+    P -->|"View / print / download export"| OWNER

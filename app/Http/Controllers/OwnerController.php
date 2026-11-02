@@ -216,13 +216,29 @@ final class OwnerController
      */
     public function requestList(array $params = []): void
     {
-        $service  = $this->makeRequestService();
-        $pending  = $service->ownerPendingList();
-        $actioned = $service->ownerActionedList();
+        $service = $this->makeRequestService();
+
+        $typeId = filter_var($_GET['type_id'] ?? 0, FILTER_VALIDATE_INT);
+        $typeId = $typeId !== false && $typeId > 0 ? (int) $typeId : 0;
+        $search = trim((string) ($_GET['search'] ?? ''));
+
+        $filters = array_filter([
+            'type_id' => $typeId > 0 ? $typeId : null,
+            'search'  => $search !== '' ? $search : null,
+        ]);
+
+        $pending  = $service->ownerPendingListFiltered($filters);
+        $actioned = $service->ownerActionedListFiltered($filters);
+        $requestTypes = $service->requestTypes();
 
         ViewRenderer::render('owner/requests/index', [
-            'pending'  => $pending,
-            'actioned' => $actioned,
+            'pending'      => $pending,
+            'actioned'     => $actioned,
+            'requestTypes' => $requestTypes,
+            'filters'      => [
+                'type_id' => $typeId,
+                'search'  => $search,
+            ],
         ], 'Request Approvals');
     }
 

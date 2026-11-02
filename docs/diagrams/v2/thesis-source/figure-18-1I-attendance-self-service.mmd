@@ -1,0 +1,9 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    EMP["Employee"] -->|"Authenticated request for own attendance"| P(["1.0I\nView own attendance"])
+    D1[("D1 Attendance records")] -->|"Employee-scoped attendance rows"| P
+    D2[("D2 Employee identity / scope")] -->|"Signed-in employee identity"| P
+    P -->|"Own dates, time-in/out, worked time and status"| EMP
+    HR["HR Head"] -->|"Adjustment with reason"| ADJ(["HR attendance adjustment"])
+    D1 <--> ADJ
+    ADJ -->|"Adjustment audit history"| D3[("D3 Attendance adjustments")]

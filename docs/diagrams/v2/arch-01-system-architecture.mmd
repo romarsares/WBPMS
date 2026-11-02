@@ -1,0 +1,66 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TD
+
+    subgraph BROWSER["Browser — Client"]
+        UI["HTML/CSS Templates\n+ Progressive JavaScript\n(escaped native PHP views)"]
+    end
+
+    subgraph HTTP_LAYER["HTTP Layer — app/Http/"]
+        FC["public/index.php\nFront Controller"]
+        ROUTER["Router\n(explicit route table\nroutes/web.php)"]
+        CSRF["CsrfMiddleware\n(CSRF token validation)"]
+        AUTH_MW["AuthMiddleware\n(session identity,\nrole enforcement)"]
+        CTRL["Controllers\n(AuthController, EmployeeController,\nAttendanceController, PayrollController,\nRequestsController, OwnerController,\nReportsController, EmployeePortalController,\nDashboardController, UserController, ...)"]
+        FC --> ROUTER
+        ROUTER --> CSRF
+        CSRF --> AUTH_MW
+        AUTH_MW --> CTRL
+    end
+
+    subgraph APP_LAYER["Application Layer — app/Application/"]
+        AUTH_SVC["AuthService\nPasswordResetService"]
+        EMP_SVC["EmployeeSetupService\nEmployeeLifecycleService\nEmployeeDocumentService"]
+        ATT_SVC["AttendanceImportService\nAttendancePolicyService\nAttendanceAdjustmentService"]
+        PAY_SVC["PayrollService\nPayrollAdjustmentService\nSalaryService"]
+        REQ_SVC["RequestService"]
+        PORTAL["EmployeeScope\n(self-service portal)"]
+    end
+
+    subgraph DOMAIN_LAYER["Domain Layer — app/Domain/"]
+        PARSER["AttendanceFileParser\n(interface)\n└ LdeXlsDailyLogParser\n   (BIFF .xls decoder,\n    PhpSpreadsheet Reader\\Xls)"]
+        TSHEET["TimesheetGenerator\n(punch → attendance rows)"]
+        POL_EVAL["AttendancePolicyEvaluator\n(late / undertime flags)"]
+        HPC["HolidayPayCalculator\nApprovedOvertimeCalculator"]
+        DTOS["DTOs / Value Objects\n(ParsedAttendanceFile, ParsedPunch,\nGeneratedAttendance, WorkSchedule,\nHolidayRecord, HolidayType, ...)"]
+        PARSER --> DTOS
+        TSHEET --> DTOS
+    end
+
+    subgraph INFRA_LAYER["Infrastructure Layer — app/Infrastructure/"]
+        CONN["Connection\n(PDO factory +\ntransaction boundary)"]
+        SESSION_H["DatabaseSessionHandler\n(SessionHandlerInterface\n→ MySQL sessions table)"]
+        REPOS["Repositories\n(EmployeeRepository,\nScheduleRepository,\nPdoAttendanceImportGateway,\nAuditRepository, ...)"]
+        MAILER["Mailer\n(phpmailer/phpmailer\nbehind interface)"]
+        REPORTS["Report Renderer\n(dompdf/dompdf\nbehind interface)"]
+        CONN --> REPOS
+    end
+
+    subgraph STORAGE_LAYER["Storage — External Services"]
+        MYSQL["MySQL 8.4 LTS\nInnoDB · utf8mb4\nStrict SQL Mode"]
+        FILE_STORE["storage/private/\n(temp XLS, generated PDFs)"]
+        SMTP_SVC["SMTP Provider\n(password reset OTP,\nnotifications)"]
+    end
+
+    UI <-->|"HTTP request / HTML response"| FC
+    CTRL --> AUTH_SVC & EMP_SVC & ATT_SVC & PAY_SVC & REQ_SVC & PORTAL
+    ATT_SVC --> PARSER
+    ATT_SVC --> TSHEET
+    ATT_SVC --> POL_EVAL
+    PAY_SVC --> HPC
+    ATT_SVC --> FILE_STORE
+    REPOS --> CONN
+    CONN --> MYSQL
+    SESSION_H --> MYSQL
+    MAILER --> SMTP_SVC
+    REPORTS --> FILE_STORE
+    CTRL --> SESSION_H

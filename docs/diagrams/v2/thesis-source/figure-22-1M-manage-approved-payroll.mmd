@@ -1,0 +1,9 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    HR["HR Head"] -->|"Computed payroll run submitted for review"| P(["1.0M\nReview and approve payroll"])
+    OWNER["Business Owner"] -->|"Approve or return with required reason"| P
+    P -->|"Run summary and payroll details"| OWNER
+    D1[("D1 Payroll run / payroll entries")] <--> P
+    P -->|"Approval status, reviewer and timestamp / return reason"| D1
+    P -->|"Approval event"| SLIP(["Create payslip records"])
+    SLIP -->|"Approved payslips available"| EMP["Employees"]

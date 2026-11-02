@@ -20,12 +20,21 @@ sequenceDiagram
     EmployeePortalController-->>Employee: Show success
 
     HRHead->>RequestsController: POST /hr/requests/{id}/approve
-    RequestsController->>RequestService: approveRequest(requestId, reviewedBy)
-    RequestService->>Database: UPDATE request status=Approved
-    RequestService->>Database: INSERT leave_ledger / cash_advance_history
+    RequestsController->>RequestService: approve(requestId, reviewedBy)
+    RequestService->>Database: UPDATE request status=HRApproved
     RequestsController-->>HRHead: Redirect with success
 
     BusinessOwner->>OwnerController: POST /owner/requests/{id}/approve
-    OwnerController->>RequestService: approveRequest(requestId, reviewedBy)
-    RequestService->>Database: UPDATE request reviewed_by, reviewed_at
+    OwnerController->>RequestService: ownerApprove(requestId, reviewedBy)
+    RequestService->>Database: UPDATE request status=Approved
+    alt Leave request
+        RequestService->>Database: INSERT leave_ledger usage
+    else Cash advance request
+        RequestService->>Database: INSERT cash_advance_history
+    end
+    OwnerController-->>BusinessOwner: Redirect with success
+
+    BusinessOwner->>OwnerController: POST /owner/requests/{id}/return
+    OwnerController->>RequestService: ownerReturn(requestId, reviewedBy, note)
+    RequestService->>Database: UPDATE request status=Returned, save owner note
     OwnerController-->>BusinessOwner: Redirect with success

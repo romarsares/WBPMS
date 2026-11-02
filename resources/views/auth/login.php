@@ -18,6 +18,9 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Login | Light Diamond Enterprises</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= $base ?>/assets/app.css?v=<?= @filemtime(APP_ROOT . '/public/assets/app.css') ?: time() ?>">
 </head>
 <body class="login-page">
@@ -78,10 +81,7 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
         </button>
 
         <p style="text-align:center;margin:.85rem 0 0;font-size:.875rem">
-            <a href="<?= $base ?>/forgot-password"
-               style="color:#d95b08;text-decoration:underline;font-weight:500"
-               onmouseover="this.style.color='#c0510a'"
-               onmouseout="this.style.color='#d95b08'">
+            <a href="<?= $base ?>/forgot-password">
                 Forgot your password?
             </a>
         </p>

@@ -1,0 +1,8 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    HR["HR Head"] -->|"Employee, daily rate, effective date"| P(["1.0C\nManage salary records"])
+    D1[("D1 Employee / branch assignment")] -->|"Employee context"| P
+    P -->|"Effective-dated salary history"| D2[("D2 Salary")]
+    D2 -->|"Applicable salary rate"| P
+    P -->|"Salary history and current rate"| HR
+    D2 -->|"Rates for payroll calculation"| PAY(["Payroll computation"])

@@ -442,7 +442,7 @@ final class UserService
     // -----------------------------------------------------------------------
 
     /**
-     * Archive a user account (soft delete — one-way, cannot be undone via UI).
+     * Archive a user account (soft delete — reversible via unarchive()).
      *
      * @throws RuntimeException when user is already Archived
      */
@@ -475,6 +475,44 @@ final class UserService
 
             $this->insertAudit($pdo, $actingUserId, 'user_archived', 'users', $userId,
                 "Archived user_id={$userId}");
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // REQ008-ext — Unarchive (reverse of archive, Business Owner only)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Restore an Archived user to Inactive status.
+     *
+     * The linked employee record (if any) is also restored to Inactive so it
+     * appears in Employee Management again. Full reactivation (Active) still
+     * requires an explicit Activate action.
+     *
+     * @throws RuntimeException when user is not Archived or not found
+     */
+    public function unarchive(int $userId, int $actingUserId): void
+    {
+        $user = $this->findOrFail($userId);
+
+        if ($user['status'] !== 'Archived') {
+            throw new RuntimeException('Only archived users can be unarchived.');
+        }
+
+        $this->connection->transaction(function (PDO $pdo) use ($userId, $actingUserId, $user): void {
+            $pdo->prepare("UPDATE users SET status = 'Inactive', updated_at = NOW() WHERE user_id = :id")
+                ->execute([':id' => $userId]);
+
+            // Mirror the restore on the linked employee record if it is still Archived.
+            if (!empty($user['employee_id'])) {
+                $pdo->prepare(
+                    "UPDATE employee SET status = 'Inactive', updated_at = NOW()
+                      WHERE employee_id = :emp_id AND status = 'Archived'"
+                )->execute([':emp_id' => $user['employee_id']]);
+            }
+
+            $this->insertAudit($pdo, $actingUserId, 'user_unarchived', 'users', $userId,
+                "Unarchived user_id={$userId} — status restored to Inactive");
         });
     }
 

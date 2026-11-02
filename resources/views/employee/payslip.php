@@ -33,8 +33,11 @@ $data        = $payslip['data'] ?? [];
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
         <a class="btn btn-secondary" href="<?= $base ?>/employee/payslips">← Back to Payslips</a>
         <?php if ($downloadUrl): ?>
+        <a class="btn btn-secondary" href="<?= Formatter::escape($base . '/employee/payslips/' . (int) ($data['payslip_id'] ?? 0) . '/print') ?>" target="_blank">
+            🖨 Print
+        </a>
         <a class="btn btn-primary" href="<?= Formatter::escape($downloadUrl) ?>" target="_blank">
-            🖨 Print / Download
+            ⬇ Download PDF
         </a>
         <?php endif; ?>
     </div>
@@ -120,6 +123,9 @@ $data        = $payslip['data'] ?? [];
 
     <?php if ($downloadUrl): ?>
     <div style="margin-top:1.25rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+        <a class="btn btn-secondary" href="<?= Formatter::escape($base . '/employee/payslips/' . (int) ($data['payslip_id'] ?? 0) . '/print') ?>" target="_blank">
+            🖨 Print
+        </a>
         <a class="btn btn-primary" href="<?= Formatter::escape($downloadUrl) ?>">
             ⬇ Download PDF
         </a>

@@ -1,15 +1,16 @@
 %%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "attributeBackgroundColorEven": "#ffffff", "attributeBackgroundColorOdd": "#ffffff"}}}%%
 erDiagram
-    ROLE ||--o{ USER : "has"
+    ROLE ||--o{ USER : "grants access to"
     USER }o--o| EMPLOYEE : "linked to"
     USER ||--o{ AUDIT_LOG : "generates"
-    USER ||--o{ SESSION : "holds"
+    USER ||--o{ SESSION : "maintains"
 
-    BRANCH ||--o{ EMPLOYEE : "employs"
-    BRANCH ||--o{ PAYROLL_RUN : "scoped to"
+    BRANCH ||--o{ EMPLOYEE_BRANCH_ASSIGNMENT : "receives"
+    EMPLOYEE ||--o{ EMPLOYEE_BRANCH_ASSIGNMENT : "assigned via"
 
     ATTENDANCE_SITE ||--o{ BIOMETRIC_DEVICE : "hosts"
-    BIOMETRIC_DEVICE }o--o{ BRANCH : "covers"
+    BIOMETRIC_DEVICE ||--o{ BIOMETRIC_DEVICE_BRANCH : "covers"
+    BRANCH ||--o{ BIOMETRIC_DEVICE_BRANCH : "covered by"
     BIOMETRIC_DEVICE ||--o{ ATTENDANCE_IMPORT_BATCH : "source of"
 
     EMPLOYEE ||--o{ WORK_SCHEDULE : "follows"
@@ -20,29 +21,34 @@ erDiagram
     EMPLOYEE ||--o{ LEAVE_ENTITLEMENT : "has"
     EMPLOYEE ||--o{ BANK_DETAILS : "holds"
     EMPLOYEE ||--o{ EMPLOYEE_DOCUMENT : "has"
-    EMPLOYEE ||--o{ EMPLOYMENT_EPISODE : "tracked by"
+    EMPLOYEE ||--o{ ATTENDANCE_POLICY_FLAG : "triggers"
+    EMPLOYEE ||--o{ CASH_ADVANCE_HISTORY : "owes"
 
     ATTENDANCE_IMPORT_BATCH ||--o{ BIOMETRIC_PUNCH : "contains"
-    BIOMETRIC_PUNCH }o--o{ ATTENDANCE : "evidences"
+    BIOMETRIC_PUNCH }o--o| ATTENDANCE : "evidences"
     ATTENDANCE ||--o{ ATTENDANCE_ADJUSTMENT : "corrected by"
     ATTENDANCE ||--o{ ATTENDANCE_POLICY_FLAG : "triggers"
-    ATTENDANCE_POLICY_FLAG ||--o| HR_NOTICE : "issues"
 
-    REQUEST ||--o| LEAVE_DETAIL : "has"
-    REQUEST ||--o| OVERTIME_DETAIL : "has"
-    REQUEST ||--o| CASH_ADVANCE_DETAIL : "has"
+    REQUEST ||--o| LEAVE_REQUEST_DETAIL : "has"
+    REQUEST ||--o| OVERTIME_REQUEST_DETAIL : "has"
+    REQUEST ||--o| CASH_ADVANCE_REQUEST_DETAIL : "has"
     REQUEST ||--o| CASH_ADVANCE_HISTORY : "creates"
     LEAVE_ENTITLEMENT ||--o{ LEAVE_LEDGER : "tracked by"
 
     PAYROLL_PERIOD ||--o{ PAYROLL_RUN : "frames"
-    PAYROLL_PERIOD ||--o| DISBURSEMENT_BATCH : "paid via"
+    BRANCH ||--o{ PAYROLL_RUN : "scoped to"
     PAYROLL_RUN ||--o{ PAYROLL : "groups"
-    PAYROLL ||--o{ PAYROLL_EARNINGS : "itemizes"
+    PAYROLL ||--o{ PAYROLL_EARNINGS : "itemises"
     PAYROLL ||--o{ DEDUCTION : "deducts"
     PAYROLL ||--o{ CONTRIBUTION_RECORD : "records"
     PAYROLL ||--o| PAYSLIP : "generates"
-    DISBURSEMENT_BATCH ||--o{ DEPOSIT_SLIP : "contains"
+    PAYROLL_PERIOD ||--o| DISBURSEMENT_BATCH : "paid via"
 
-    CONTRIBUTION_POLICY ||--o{ SSS_BRACKET : "defines"
-    CONTRIBUTION_POLICY ||--o| PHILHEALTH_RATE : "defines"
-    CONTRIBUTION_POLICY ||--o| PAGIBIG_RATE : "defines"
+    CONTRIBUTION_POLICY_VERSION ||--o{ SSS_BRACKET : "defines"
+    CONTRIBUTION_POLICY_VERSION ||--o| PHILHEALTH_RATE : "defines"
+    CONTRIBUTION_POLICY_VERSION ||--o| PAGIBIG_RATE : "defines"
+    CONTRIBUTION_POLICY_VERSION ||--o{ CONTRIBUTION_RECORD : "governs"
+
+    PAYROLL_POLICY_VERSION ||--o{ PAYROLL_RUN : "governs"
+
+    HOLIDAY_CALENDAR ||--o{ PAYROLL_EARNINGS : "determines multiplier for"

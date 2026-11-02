@@ -6,14 +6,18 @@ use Wbpms\Http\View\Formatter;
  * View: owner/requests/index  (GET /owner/requests)
  *
  * Variables:
- *   list<array<string,mixed>> $pending  — rows from RequestService::ownerPendingList()
- *   list<array<string,mixed>> $actioned — rows from RequestService::ownerActionedList()
+ *   list<array<string,mixed>> $pending      — rows from RequestService::ownerPendingListFiltered()
+ *   list<array<string,mixed>> $actioned     — rows from RequestService::ownerActionedListFiltered()
+ *   list<array<string,mixed>> $requestTypes — for type filter dropdown
+ *   array{type_id:int,search:string} $filters
  *   string $base, $csrf — injected by ViewRenderer
  */
 
-$pending  ??= [];
-$actioned ??= [];
-$base     ??= '';
+$pending      ??= [];
+$actioned     ??= [];
+$requestTypes ??= [];
+$filters      ??= [];
+$base         ??= '';
 
 $typeIcons = [
     'Leave'       => '🏖',
@@ -30,9 +34,32 @@ $typeIcons = [
     <a href="<?= $base ?>/owner/requests/cash-advance-tracker" class="btn btn-secondary">💵 Cash Advance Balances</a>
 </div>
 
+<!-- Filter bar -->
+<div class="card" style="padding:.9rem 1.25rem;margin-bottom:1.25rem">
+    <form method="GET" action="<?= $base ?>/owner/requests" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end">
+        <div>
+            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Request Type</label>
+            <select name="type_id">
+                <option value="">All types</option>
+                <?php foreach ($requestTypes as $rt): ?>
+                <option value="<?= (int) $rt['request_type_id'] ?>" <?= (int) ($filters['type_id'] ?? 0) === (int) $rt['request_type_id'] ? 'selected' : '' ?>>
+                    <?= Formatter::escape((string) $rt['type_name']) ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div>
+            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Employee</label>
+            <input type="search" name="search" value="<?= Formatter::escape((string) ($filters['search'] ?? '')) ?>" placeholder="Name or employee no.">
+        </div>
+        <button type="submit" class="btn btn-primary">Apply Filters</button>
+        <a href="<?= $base ?>/owner/requests" class="btn btn-secondary">Clear</a>
+    </form>
+</div>
+
 <?php if ($pending === []): ?>
 <div class="card" style="padding:2.5rem;text-align:center;color:#6b7280;margin-bottom:1.5rem">
-    <p style="margin:0;font-size:1rem">No requests are awaiting your approval right now.</p>
+    <p style="margin:0;font-size:1rem">No requests are awaiting your approval<?= ($filters['type_id'] ?? 0) > 0 || ($filters['search'] ?? '') !== '' ? ' for the current filters' : '' ?>.</p>
 </div>
 <?php else: ?>
 
@@ -67,6 +94,7 @@ $typeIcons = [
                 <th>#</th>
                 <th>Employee</th>
                 <th>Type</th>
+                <th>Status</th>
                 <th>Submitted</th>
                 <th>HR Pre-approved</th>
                 <th>Reason</th>
@@ -74,7 +102,13 @@ $typeIcons = [
             </tr>
         </thead>
         <tbody>
-        <?php foreach ($pending as $r): ?>
+        <?php foreach ($pending as $r):
+            $statusBadge = match ($r['status']) {
+                'HRApproved' => 'badge-blue',
+                'Returned'   => 'badge-yellow',
+                default      => 'badge-gray',
+            };
+        ?>
         <tr>
             <td style="color:#9ca3af;font-size:.8rem"><?= (int) $r['request_id'] ?></td>
             <td>
@@ -85,6 +119,7 @@ $typeIcons = [
                 <?= $typeIcons[$r['type_name']] ?? '' ?>
                 <?= Formatter::escape((string) $r['type_name']) ?>
             </td>
+            <td><span class="badge <?= $statusBadge ?>"><?= Formatter::escape((string) $r['status']) ?></span></td>
             <td style="white-space:nowrap;font-size:.85rem"><?= Formatter::escape((string) $r['submitted_at']) ?></td>
             <td style="white-space:nowrap;font-size:.85rem;color:#6366f1"><?= Formatter::escape((string) ($r['hr_reviewed_at'] ?? '—')) ?></td>
             <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem">
@@ -114,7 +149,7 @@ $typeIcons = [
     </div>
     <?php if ($actioned === []): ?>
     <div style="padding:2rem;text-align:center;color:#9ca3af;font-size:.875rem">
-        No actioned requests yet.
+        No actioned requests<?= ($filters['type_id'] ?? 0) > 0 || ($filters['search'] ?? '') !== '' ? ' match the current filters' : ' yet' ?>.
     </div>
     <?php else: ?>
     <table class="data-table">

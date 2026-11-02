@@ -1,0 +1,16 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    PAY(["Payroll computation"])
+    P(["1.0D\nCompute deductions and contributions"])
+    D1[("D1 Approved requests / cash advance balances")]
+    D2[("D2 Payroll and attendance amounts")]
+    D3[("D3 Versioned contribution policy / rates")]
+    D4[("D4 Deductions / contribution records")]
+    HR["HR Head"]
+    PAY -->|"Gross pay and payroll period"| P
+    D1 -->|"Approved advances and request data"| P
+    D2 -->|"Attendance and payroll bases"| P
+    D3 -->|"Applicable contribution rules"| P
+    P -->|"Deduction and contribution line items"| D4
+    D4 -->|"Payroll deduction totals"| PAY
+    D4 -->|"Contribution details for review / reports"| HR

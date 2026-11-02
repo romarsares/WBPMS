@@ -1,13 +1,13 @@
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
-flowchart LR
-    HR(["HR Head"])
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#f9f9f9", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+graph LR
+    HR(["👤 HR Head"])
 
-    subgraph SYS["Work Schedule and Settings"]
+    subgraph SYS["Web-Based Payroll Management System (WBPMS)"]
         subgraph SCHED["Work Schedules"]
             UC1(["View Schedules"])
             UC2(["Create Schedule"])
             UC3(["Edit Schedule"])
-            UC4(["Assign to Employee"])
+            UC4(["Assign Schedule to Employee"])
         end
         subgraph HOL["Holiday Calendar"]
             UC5(["View Holidays"])
@@ -19,11 +19,11 @@ flowchart LR
             UC9(["View Positions"])
             UC10(["Add Position"])
             UC11(["Edit Position"])
-            UC12(["Toggle Status"])
+            UC12(["Toggle Position Status"])
         end
         subgraph PER["Payroll Periods"]
-            UC13(["View Periods"])
-            UC14(["Create Period"])
+            UC13(["View Payroll Periods"])
+            UC14(["Create Payroll Period"])
         end
     end
 
@@ -31,3 +31,18 @@ flowchart LR
     HR --- UC5 & UC6 & UC7 & UC8
     HR --- UC9 & UC10 & UC11 & UC12
     HR --- UC13 & UC14
+
+    style UC1 rx:50,ry:50
+    style UC2 rx:50,ry:50
+    style UC3 rx:50,ry:50
+    style UC4 rx:50,ry:50
+    style UC5 rx:50,ry:50
+    style UC6 rx:50,ry:50
+    style UC7 rx:50,ry:50
+    style UC8 rx:50,ry:50
+    style UC9 rx:50,ry:50
+    style UC10 rx:50,ry:50
+    style UC11 rx:50,ry:50
+    style UC12 rx:50,ry:50
+    style UC13 rx:50,ry:50
+    style UC14 rx:50,ry:50

@@ -95,14 +95,14 @@
   - [x] 7.3 Views: `employee/requests/index.php`, `employee/requests/form.php`
   - [x] 7.4 `RequestService` with leave entitlement ledger + insufficient-balance block (REQ078)
   - [x] 7.5 Cash advance obligation creation on approval
-  - [ ] 7.6 Integration test: submit → balance rejection → approve → archive
+  - [x] 7.6 Integration test: submit → balance rejection → approve → archive — `RequestLifecycleTest.php`
   - _Requirements: 7, 12_
 
 - [x] 8. Manage Salary module
   - [x] 8.1 `SalaryController` — index, create, store, edit, update, archive (REQ053–REQ057)
   - [x] 8.2 View: `salary/index.php`
   - [x] 8.3 `SalaryService` with effective-date history preservation
-  - [ ] 8.4 Unit test: rate update does not mutate history rows
+  - [x] 8.4 Unit test: rate update does not mutate history rows — `SalaryHistoryTest.php`
   - _Requirements: 8_
 
 - [x] 9. Benefits and Deductions module
@@ -133,7 +133,7 @@
   - [x] 10.9 `OwnerController` — payrollList, reviewForm, approve (generates payslips), returnRun
   - [x] 10.10 Views: `hr/payroll/index.php`, `hr/payroll/run.php`, `hr/payroll/detail.php`,
          `hr/payroll/periods.php`, `owner/payroll/index.php`, `owner/payroll/review.php`
-  - [ ] 10.11 Guard against approved-run mutation (immutability check exists in computeRun; extend to all mutations)
+  - [x] 10.11 Guard against approved-run mutation — `PayrollImmutabilityTest.php` validates all 6 mutation paths (resubmit, double-approve, return, cancel, adjust, recompute)
   - [ ] 10.12 Tests: golden calculation, double-approval guard, mid-period transfer, 5s performance
   - _Requirements: 10_
 
@@ -156,7 +156,7 @@
   - [x] 12.2 `DashboardController.ownerDashboard` — pending approvals, branch count, recent approved runs
   - [x] 12.3 `DashboardController.empDashboard` — own name/branch/schedule/leave balance/requests
   - [x] 12.4 Views: `hr/dashboard.php`, `owner/dashboard.php`, `employee/dashboard.php`
-  - [ ] 12.5 Attendance-alert widget sourced from `attendance WHERE status = 'Incomplete'`
+  - [x] 12.5 Attendance-alert widget sourced from `attendance WHERE status = 'Incomplete'` — live query in `DashboardController::hrDashboard()`; top-20 most recent Incomplete records passed to `hr/dashboard.php` as `$incompleteAlerts`
   - _Requirements: 2_
 
 - [x] 13. Employee Self-Service Portal

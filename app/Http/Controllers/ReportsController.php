@@ -782,7 +782,7 @@ body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;backgro
                     echo $payslipsHtml;
                     return;
                 }
-                break;
+                // No break needed — the block above always returns
 
             }
         }
@@ -1085,9 +1085,9 @@ body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;backgro
         $typeId = filter_var($_GET['type_id'] ?? 0, FILTER_VALIDATE_INT);
         $validStatuses = match ($type) {
             'attendance' => ['Complete', 'Approved', 'Incomplete', 'ReviewRequired'],
-            'requests' => ['Pending', 'Approved', 'Rejected', 'Cancelled'],
-            'employees' => ['Active', 'Inactive', 'Separated', 'Archived'],
-            default => [],
+            'requests'   => ['Pending', 'HRApproved', 'Approved', 'Cancelled'],
+            'employees'  => ['Active', 'Inactive', 'Separated', 'Archived'],
+            default      => [],
         };
         $status = trim((string) ($_GET['status'] ?? ''));
         $program = trim((string) ($_GET['program'] ?? ''));

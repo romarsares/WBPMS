@@ -1,0 +1,16 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    USER["Business Owner / HR Head / Employee"]
+    P(["1.0K\nAuthenticate user and manage session"])
+    D1[("D1 User account / role / reset-token data")]
+    D2[("D2 Database-backed sessions")]
+    SMTP["SMTP Provider"]
+    USER -->|"Username and password"| P
+    D1 -->|"Password hash, account status, role"| P
+    P -->|"Authentication result / role-based redirect"| USER
+    P <--> D2
+    USER -->|"Forgot-password email"| P
+    P -->|"Single-use reset link email"| SMTP
+    SMTP -->|"Reset link"| USER
+    USER -->|"New password and reset token"| P
+    P -->|"Updated password hash; clear token"| D1

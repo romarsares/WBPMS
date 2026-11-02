@@ -1,0 +1,75 @@
+@startuml uc-02-employee-management
+skinparam backgroundColor #FFFFFF
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam actor {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam rectangle {
+    BackgroundColor #F9F9F9
+    BorderColor #000000
+    FontColor #000000
+    BorderThickness 2
+}
+skinparam ArrowColor #000000
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title Use Case Diagram: Employee Management
+
+left to right direction
+
+actor "HR Head" as HR
+
+rectangle "WBPMS (Web-Based Payroll Management System)" {
+    package "Employee Records" {
+        usecase "View Employees" as UC1
+        usecase "Add Employee" as UC2
+        usecase "View Profile" as UC3
+        usecase "Edit Details" as UC4
+        usecase "Upload ID Photo" as UC5
+    }
+    package "Employee Lifecycle" {
+        usecase "Transfer Employee" as UC6
+        usecase "Archive Employee" as UC7
+        usecase "Rehire Employee" as UC8
+    }
+    package "Documents" {
+        usecase "View Documents" as UC9
+        usecase "Upload Document" as UC10
+        usecase "Verify Document" as UC11
+        usecase "Replace Document" as UC12
+        usecase "Archive Document" as UC13
+    }
+    package "Bank Details" {
+        usecase "Add Bank Account" as UC14
+        usecase "Update Bank Account" as UC15
+    }
+}
+
+HR --> UC1
+HR --> UC2
+HR --> UC3
+HR --> UC4
+HR --> UC5
+HR --> UC6
+HR --> UC7
+HR --> UC8
+HR --> UC9
+HR --> UC10
+HR --> UC11
+HR --> UC12
+HR --> UC13
+HR --> UC14
+HR --> UC15
+
+UC2 ..> UC14 : <<include>>
+UC10 ..> UC11 : <<extend>>
+
+@enduml

@@ -1,19 +1,19 @@
-%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
-flowchart LR
-    HR(["HR Head"])
-    BO(["Business Owner"])
-    EMP(["Employee"])
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#f9f9f9", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+graph LR
+    HR(["👤 HR Head"])
+    BO(["👤 Business Owner"])
+    EMP(["👤 Employee"])
 
-    subgraph SYS["Request Management"]
-        subgraph SUB["Submission"]
-            UC1(["Submit Leave"])
-            UC2(["Submit Overtime"])
-            UC3(["Submit Cash Advance"])
+    subgraph SYS["Web-Based Payroll Management System (WBPMS)"]
+        subgraph SUB["Request Submission"]
+            UC1(["Submit Leave Request"])
+            UC2(["Submit Overtime Request"])
+            UC3(["Submit Cash Advance Request"])
             UC4(["Cancel Own Request"])
         end
         subgraph HRACT["HR Actions"]
             UC5(["View All Requests"])
-            UC6(["Create on Behalf"])
+            UC6(["Create Request on Behalf"])
             UC7(["Approve Request"])
             UC8(["Cancel Request"])
             UC9(["Archive Request"])
@@ -22,13 +22,13 @@ flowchart LR
             UC10(["View Leave Credits"])
             UC11(["Adjust Leave Credit"])
         end
-        subgraph CA["Cash Advance"]
-            UC12(["View CA Tracker"])
+        subgraph CA["Cash Advance Tracking"]
+            UC12(["View Cash Advance Tracker"])
         end
-        subgraph BOACT["Owner Actions"]
-            UC13(["View Requests"])
+        subgraph BOACT["Business Owner Actions"]
+            UC13(["View Requests for Approval"])
             UC14(["Approve Request"])
-            UC15(["Return Request"])
+            UC15(["Return Request to HR"])
             UC16(["Cancel Request"])
         end
     end
@@ -37,4 +37,23 @@ flowchart LR
     HR --- UC5 & UC6 & UC7 & UC8 & UC9 & UC10 & UC11 & UC12
     BO --- UC12 & UC13 & UC14 & UC15 & UC16
 
-    UC1 & UC2 & UC3 -.->|"<<include>>"| UC4
+    UC1 -.->|"&lt;&lt;include&gt;&gt;"| UC4
+    UC2 -.->|"&lt;&lt;include&gt;&gt;"| UC4
+    UC3 -.->|"&lt;&lt;include&gt;&gt;"| UC4
+
+    style UC1 rx:50,ry:50
+    style UC2 rx:50,ry:50
+    style UC3 rx:50,ry:50
+    style UC4 rx:50,ry:50
+    style UC5 rx:50,ry:50
+    style UC6 rx:50,ry:50
+    style UC7 rx:50,ry:50
+    style UC8 rx:50,ry:50
+    style UC9 rx:50,ry:50
+    style UC10 rx:50,ry:50
+    style UC11 rx:50,ry:50
+    style UC12 rx:50,ry:50
+    style UC13 rx:50,ry:50
+    style UC14 rx:50,ry:50
+    style UC15 rx:50,ry:50
+    style UC16 rx:50,ry:50

@@ -78,7 +78,9 @@ $router->add('GET',  '/users/create',       [UserController::class, 'create'],  
 $router->add('POST', '/users',              [UserController::class, 'store'],         ['BusinessOwner']);
 $router->add('GET',  '/users/{id}/edit',    [UserController::class, 'edit'],          ['BusinessOwner', 'HRHead']);
 $router->add('PUT',  '/users/{id}',         [UserController::class, 'update'],        ['BusinessOwner', 'HRHead']);
-$router->add('POST', '/users/{id}/toggle',  [UserController::class, 'toggle'],        ['BusinessOwner']);
+$router->add('POST', '/users/{id}/toggle',    [UserController::class, 'toggle'],    ['BusinessOwner']);
+$router->add('POST', '/users/{id}/archive',   [UserController::class, 'archive'],   ['BusinessOwner']);
+$router->add('POST', '/users/{id}/unarchive', [UserController::class, 'unarchive'], ['BusinessOwner']);
 $router->add('POST', '/users/{id}/archive', [UserController::class, 'archive'],       ['BusinessOwner']);
 $router->add('POST', '/users/{id}/reset-password', [UserController::class, 'resetPassword'], ['BusinessOwner', 'HRHead']);
 

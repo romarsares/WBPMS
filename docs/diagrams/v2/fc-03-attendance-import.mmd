@@ -6,15 +6,15 @@ flowchart TD
     C -->|Yes| E["Compute SHA-256 Checksum"]
     E --> F{"Duplicate Checksum?"}
     F -->|Yes| G[/"Reject: Duplicate File"/] --> Z
-    F -->|No| H["Parse Workbook\nCreate Import Batch"]
+    F -->|No| H["Parse Workbook\nSave Draft Import Batch"]
     H --> I["For Each Punch:\nCheck Duplicate"]
     I --> J{"Duplicate Punch?"}
     J -->|Yes| K["Skip Punch"] --> I
     J -->|No| L["Match to Employee\nInsert biometric_punch"]
     L --> M{"More Punches?"}
     M -->|Yes| I
-    M -->|No| N["Generate Attendance\nUpsert Rows\nMark Batch Completed"]
+    M -->|No| N["Generate Attendance Rows\nSave as Draft; payroll ignores batch"]
     N --> O[/"Show Import Summary"/]
     O --> P{"HR Approves?"}
-    P -->|No| Q["Mark Batch Rejected"] --> Z
-    P -->|Yes| R["Mark Batch Approved\nDelete Temp File"] --> Z
+    P -->|No| Q["Leave batch Draft or cancel import"] --> Z
+    P -->|Yes| R["Mark Batch Approved\nTimesheets become available to payroll"] --> Z

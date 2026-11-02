@@ -1,0 +1,13 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    HR["HR Head"] -->|"Period, branch, compute and submit actions"| P(["1.0E\nProcess payroll run"])
+    D1[("D1 Payroll periods / policy versions")] -->|"Period and calculation policy"| P
+    D2[("D2 Approved attendance")] -->|"Work, overtime and absence data"| P
+    D3[("D3 Effective salary history")] -->|"Daily rate"| P
+    D4[("D4 Approved requests / active advances")] -->|"Payroll-relevant requests"| P
+    D5[("D5 Schedules / holiday calendar")] -->|"Workday and holiday rules"| P
+    P -->|"Run, employee payroll rows, earnings, deductions"| D6[("D6 Payroll records")]
+    D6 -->|"Computed summary for review"| HR
+    HR -->|"Manual earnings / deduction adjustment with reason"| P
+    P -->|"Adjustment audit record"| D7[("D7 Payroll adjustment history")]
+    P -->|"Submit run for Owner approval"| OWNER["Business Owner"]

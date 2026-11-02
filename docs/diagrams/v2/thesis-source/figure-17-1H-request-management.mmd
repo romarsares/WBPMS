@@ -1,0 +1,19 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    EMP["Employee"]
+    HR["HR Head"]
+    OWNER["Business Owner"]
+    P(["1.0H\nManage leave, overtime and cash advance requests"])
+    D1[("D1 Request and type-specific details")]
+    D2[("D2 Leave entitlement / append-only leave ledger")]
+    D3[("D3 Cash advance history / repayments")]
+    EMP -->|"Request details; cancel own pending or returned request"| P
+    P -->|"Submitted request and status"| EMP
+    HR -->|"HR pre-approval or cancellation"| P
+    OWNER -->|"Final approval, return with note, or cancellation"| P
+    P <--> D1
+    D2 -->|"Available leave balance"| P
+    P -->|"Leave usage on final approval"| D2
+    P -->|"Create cash advance obligation on final approval"| D3
+    D1 -->|"Approved request data"| PAY(["Payroll computation"])
+    D3 -->|"Outstanding advance balance"| PAY

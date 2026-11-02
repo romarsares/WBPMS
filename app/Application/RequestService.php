@@ -572,6 +572,48 @@ final class RequestService
     }
 
     /**
+     * Filtered version of ownerPendingList() with optional type and employee search.
+     *
+     * @param array{type_id?:int,search?:string} $filters
+     * @return list<array<string,mixed>>
+     */
+    public function ownerPendingListFiltered(array $filters = []): array
+    {
+        $where  = ["r.status IN ('Pending', 'HRApproved', 'Returned')", 'r.archived_at IS NULL'];
+        $params = [];
+
+        if (!empty($filters['type_id'])) {
+            $where[]            = 'r.request_type_id = :type_id';
+            $params[':type_id'] = (int) $filters['type_id'];
+        }
+        if (!empty($filters['search'])) {
+            $where[]              = "(CONCAT(e.last_name,' ',e.first_name) LIKE :search_name
+                                   OR e.employee_number LIKE :search_num)";
+            $params[':search_name'] = '%' . $filters['search'] . '%';
+            $params[':search_num']  = '%' . $filters['search'] . '%';
+        }
+
+        $whereSql = 'WHERE ' . implode(' AND ', $where);
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT r.request_id,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    e.employee_number,
+                    rt.type_name,
+                    r.status,
+                    r.submitted_at,
+                    r.reviewed_at   AS hr_reviewed_at,
+                    r.reason
+               FROM request r
+               JOIN employee e      ON e.employee_id      = r.employee_id
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+              {$whereSql}
+              ORDER BY r.submitted_at ASC"
+        );
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    /**
      * List all requests the Owner has already actioned (Approved or Cancelled).
      *
      * Used to show the Owner a complete history of their decisions.
@@ -600,6 +642,51 @@ final class RequestService
               LIMIT 100"
         );
         return $stmt ? $stmt->fetchAll() : [];
+    }
+
+    /**
+     * Filtered version of ownerActionedList() with optional type and employee search.
+     *
+     * @param array{type_id?:int,search?:string} $filters
+     * @return list<array<string,mixed>>
+     */
+    public function ownerActionedListFiltered(array $filters = []): array
+    {
+        $where  = ["r.status IN ('Approved', 'Cancelled')", 'r.archived_at IS NULL'];
+        $params = [];
+
+        if (!empty($filters['type_id'])) {
+            $where[]            = 'r.request_type_id = :type_id';
+            $params[':type_id'] = (int) $filters['type_id'];
+        }
+        if (!empty($filters['search'])) {
+            $where[]                = "(CONCAT(e.last_name,' ',e.first_name) LIKE :search_name
+                                      OR e.employee_number LIKE :search_num)";
+            $params[':search_name'] = '%' . $filters['search'] . '%';
+            $params[':search_num']  = '%' . $filters['search'] . '%';
+        }
+
+        $whereSql = 'WHERE ' . implode(' AND ', $where);
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT r.request_id,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    e.employee_number,
+                    rt.type_name,
+                    r.status,
+                    r.submitted_at,
+                    r.reviewed_at        AS hr_reviewed_at,
+                    r.owner_reviewed_at,
+                    r.owner_notes,
+                    r.reason
+               FROM request r
+               JOIN employee e      ON e.employee_id      = r.employee_id
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+              {$whereSql}
+              ORDER BY r.owner_reviewed_at DESC
+              LIMIT 300"
+        );
+        $stmt->execute($params);
+        return $stmt->fetchAll();
     }
 
     /**

@@ -1,0 +1,81 @@
+@startuml uc-05-request-management
+skinparam backgroundColor #FFFFFF
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam actor {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam rectangle {
+    BackgroundColor #F9F9F9
+    BorderColor #000000
+    FontColor #000000
+    BorderThickness 2
+}
+skinparam ArrowColor #000000
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title Use Case Diagram: Request Management
+
+left to right direction
+
+actor "Employee" as EMP
+actor "HR Head" as HR
+actor "Business\nOwner" as BO
+
+rectangle "WBPMS (Web-Based Payroll Management System)" {
+    package "Request Submission" {
+        usecase "Submit Leave Request" as UC1
+        usecase "Submit Overtime Request" as UC2
+        usecase "Submit Cash Advance" as UC3
+        usecase "Cancel Own Request" as UC4
+    }
+    package "HR Actions" {
+        usecase "View All Requests" as UC5
+        usecase "Create on Behalf" as UC6
+        usecase "Approve Request" as UC7
+        usecase "Cancel Request" as UC8
+        usecase "Archive Request" as UC9
+        usecase "View Leave Credits" as UC10
+        usecase "Adjust Leave Credit" as UC11
+        usecase "View CA Tracker" as UC12
+    }
+    package "Business Owner Actions" {
+        usecase "View Requests\nfor Approval" as UC13
+        usecase "Approve Request" as UC14
+        usecase "Return to HR" as UC15
+        usecase "Cancel Request" as UC16
+    }
+}
+
+EMP --> UC1
+EMP --> UC2
+EMP --> UC3
+EMP --> UC4
+
+HR --> UC5
+HR --> UC6
+HR --> UC7
+HR --> UC8
+HR --> UC9
+HR --> UC10
+HR --> UC11
+HR --> UC12
+
+BO --> UC12
+BO --> UC13
+BO --> UC14
+BO --> UC15
+BO --> UC16
+
+UC1 ..> UC4 : <<include>>
+UC2 ..> UC4 : <<include>>
+UC3 ..> UC4 : <<include>>
+
+@enduml

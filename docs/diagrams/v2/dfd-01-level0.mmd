@@ -1,0 +1,82 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#f5f5f5", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TD
+    %% External Entities
+    BO["Business Owner"]
+    HR["HR Head"]
+    EMP["Employee"]
+    BIO["Biometric Device"]
+    SMTP["SMTP Provider"]
+
+    %% Processes
+    P1(["1.0\nAuthentication &\nUser Management"])
+    P2(["2.0\nEmployee\nManagement"])
+    P3(["3.0\nAttendance\nImport & Tracking"])
+    P4(["4.0\nWork Schedule &\nHoliday Management"])
+    P5(["5.0\nRequest\nManagement"])
+    P6(["6.0\nSalary &\nBenefits Management"])
+    P7(["7.0\nPayroll\nComputation & Approval"])
+    P8(["8.0\nGovernment\nContributions"])
+    P9(["9.0\nReports &\nExports"])
+    P10(["10.0\nEmployee\nSelf-Service Portal"])
+
+    %% Data Stores
+    DS1[("D1 Users\n& Sessions")]
+    DS2[("D2 Employees\n& Branches")]
+    DS3[("D3 Attendance\n& Punches")]
+    DS4[("D4 Schedules\n& Holidays")]
+    DS5[("D5 Requests\nLeave / OT / CA")]
+    DS6[("D6 Salary")]
+    DS7[("D7 Payroll\n& Payslips")]
+    DS8[("D8 Contributions")]
+
+    %% Authentication
+    HR & BO & EMP -->|"Credentials"| P1
+    P1 <-->|"User records\nSessions"| DS1
+
+    %% Employee Management
+    HR -->|"Employee data\nDocuments"| P2
+    P2 <-->|"Employee records"| DS2
+
+    %% Attendance
+    BIO -->|"XLS daily log"| HR
+    HR -->|"Upload XLS"| P3
+    P3 <-->|"Import batches\nAttendance records"| DS3
+    DS2 -->|"Employee enrollment"| P3
+    DS4 -->|"Schedules\nHolidays"| P3
+
+    %% Schedules
+    HR -->|"Schedule data\nHoliday entries"| P4
+    P4 <-->|"Schedule & holiday records"| DS4
+
+    %% Requests
+    EMP -->|"Submit request"| P5
+    HR & BO -->|"Approve / cancel"| P5
+    P5 <-->|"Request records\nLeave entitlements"| DS5
+
+    %% Salary
+    HR -->|"Daily rate\nEffective date"| P6
+    P6 <-->|"Salary records"| DS6
+
+    %% Payroll
+    HR -->|"Compute\nSubmit for approval"| P7
+    BO -->|"Approve / return"| P7
+    P7 <-->|"Payroll runs\nPayroll entries\nPayslips"| DS7
+    DS3 & DS5 & DS6 -->|"Attendance\nRequests\nSalary rates"| P7
+    P7 -->|"Triggers computation"| P8
+
+    %% Contributions
+    P8 <-->|"Contribution records"| DS8
+
+    %% Reports
+    HR & BO -->|"Report parameters"| P9
+    DS3 & DS5 & DS7 & DS8 -->|"Data for reports"| P9
+    P9 -->|"Reports\nExports"| HR & BO
+
+    %% Self-Service
+    EMP -->|"Portal requests"| P10
+    DS3 & DS5 & DS7 -->|"Employee data"| P10
+    P10 -->|"Attendance view\nRequest status\nPayslips"| EMP
+
+    %% Notifications
+    P1 & P5 & P7 -->|"OTP / notifications"| SMTP
+    SMTP -->|"Email"| BO & HR & EMP

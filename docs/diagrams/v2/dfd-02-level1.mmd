@@ -1,0 +1,77 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#f5f5f5", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TD
+    %% Level 1 DFD — Decomposition of Process 7.0: Payroll Computation and Approval
+    %% Parent process inputs/outputs balance with Level 0
+
+    %% External Entities (carried from Level 0)
+    HR["HR Head"]
+    BO["Business Owner"]
+    EMP["Employee"]
+
+    %% Sub-processes of 7.0
+    P71(["7.1\nCreate\nPayroll Run"])
+    P72(["7.2\nCompute\nEarnings"])
+    P73(["7.3\nCompute\nDeductions"])
+    P74(["7.4\nApply Manual\nAdjustments"])
+    P75(["7.5\nSubmit for\nOwner Approval"])
+    P76(["7.6\nApprove / Return\nPayroll Run"])
+    P77(["7.7\nGenerate\nPayslips"])
+
+    %% Data Stores (local + inherited from Level 0)
+    DS_PERIOD[("D7a Payroll\nPeriods")]
+    DS_RUN[("D7b Payroll\nRuns")]
+    DS_PAYROLL[("D7c Payroll\nEntries")]
+    DS_EARNINGS[("D7d Payroll\nEarnings")]
+    DS_DED[("D7e Deductions")]
+    DS_CONTRIB[("D7f Contribution\nRecords")]
+    DS_PAYSLIP[("D7g Payslips")]
+    DS_ATT[("D3 Attendance")]
+    DS_REQ[("D5 Requests")]
+    DS_SAL[("D6 Salary")]
+    DS_POLICY[("D7h Payroll\nPolicy")]
+
+    %% 7.1 Create Payroll Run
+    HR -->|"Select period\nand branch"| P71
+    DS_PERIOD -->|"Period details"| P71
+    P71 -->|"New payroll run\n(Draft status)"| DS_RUN
+
+    %% 7.2 Compute Earnings
+    HR -->|"Trigger compute"| P72
+    DS_RUN -->|"Run details"| P72
+    DS_ATT -->|"Attendance records"| P72
+    DS_SAL -->|"Daily rate"| P72
+    DS_POLICY -->|"Holiday multipliers\nOT rules"| P72
+    P72 -->|"Earning line items"| DS_EARNINGS
+
+    %% 7.3 Compute Deductions
+    DS_EARNINGS -->|"Gross amounts"| P73
+    DS_REQ -->|"Approved CA\nOT requests"| P73
+    DS_ATT -->|"Late / undertime minutes"| P73
+    DS_POLICY -->|"Contribution tables\nTax rules"| P73
+    P73 -->|"Deduction line items"| DS_DED
+    P73 -->|"Contribution records"| DS_CONTRIB
+
+    %% 7.4 Manual Adjustments
+    HR -->|"Adjustment entries"| P74
+    DS_PAYROLL -->|"Existing payroll entry"| P74
+    P74 -->|"Updated payroll entry"| DS_PAYROLL
+
+    %% 7.5 Submit
+    HR -->|"Submit for approval"| P75
+    DS_EARNINGS & DS_DED -->|"Totals"| P75
+    P75 -->|"Run status → PendingOwnerApproval"| DS_RUN
+    P75 -->|"Updated entries"| DS_PAYROLL
+
+    %% 7.6 Approve / Return
+    BO -->|"Approve or return\nwith reason"| P76
+    DS_RUN -->|"Run summary"| P76
+    DS_PAYROLL -->|"Payroll details"| P76
+    P76 -->|"Run status → Approved / Returned"| DS_RUN
+
+    %% 7.7 Generate Payslips
+    P76 -->|"Approval event"| P77
+    DS_PAYROLL -->|"Net pay details"| P77
+    DS_EARNINGS -->|"Earnings breakdown"| P77
+    DS_DED -->|"Deductions breakdown"| P77
+    P77 -->|"Payslip records\nPDF files"| DS_PAYSLIP
+    P77 -->|"Payslips available"| EMP

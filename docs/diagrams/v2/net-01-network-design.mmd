@@ -1,0 +1,47 @@
+%%{init: {"theme": "base", "themeVariables": {"primaryColor": "#ffffff", "primaryBorderColor": "#000000", "primaryTextColor": "#000000", "lineColor": "#000000", "background": "#ffffff", "nodeBorder": "#000000", "clusterBkg": "#ffffff", "clusterBorder": "#000000", "edgeLabelBackground": "#ffffff"}}}%%
+flowchart TD
+
+    subgraph CLIENTS["Client Zone — End-User Devices"]
+        C1["HR Head\nDesktop / Laptop\nWeb Browser"]
+        C2["Business Owner\nDesktop / Laptop\nWeb Browser"]
+        C3["Employee\nDesktop / Laptop\nWeb Browser"]
+    end
+
+    subgraph BIOMETRIC["Biometric Site — Offline Export"]
+        BD1["Biometric Device\n(Banga Site)\nFingerprint Scanner"]
+        BD2["Biometric Device\n(Surallah Site)\nFingerprint Scanner"]
+        XLS["Monthly .xls\nDaily Log Export\n(manual USB / file copy)"]
+        BD1 --> XLS
+        BD2 --> XLS
+    end
+
+    subgraph SERVER["Application Server — XAMPP / PHP-FPM + Apache"]
+        WEB["Apache 2.4\nHTTP Server\nDocument Root: public/"]
+        PHP["PHP 8.5 FPM\nFront Controller\npublic/index.php"]
+        SESSION["Session Store\n(MySQL-backed\nDatabaseSessionHandler)"]
+        STORAGE["storage/private/\nTemp XLS uploads\nGenerated PDFs\n(never web-accessible)"]
+        WEB --> PHP
+        PHP --> SESSION
+        PHP --> STORAGE
+    end
+
+    subgraph DB["Database Server — MySQL 8.4 LTS"]
+        MYSQL["MySQL 8.4\nInnoDB · utf8mb4\nStrict SQL Mode\nPort 3306"]
+    end
+
+    subgraph MAIL["External Mail Service"]
+        SMTP["SMTP Provider\n(Password Reset OTP\nNotifications)"]
+    end
+
+    C1 -->|"HTTPS — Employee data,\nXLS upload, payroll actions"| WEB
+    C2 -->|"HTTPS — Approval,\ndashboard, reports"| WEB
+    C3 -->|"HTTPS — Requests,\npayslips, attendance"| WEB
+
+    XLS -->|"Manual upload\nvia browser form"| C1
+    C1 -->|"Upload .xls\nvia HTTPS form"| WEB
+
+    PHP -->|"PDO / TCP 3306\nPrepared statements"| MYSQL
+    PHP -->|"SMTP / TLS"| SMTP
+    SMTP -->|"Email (OTP / link)"| C1
+    SMTP -->|"Email (OTP / link)"| C2
+    SMTP -->|"Email (OTP / link)"| C3

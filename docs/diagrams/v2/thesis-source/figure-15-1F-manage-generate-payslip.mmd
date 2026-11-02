@@ -1,0 +1,13 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    APPROVE(["Payroll approval"])
+    PAY[("Approved payroll rows")]
+    P(["1.0F\nCreate payslip records"])
+    D[("Payslip records")]
+    FILE["On-demand printable / PDF output"]
+    EMP["Employee"]
+    APPROVE -->|"Approved run"| P
+    PAY -->|"Employee pay, earnings, deductions"| P
+    P -->|"One payslip record per payroll row"| D
+    D -->|"Authorized payslip data"| FILE
+    FILE -->|"Payslip view / download"| EMP

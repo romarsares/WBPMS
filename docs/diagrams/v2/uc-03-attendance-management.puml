@@ -1,0 +1,64 @@
+@startuml uc-03-attendance-management
+skinparam backgroundColor #FFFFFF
+skinparam actorStyle awesome
+skinparam usecase {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam actor {
+    BackgroundColor #FFFFFF
+    BorderColor #000000
+    FontColor #000000
+}
+skinparam rectangle {
+    BackgroundColor #F9F9F9
+    BorderColor #000000
+    FontColor #000000
+    BorderThickness 2
+}
+skinparam ArrowColor #000000
+skinparam shadowing false
+skinparam packageStyle rectangle
+
+title Use Case Diagram: Attendance Management
+
+left to right direction
+
+actor "HR Head" as HR
+
+rectangle "WBPMS (Web-Based Payroll Management System)" {
+    package "Biometric Import" {
+        usecase "Upload XLS File" as UC1
+        usecase "Review Import Preview" as UC2
+        usecase "Approve Import" as UC3
+        usecase "Cancel Import" as UC4
+    }
+    package "Attendance Records" {
+        usecase "View Attendance" as UC5
+        usecase "Adjust Attendance Record" as UC6
+        usecase "View Frequency Report" as UC7
+    }
+    package "Policy Flags" {
+        usecase "Evaluate Policy Flags" as UC8
+        usecase "View Flag List" as UC9
+        usecase "Review and Close Flag" as UC10
+    }
+}
+
+HR --> UC1
+HR --> UC2
+HR --> UC3
+HR --> UC4
+HR --> UC5
+HR --> UC6
+HR --> UC7
+HR --> UC8
+HR --> UC9
+HR --> UC10
+
+UC1 ..> UC2 : <<include>>
+UC2 ..> UC3 : <<include>>
+UC8 ..> UC10 : <<extend>>
+
+@enduml

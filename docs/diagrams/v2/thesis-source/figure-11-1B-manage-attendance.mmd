@@ -1,0 +1,12 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ffffff","primaryBorderColor":"#000000","primaryTextColor":"#000000","lineColor":"#000000","background":"#ffffff","edgeLabelBackground":"#ffffff"}}}%%
+flowchart LR
+    DEV["Biometric device"] -->|"Daily log exported as .xls"| HR["HR Head"]
+    HR -->|"Select device and upload XLS"| P(["1.0B\nImport and manage attendance"])
+    P -->|"Import batch and raw punches"| D1[("D1 Import batches / biometric punches")]
+    D2[("D2 Employee device enrollments / branch assignments")] -->|"Effective employee and branch match"| P
+    D3[("D3 Work schedules / assignments")] -->|"Effective schedule"| P
+    P -->|"Generated daily attendance"| D4[("D4 Attendance")]
+    D4 -->|"Attendance for review"| P
+    HR -->|"Time correction and reason"| P
+    P -->|"Immutable correction history"| D5[("D5 Attendance adjustments")]
+    P -->|"Import summary; approve or cancel batch"| HR

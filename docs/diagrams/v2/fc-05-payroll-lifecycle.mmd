@@ -16,5 +16,5 @@ flowchart TD
     M --> N{"Decision?"}
     N -->|Return| O["Status = Returned"] --> J
     N -->|Cancel| P["Status = Cancelled"] --> Z([End])
-    N -->|Approve| Q["Status = Approved\nGenerate Payslips\nCreate Disbursement Batch"]
-    Q --> R[/"HR Prints Disbursement Summary"/] --> Z
+    N -->|Approve| Q["Status = Approved\nCreate one payslip record per payroll entry"]
+    Q --> R[/"HR / Owner Views Disbursement Summary"/] --> Z
