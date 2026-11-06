@@ -90,7 +90,11 @@ final class AuditLogRepository extends AbstractRepository
     {
         [$where, $bindings] = $this->buildWhere($filters);
 
-        $sql = "SELECT COUNT(*) FROM audit_logs al {$where}";
+        $sql = "
+            SELECT COUNT(*)
+              FROM audit_logs al
+              LEFT JOIN users u ON u.user_id = al.user_id
+            {$where}";
 
         $stmt = $this->pdo()->prepare($sql);
         $stmt->execute($bindings);
@@ -187,13 +191,17 @@ final class AuditLogRepository extends AbstractRepository
             $bindings[':ip_address']   = '%' . $filters['ip_address'] . '%';
         }
 
-        // Free-text search across action_performed, description, attempted_identifier
+        // Free-text search across action_performed, description, attempted_identifier, username
         if (!empty($filters['search'])) {
-            $clauses[]             = '(al.action_performed LIKE :search
-                                    OR al.description LIKE :search
-                                    OR al.attempted_identifier LIKE :search
-                                    OR u.username LIKE :search)';
-            $bindings[':search']   = '%' . $filters['search'] . '%';
+            $pattern = '%' . $filters['search'] . '%';
+            $clauses[]                       = '(al.action_performed LIKE :search_action
+                                    OR al.description LIKE :search_description
+                                    OR al.attempted_identifier LIKE :search_identifier
+                                    OR u.username LIKE :search_username)';
+            $bindings[':search_action']      = $pattern;
+            $bindings[':search_description'] = $pattern;
+            $bindings[':search_identifier']  = $pattern;
+            $bindings[':search_username']    = $pattern;
         }
 
         $where = $clauses !== [] ? 'WHERE ' . implode(' AND ', $clauses) : '';
