@@ -3,10 +3,16 @@
  * View: hr/reports/transaction-slips  (GET /hr/reports/transaction-slips)
  *
  * Generates printable BDO Cash Transaction Slips.
- * Layout matches the official BDO Network Bank slip image exactly:
- *   - Landscape A5 (210mm × 148mm)
- *   - Left panel (~58%): blue header + checkboxes + fields + footer
- *   - Right panel (~42%): light blue, Date + denomination grid + Total Amount
+ *
+ * Print mode (?print=1) emits a DATA-ONLY overlay meant to be printed
+ * directly onto a physical, pre-printed BDO Cash Transaction Slip: only the
+ * fill-in values (account name/no, payor name, reference no, company name,
+ * date, payroll amount, total) and the Savings/Current tick are printed, at
+ * the exact coordinates of the on-screen layout, so they land on the form's
+ * fields.  All form chrome (blue header, panels, labels, lines, boxes, grid,
+ * footnotes) is suppressed.  Screen mode shows the filter form + preview.
+ *
+ * Page geometry (Landscape A5, 210mm × 148mm) is unchanged so positions hold.
  *
  * Variables injected by ReportsController::transactionSlips():
  *   array  $slips            — rows from payroll + bank_details join
@@ -486,6 +492,59 @@ body {
     .slip      { margin: 0; border: .5pt solid #aaa; }
     @page      { size: A5 landscape; margin: 3mm; }
 }
+
+/* ==================================================================
+   DATA-ONLY OVERLAY — print onto a physical, pre-printed BDO Cash
+   Transaction Slip.  The hard copy already carries every label, line,
+   box, header and grid, so only the fill-in data and the Savings/
+   Current tick are printed, at the exact coordinates of the on-screen
+   layout.  Chrome ink is stripped (transparent bg / no borders) and
+   chrome text is hidden with visibility:hidden so every element's box
+   is preserved and nothing shifts.  Do NOT change sizes/padding/margins
+   or the data will no longer line up with the pre-printed form.
+   ================================================================== */
+
+/* Strip every background (header bar, right panel, total row, checked box) */
+.lp-header, .rp, .dt tfoot tr td, .sq, .sq.on {
+    background: transparent !important;
+}
+
+/* Strip every border / line / box outline (all are pre-printed on the form) */
+.slip, .lp, .lp-header, .fv, .inst-line, .tick,
+.rp-date-val, .lp-footer, .sq,
+.dt thead th, .dt tbody td, .dt tbody td.pc,
+.dt tfoot tr td, .dt tfoot td.ta {
+    border: 0 !important;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+}
+
+/* Hide chrome text but keep its space (visibility:hidden preserves layout) */
+.bdo-logo, .bdo-net, .lp-title,
+.fl,
+.rp-date-label,
+.rp-note,
+.lp-footer,
+.dt thead th,
+.dt tfoot td.tl {
+    visibility: hidden !important;
+}
+
+/* Hide checkbox-column label text (spans next to the .sq boxes) */
+.cb-col span:not(.sq) { visibility: hidden !important; }
+
+/* Keep the tick (✓) data visible in black, with no blue box around it */
+.sq, .sq.on { color: #000 !important; background: transparent !important; }
+
+/* Keep all fill-in values visible in black */
+.fv, .rp-date-val, .dt tbody td, .dt tfoot td.ta { color: #000 !important; }
+
+/* Screen-only guide: faint slip boundary in preview, never printed */
+@media screen {
+    .slip { outline: 1px dashed #ccc; outline-offset: -1px; }
+}
 </style>
 </head>
 <body>
@@ -533,7 +592,7 @@ body {
                     <span class="sq on">✓</span><span>Deposits</span>
                 </div>
                 <div class="ci i1">
-                    <span class="sq <?= $isCurrent ? 'on' : '' ?>"></span><span>Current</span>
+                    <span class="sq <?= $isCurrent ? 'on' : '' ?>"><?= $isCurrent ? '✓' : '' ?></span><span>Current</span>
                 </div>
                 <div class="ci i1">
                     <span class="sq <?= $isSavings ? 'on' : '' ?>"><?= $isSavings ? '✓' : '' ?></span><span>Savings</span>
