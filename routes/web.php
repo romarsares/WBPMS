@@ -24,6 +24,7 @@ use Wbpms\Http\Controllers\EmployeePortalController;
 use Wbpms\Http\Controllers\HealthController;
 use Wbpms\Http\Controllers\OwnerController;
 use Wbpms\Http\Controllers\PayrollController;
+use Wbpms\Http\Controllers\AuditController;
 use Wbpms\Http\Controllers\ReportsController;
 use Wbpms\Http\Controllers\RequestsController;
 use Wbpms\Http\Controllers\SalaryController;
@@ -245,6 +246,12 @@ $router->add('GET',  '/hr/reports/payslips', [ReportsController::class, 'payslip
 $router->add('GET',  '/hr/reports/payslips/bulk', [ReportsController::class, 'bulkPrintPayslips'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/export', [ReportsController::class, 'export'],   ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/{type}', [ReportsController::class, 'preview'],  ['HRHead', 'BusinessOwner']);
+
+// ---------------------------------------------------------------------------
+// Audit Trail  (HRHead + BusinessOwner only)
+// ---------------------------------------------------------------------------
+
+$router->add('GET', '/hr/audit', [AuditController::class, 'index'], ['HRHead', 'BusinessOwner']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Settings  (Job Positions · Payroll Periods · Holidays)

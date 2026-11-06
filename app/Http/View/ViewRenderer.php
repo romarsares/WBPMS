@@ -282,6 +282,7 @@ final class ViewRenderer
             'hr/salary'        => 'salary',
             'hr/benefits'      => 'benefits',
             'hr/reports'       => 'reports',
+            'hr/audit'         => 'audit',
             'hr/settings'      => 'settings',
             'hr/dashboard'     => 'dashboard',
             'owner/dashboard'  => 'dashboard',

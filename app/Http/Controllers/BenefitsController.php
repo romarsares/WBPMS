@@ -44,7 +44,65 @@ final class BenefitsController
               ORDER BY cpv.policy_code, cpv.effective_from DESC"
         )->fetchAll();
 
-        $records = $pdo->query(
+        // -----------------------------------------------------------------------
+        // Contribution record filters (GET parameters)
+        // -----------------------------------------------------------------------
+        $validPrograms = ['SSS', 'PhilHealth', 'PagIBIG'];
+        $validStatuses = ['Active', 'Locked'];
+
+        $filterProgram = trim((string) ($_GET['program'] ?? ''));
+        $filterStatus  = trim((string) ($_GET['status']  ?? ''));
+        $filterSearch  = trim((string) ($_GET['employee_search'] ?? ''));
+        $filterFrom    = trim((string) ($_GET['date_from'] ?? ''));
+        $filterTo      = trim((string) ($_GET['date_to']   ?? ''));
+
+        // Validate / sanitise
+        if (!in_array($filterProgram, $validPrograms, true)) {
+            $filterProgram = '';
+        }
+        if (!in_array($filterStatus, $validStatuses, true)) {
+            $filterStatus = '';
+        }
+        $parsedFrom = $filterFrom !== '' ? \DateTimeImmutable::createFromFormat('!Y-m-d', $filterFrom) : false;
+        $parsedTo   = $filterTo   !== '' ? \DateTimeImmutable::createFromFormat('!Y-m-d', $filterTo)   : false;
+        if ($parsedFrom === false) {
+            $filterFrom = '';
+        }
+        if ($parsedTo === false) {
+            $filterTo = '';
+        }
+
+        // Build parameterised WHERE clause
+        $where = [];
+        $bind  = [];
+
+        if ($filterProgram !== '') {
+            $where[]             = 'cr.contribution_type = :program';
+            $bind[':program']    = $filterProgram;
+        }
+        if ($filterStatus !== '') {
+            $where[]             = 'cr.status = :status';
+            $bind[':status']     = $filterStatus;
+        }
+        if ($filterSearch !== '') {
+            $pattern = '%' . $filterSearch . '%';
+            $where[] = '(e.last_name LIKE :search_last OR e.first_name LIKE :search_first OR e.employee_number LIKE :search_num)';
+            $bind[':search_last']  = $pattern;
+            $bind[':search_first'] = $pattern;
+            $bind[':search_num']   = $pattern;
+        }
+        if ($filterFrom !== '') {
+            $where[]          = 'pp.period_start >= :date_from';
+            $bind[':date_from'] = $filterFrom;
+        }
+        if ($filterTo !== '') {
+            $where[]        = 'pp.period_end <= :date_to';
+            $bind[':date_to'] = $filterTo;
+        }
+
+        $whereClause = $where !== [] ? ('WHERE ' . implode(' AND ', $where)) : '';
+
+        $stmt = $pdo->prepare(
             "SELECT cr.contribution_id,
                     CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
                     e.employee_number,
@@ -60,14 +118,26 @@ final class BenefitsController
                JOIN employee e          ON e.employee_id              = p.employee_id
                JOIN payroll_run pr      ON pr.payroll_run_id          = p.payroll_run_id
                JOIN payroll_period pp   ON pp.payroll_period_id       = pr.payroll_period_id
+              {$whereClause}
               ORDER BY cr.created_at DESC
-              LIMIT 100"
-        )->fetchAll();
+              LIMIT 200"
+        );
+        $stmt->execute($bind);
+        $records = $stmt->fetchAll();
 
         $totalPolicies = count($policies);
         $active        = count(array_filter($policies, fn($r) => $r['status'] === 'Approved'));
         $totalRecords  = count($records);
         $programs      = count(array_unique(array_column($policies, 'program')));
+
+        $filters = [
+            'program'         => $filterProgram,
+            'status'          => $filterStatus,
+            'employee_search' => $filterSearch,
+            'date_from'       => $filterFrom,
+            'date_to'         => $filterTo,
+        ];
+        $isFiltered = array_filter($filters) !== [];
 
         ViewRenderer::render('hr/benefits/index', [
             'policies'      => $policies,
@@ -76,6 +146,8 @@ final class BenefitsController
             'active'        => $active,
             'totalRecords'  => $totalRecords,
             'programs'      => $programs,
+            'filters'       => $filters,
+            'isFiltered'    => $isFiltered,
         ], 'Benefits & Deductions');
     }
 

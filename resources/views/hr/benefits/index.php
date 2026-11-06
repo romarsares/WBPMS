@@ -48,9 +48,56 @@
 
 <!-- Contribution records -->
 <div class="card">
-    <h3 style="margin:0 0 1rem">Recent Contribution Records</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+        <h3 style="margin:0">Recent Contribution Records</h3>
+        <?php if ($isFiltered): ?>
+        <span style="font-size:.8rem;color:#6b7280">Filters active</span>
+        <?php endif; ?>
+    </div>
+
+    <!-- Filter form -->
+    <form method="GET" action="<?= $base ?>/hr/benefits" style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;margin-bottom:1.25rem;padding:.75rem 1rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:.5rem">
+        <div>
+            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Program</label>
+            <select name="program" style="min-width:9rem">
+                <option value="">All programs</option>
+                <?php foreach (['SSS', 'PhilHealth', 'PagIBIG'] as $prog): ?>
+                <option value="<?= htmlspecialchars($prog) ?>" <?= ($filters['program'] ?? '') === $prog ? 'selected' : '' ?>><?= htmlspecialchars($prog) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div>
+            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Status</label>
+            <select name="status" style="min-width:8rem">
+                <option value="">All statuses</option>
+                <option value="Active"  <?= ($filters['status'] ?? '') === 'Active'  ? 'selected' : '' ?>>Active</option>
+                <option value="Locked"  <?= ($filters['status'] ?? '') === 'Locked'  ? 'selected' : '' ?>>Locked</option>
+            </select>
+        </div>
+        <div>
+            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Employee</label>
+            <input type="search" name="employee_search" value="<?= htmlspecialchars($filters['employee_search'] ?? '') ?>" placeholder="Name or employee no." style="min-width:13rem">
+        </div>
+        <div>
+            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Period from</label>
+            <input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'] ?? '') ?>">
+        </div>
+        <div>
+            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Period to</label>
+            <input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'] ?? '') ?>">
+        </div>
+        <button type="submit" class="btn btn-primary">Apply</button>
+        <a href="<?= $base ?>/hr/benefits" class="btn btn-secondary">Clear</a>
+    </form>
+
     <?php if ($records === []): ?>
-    <p style="color:#6b7280">No contribution records yet. Records are created automatically when payroll is computed.</p>
+    <p style="color:#6b7280">
+        <?php if ($isFiltered): ?>
+        No contribution records match the selected filters.
+        <?php else: ?>
+        No contribution records yet. Records are created automatically when payroll is computed.
+        <?php endif; ?>
+    </p>
     <?php else: ?>
     <table class="data-table">
         <thead>

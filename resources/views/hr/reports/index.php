@@ -47,6 +47,12 @@
         <span style="font-weight:500"><?= htmlspecialchars($rt['label']) ?></span>
     </a>
     <?php endforeach; ?>
+    <!-- Audit Trail — accessible to HRHead and BusinessOwner -->
+    <a href="<?= $base ?>/hr/audit"
+       class="card" style="text-decoration:none;display:flex;align-items:center;gap:.75rem;padding:1rem">
+        <span style="font-size:1.5rem">🔍</span>
+        <span style="font-weight:500">Audit Trail</span>
+    </a>
 </div>
 
 <!-- Approved payroll summary -->

@@ -91,12 +91,16 @@ $roleName       ??= '';
             $badge      = match($r['status']) { 'Active' => 'ok', 'Inactive' => 'off', default => 'bad' };
             $isArchived = $r['status'] === 'Archived';
             $uid        = (int) $r['user_id'];
-            $uname      = Formatter::escape($r['username']);
+            $rawUsername = (string) ($r['username'] ?? '');
+            // $uname is safe for use in data-* attribute values (no HTML tags)
+            $uname      = $rawUsername !== '' ? Formatter::escape($rawUsername) : '(no username)';
+            // $unameDisplay is used in the table cell and may include styling
+            $unameDisplay = $rawUsername !== '' ? Formatter::escape($rawUsername) : '<span class="muted" style="font-style:italic">(no username)</span>';
         ?>
             <tr>
-                <td style="font-weight:700"><?= $uname ?></td>
-                <td><?= Formatter::escape($r['account_email']) ?></td>
-                <td><?= Formatter::escape($r['role_name']) ?></td>
+                <td style="font-weight:700"><?= $unameDisplay ?></td>
+                <td><?= $r['account_email'] !== '' && $r['account_email'] !== null ? Formatter::escape($r['account_email']) : '<span class="muted">—</span>' ?></td>
+                <td><?= Formatter::escape($r['role_name'] ?? '—') ?></td>
                 <td class="muted"><?= Formatter::escape($r['employee_name'] ?? '—') ?></td>
                 <td><span class="badge <?= $badge ?>"><?= Formatter::escape($r['status']) ?></span></td>
                 <td><?= Formatter::date($r['created_at']) ?></td>
