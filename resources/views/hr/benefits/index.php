@@ -67,14 +67,6 @@
             </select>
         </div>
         <div>
-            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Status</label>
-            <select name="status" style="min-width:8rem">
-                <option value="">All statuses</option>
-                <option value="Active"  <?= ($filters['status'] ?? '') === 'Active'  ? 'selected' : '' ?>>Active</option>
-                <option value="Locked"  <?= ($filters['status'] ?? '') === 'Locked'  ? 'selected' : '' ?>>Locked</option>
-            </select>
-        </div>
-        <div>
             <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Employee</label>
             <input type="search" name="employee_search" value="<?= htmlspecialchars($filters['employee_search'] ?? '') ?>" placeholder="Name or employee no." style="min-width:13rem">
         </div>
@@ -108,7 +100,6 @@
                 <th style="text-align:right">Employee Share</th>
                 <th style="text-align:right">Employer Share</th>
                 <th>Status</th>
-                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -125,19 +116,6 @@
             <td>
                 <?php $c = $r['status'] === 'Locked' ? '#f59e0b' : '#10b981'; ?>
                 <span style="background:<?= $c ?>;color:#fff;padding:2px 8px;border-radius:9999px;font-size:.75rem"><?= htmlspecialchars($r['status']) ?></span>
-            </td>
-            <td>
-                <?php if ($r['status'] !== 'Locked'): ?>
-                <form method="post" action="<?= $base ?>/hr/benefits/contributions/<?= (int)$r['contribution_id'] ?>/lock" style="display:inline">
-                    <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
-                    <button type="submit" class="btn btn-sm btn-secondary" onclick="return confirm('Lock this contribution record?')">Lock</button>
-                </form>
-                <?php else: ?>
-                <form method="post" action="<?= $base ?>/hr/benefits/contributions/<?= (int)$r['contribution_id'] ?>/unlock" style="display:inline">
-                    <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">
-                    <button type="submit" class="btn btn-sm btn-secondary" onclick="return confirm('Unlock this contribution record?')">Unlock</button>
-                </form>
-                <?php endif; ?>
             </td>
         </tr>
         <?php endforeach; ?>

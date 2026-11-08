@@ -1527,9 +1527,7 @@ textarea:focus-visible,
 
 .action-menu-list {
     display: none;
-    position: absolute;
-    right: 0;
-    top: calc(100% + 4px);
+    position: fixed;   /* escapes overflow:auto scroll containers */
     min-width: 160px;
     background: var(--panel);
     border: 1px solid var(--line);

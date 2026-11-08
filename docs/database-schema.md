@@ -900,9 +900,7 @@ Required by REQ058–064.
 | employee_share | Computed employee contribution | DECIMAL(10,2) | — | — | N | — | — |
 | employer_share | Computed employer contribution | DECIMAL(10,2) | — | — | N | — | Stored for reporting |
 | deduction_date | Date contribution was deducted (last Friday of month) | DATE | — | — | N | — | — |
-| status | Lock state | ENUM('Computed','Locked') | — | — | N | — | Default `Computed` |
-| locked_at | Timestamp when record was locked | TIMESTAMP | — | — | Y | — | NULL until locked |
-| locked_by | User who locked the record (FK → users) | INT UNSIGNED | — | ✅ | Y | — | NULL until locked |
+| status | Record state | ENUM('Computed') | — | — | N | — | Default `Computed` |
 
 ---
 

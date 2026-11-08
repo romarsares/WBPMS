@@ -23,7 +23,7 @@ $roleName       ??= '';
 ?>
 <div class="page-head">
     <div><h1>User Management</h1><p>System accounts and role assignments.</p></div>
-    <?php if ($roleName === 'BusinessOwner'): ?>
+    <?php if ($roleName === 'BusinessOwner' || $roleName === 'HRHead'): ?>
     <a class="btn btn-primary" href="<?= $base ?>/users/create">＋ New User</a>
     <?php endif; ?>
 </div>
@@ -106,7 +106,6 @@ $roleName       ??= '';
                 <td><?= Formatter::date($r['created_at']) ?></td>
                 <td>
                     <?php if ($isArchived): ?>
-                        <?php if ($roleName === 'BusinessOwner'): ?>
                         <div class="action-menu">
                             <button type="button" class="action-menu-toggle" aria-haspopup="true" aria-expanded="false">
                                 Actions <span class="chevron">▾</span>
@@ -126,22 +125,25 @@ $roleName       ??= '';
                                 </form>
                             </div>
                         </div>
-                        <?php else: ?>
-                        <span class="muted" style="font-size:13px">Archived</span>
-                        <?php endif; ?>
 
                     <?php else: ?>
+                    <?php
+                        $canEdit    = true;
+                        $canAdmin   = true;
+                        $hasActions = true;
+                    ?>
+                    <?php if ($hasActions): ?>
                     <div class="action-menu">
                         <button type="button" class="action-menu-toggle" aria-haspopup="true" aria-expanded="false">
                             Actions <span class="chevron">▾</span>
                         </button>
                         <div class="action-menu-list" role="menu">
 
-                            <?php if ($roleName === 'BusinessOwner' || ($roleName === 'HRHead' && $r['role_name'] === 'Employee')): ?>
+                            <?php if ($canEdit): ?>
                             <a href="<?= $base ?>/users/<?= $uid ?>/edit" role="menuitem">✏ Edit</a>
                             <?php endif; ?>
 
-                            <?php if ($roleName === 'BusinessOwner'): ?>
+                            <?php if ($canAdmin): ?>
                             <div class="menu-divider"></div>
 
                             <!-- Toggle Active / Inactive -->
@@ -162,7 +164,6 @@ $roleName       ??= '';
                                 </button>
                             </form>
 
-                            <!-- Archive — self-archive blocked to prevent lockout -->
                             <?php if ($uid !== $currentUserId): ?>
                             <form id="form-archive-<?= $uid ?>" method="POST" action="<?= $base ?>/users/<?= $uid ?>/archive">
                                 <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8') ?>">
@@ -178,10 +179,10 @@ $roleName       ??= '';
                                 </button>
                             </form>
                             <?php endif; ?>
-                            <?php endif; ?>
+                            <?php endif; /* canAdmin */ ?>
 
-                            <?php if ($roleName === 'BusinessOwner' || ($roleName === 'HRHead' && $r['role_name'] === 'Employee')): ?>
-                            <div class="menu-divider"></div>
+                            <?php if ($canEdit): ?>
+                            <?php if ($canAdmin): ?><div class="menu-divider"></div><?php endif; ?>
                             <!-- Reset Password -->
                             <form id="form-reset-<?= $uid ?>" method="POST" action="<?= $base ?>/users/<?= $uid ?>/reset-password">
                                 <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8') ?>">
@@ -195,11 +196,14 @@ $roleName       ??= '';
                                     🔑 Reset Password
                                 </button>
                             </form>
-                            <?php endif; ?>
+                            <?php endif; /* canEdit */ ?>
 
                         </div>
                     </div>
-                    <?php endif; ?>
+                    <?php else: ?>
+                    <span class="muted" style="font-size:13px">—</span>
+                    <?php endif; /* hasActions */ ?>
+                    <?php endif; /* isArchived */ ?>
                 </td>
             </tr>
         <?php endforeach; endif; ?>
@@ -234,6 +238,7 @@ $roleName       ??= '';
             if (!isOpen) {
                 menu.classList.add('open');
                 toggle.setAttribute('aria-expanded', 'true');
+                positionMenuList(toggle, menu.querySelector('.action-menu-list'));
             }
             e.stopPropagation();
             return;
@@ -255,7 +260,18 @@ $roleName       ??= '';
         document.querySelectorAll('.action-menu.open').forEach(function (m) {
             m.classList.remove('open');
             m.querySelector('.action-menu-toggle').setAttribute('aria-expanded', 'false');
+            var list = m.querySelector('.action-menu-list');
+            if (list) { list.style.top = ''; list.style.left = ''; list.style.right = ''; }
         });
+    }
+
+    function positionMenuList(toggle, list) {
+        var rect = toggle.getBoundingClientRect();
+        // fixed positioning is relative to the viewport — no scrollY offset needed.
+        // Align right edge of dropdown to right edge of the toggle button.
+        list.style.top   = (rect.bottom + 4) + 'px';
+        list.style.right = (window.innerWidth - rect.right) + 'px';
+        list.style.left  = '';
     }
 
     /* ---- Confirm modal ---- */

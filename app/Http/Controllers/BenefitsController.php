@@ -17,8 +17,6 @@ use Wbpms\Infrastructure\Database\Connection;
  *   GET  /hr/benefits                               → index()         — overview
  *   GET  /hr/benefits/policies                      → policies()      — policy versions list
  *   POST /hr/benefits/policies/{id}/approve         → approvePolicy() — approve a Draft policy
- *   POST /hr/benefits/contributions/{id}/lock       → lockRecord()    — lock contribution record
- *   POST /hr/benefits/contributions/{id}/unlock     → unlockRecord()  — unlock record
  *
  * REQ058–REQ062.
  */
@@ -48,10 +46,8 @@ final class BenefitsController
         // Contribution record filters (GET parameters)
         // -----------------------------------------------------------------------
         $validPrograms = ['SSS', 'PhilHealth', 'PagIBIG'];
-        $validStatuses = ['Active', 'Locked'];
 
         $filterProgram = trim((string) ($_GET['program'] ?? ''));
-        $filterStatus  = trim((string) ($_GET['status']  ?? ''));
         $filterSearch  = trim((string) ($_GET['employee_search'] ?? ''));
         $filterFrom    = trim((string) ($_GET['date_from'] ?? ''));
         $filterTo      = trim((string) ($_GET['date_to']   ?? ''));
@@ -59,9 +55,6 @@ final class BenefitsController
         // Validate / sanitise
         if (!in_array($filterProgram, $validPrograms, true)) {
             $filterProgram = '';
-        }
-        if (!in_array($filterStatus, $validStatuses, true)) {
-            $filterStatus = '';
         }
         $parsedFrom = $filterFrom !== '' ? \DateTimeImmutable::createFromFormat('!Y-m-d', $filterFrom) : false;
         $parsedTo   = $filterTo   !== '' ? \DateTimeImmutable::createFromFormat('!Y-m-d', $filterTo)   : false;
@@ -79,10 +72,6 @@ final class BenefitsController
         if ($filterProgram !== '') {
             $where[]             = 'cr.contribution_type = :program';
             $bind[':program']    = $filterProgram;
-        }
-        if ($filterStatus !== '') {
-            $where[]             = 'cr.status = :status';
-            $bind[':status']     = $filterStatus;
         }
         if ($filterSearch !== '') {
             $pattern = '%' . $filterSearch . '%';
@@ -132,7 +121,6 @@ final class BenefitsController
 
         $filters = [
             'program'         => $filterProgram,
-            'status'          => $filterStatus,
             'employee_search' => $filterSearch,
             'date_from'       => $filterFrom,
             'date_to'         => $filterTo,
@@ -208,90 +196,6 @@ final class BenefitsController
         }
 
         $this->redirect('/hr/benefits/policies');
-    }
-
-    // -----------------------------------------------------------------------
-    // POST /hr/benefits/contributions/{id}/lock
-    // -----------------------------------------------------------------------
-
-    /** @param array<string, string> $params */
-    public function lockRecord(array $params = []): void
-    {
-        $id       = (int) ($params['id'] ?? 0);
-        $identity = AuthMiddleware::identity();
-        $pdo      = $this->makeConnection()->pdo();
-
-        try {
-            $stmt = $pdo->prepare(
-                "SELECT status FROM contribution_record WHERE contribution_id = :id"
-            );
-            $stmt->execute([':id' => $id]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($row === false) {
-                throw new RuntimeException('Contribution record not found.');
-            }
-            if ($row['status'] === 'Locked') {
-                throw new RuntimeException('Record is already locked.');
-            }
-
-            $pdo->prepare(
-                "UPDATE contribution_record
-                    SET status    = 'Locked',
-                        locked_at = NOW(),
-                        locked_by = :by,
-                        updated_at = NOW()
-                  WHERE contribution_id = :id"
-            )->execute([':by' => $identity['user_id'] ?? null, ':id' => $id]);
-
-            ViewRenderer::flash('Contribution record locked.');
-        } catch (RuntimeException $e) {
-            ViewRenderer::flashError($e->getMessage());
-        }
-
-        $this->redirect('/hr/benefits');
-    }
-
-    // -----------------------------------------------------------------------
-    // POST /hr/benefits/contributions/{id}/unlock
-    // -----------------------------------------------------------------------
-
-    /** @param array<string, string> $params */
-    public function unlockRecord(array $params = []): void
-    {
-        $id       = (int) ($params['id'] ?? 0);
-        $identity = AuthMiddleware::identity();
-        $pdo      = $this->makeConnection()->pdo();
-
-        try {
-            $stmt = $pdo->prepare(
-                "SELECT status FROM contribution_record WHERE contribution_id = :id"
-            );
-            $stmt->execute([':id' => $id]);
-            $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($row === false) {
-                throw new RuntimeException('Contribution record not found.');
-            }
-            if ($row['status'] !== 'Locked') {
-                throw new RuntimeException('Record is not locked.');
-            }
-
-            $pdo->prepare(
-                "UPDATE contribution_record
-                    SET status    = 'Active',
-                        locked_at = NULL,
-                        locked_by = NULL,
-                        updated_at = NOW()
-                  WHERE contribution_id = :id"
-            )->execute([':id' => $id]);
-
-            ViewRenderer::flash('Contribution record unlocked.');
-        } catch (RuntimeException $e) {
-            ViewRenderer::flashError($e->getMessage());
-        }
-
-        $this->redirect('/hr/benefits');
     }
 
     // -----------------------------------------------------------------------

@@ -75,14 +75,14 @@ $router->add('GET', '/owner/dashboard', [DashboardController::class, 'ownerDashb
 // ---------------------------------------------------------------------------
 
 $router->add('GET',  '/users',              [UserController::class, 'index'],         ['BusinessOwner', 'HRHead']);
-$router->add('GET',  '/users/create',       [UserController::class, 'create'],        ['BusinessOwner']);
-$router->add('POST', '/users',              [UserController::class, 'store'],         ['BusinessOwner']);
+$router->add('GET',  '/users/create',       [UserController::class, 'create'],        ['BusinessOwner', 'HRHead']);
+$router->add('POST', '/users',              [UserController::class, 'store'],         ['BusinessOwner', 'HRHead']);
 $router->add('GET',  '/users/{id}/edit',    [UserController::class, 'edit'],          ['BusinessOwner', 'HRHead']);
 $router->add('PUT',  '/users/{id}',         [UserController::class, 'update'],        ['BusinessOwner', 'HRHead']);
-$router->add('POST', '/users/{id}/toggle',    [UserController::class, 'toggle'],    ['BusinessOwner']);
-$router->add('POST', '/users/{id}/archive',   [UserController::class, 'archive'],   ['BusinessOwner']);
-$router->add('POST', '/users/{id}/unarchive', [UserController::class, 'unarchive'], ['BusinessOwner']);
-$router->add('POST', '/users/{id}/archive', [UserController::class, 'archive'],       ['BusinessOwner']);
+$router->add('POST', '/users/{id}/toggle',    [UserController::class, 'toggle'],    ['BusinessOwner', 'HRHead']);
+$router->add('POST', '/users/{id}/archive',   [UserController::class, 'archive'],   ['BusinessOwner', 'HRHead']);
+$router->add('POST', '/users/{id}/unarchive', [UserController::class, 'unarchive'], ['BusinessOwner', 'HRHead']);
+$router->add('POST', '/users/{id}/archive', [UserController::class, 'archive'],       ['BusinessOwner', 'HRHead']);
 $router->add('POST', '/users/{id}/reset-password', [UserController::class, 'resetPassword'], ['BusinessOwner', 'HRHead']);
 
 // ---------------------------------------------------------------------------
@@ -208,8 +208,6 @@ $router->add('POST', '/hr/salary/{id}/archive', [SalaryController::class, 'archi
 $router->add('GET',  '/hr/benefits',                              [BenefitsController::class, 'index'],         ['HRHead']);
 $router->add('GET',  '/hr/benefits/policies',                     [BenefitsController::class, 'policies'],      ['HRHead']);
 $router->add('POST', '/hr/benefits/policies/{id}/approve',        [BenefitsController::class, 'approvePolicy'], ['HRHead']);
-$router->add('POST', '/hr/benefits/contributions/{id}/lock',      [BenefitsController::class, 'lockRecord'],    ['HRHead']);
-$router->add('POST', '/hr/benefits/contributions/{id}/unlock',    [BenefitsController::class, 'unlockRecord'],  ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Payroll  (REQ047–REQ052)

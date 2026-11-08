@@ -33,8 +33,8 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
          src="<?= $base ?>/assets/light-diamond-logo.png"
          alt="Light Diamond Enterprises">
 
-    <h1>Light Diamond</h1>
-    <p class="login-sub">Enterprises Payroll &amp; Employee Management System</p>
+    <h1>Light Diamond Enterprises</h1>
+    <p class="login-sub">Payroll Management System</p>
 
     <?php if (!empty($success)): ?>
         <div class="alert success" role="alert">

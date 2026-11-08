@@ -205,7 +205,6 @@ overtime_minutes   = max(0, worked_minutes - schedule.standard_minutes)
 - `isContributionDeductionRun(payDate): boolean` — true only when
   `payDate` is the last Friday of the month.
 - `getContributionRecords(employeeId): ContributionRecord[]`
-- `lockRecord(id): void` / `unlockRecord(id): void`
 - Implements REQ058–REQ064.
 
 ### PayrollService
@@ -516,8 +515,7 @@ contribution_record(contribution_id PK, payroll_id FK, deduction_id FK UNIQUE,
                     contribution_policy_id FK,
                     contribution_type ENUM('SSS','PhilHealth','PagIBIG'),
                     eemr_basis, employee_share, employer_share,
-                    deduction_date, calculation_details, status,
-                    locked_at, locked_by FK -> users NULL)
+                    deduction_date, calculation_details, status)
                     -- [extension: REQ058-064 + supplemental monthly cadence]
                     -- unique payroll+contribution_type prevents double posting.
 
