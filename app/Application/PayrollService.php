@@ -900,6 +900,21 @@ final class PayrollService
         if ($updated->rowCount() !== 1) {
             throw new RuntimeException('This payroll run changed status and can no longer be submitted.');
         }
+
+        $pdo->prepare(
+            "INSERT INTO audit_logs
+                (user_id, event_type, action_performed, table_affected, record_id,
+                 description, action_at, created_at)
+             VALUES
+                (:user_id, 'payroll_submitted', 'submit_payroll_run', 'payroll_run', :record_id,
+                 :description, :action_at, :created_at)"
+        )->execute([
+            ':user_id'     => $submittedByUserId,
+            ':record_id'   => $runId,
+            ':description' => "Payroll run {$runId} submitted for Owner approval.",
+            ':action_at'   => $submittedNow,
+            ':created_at'  => $submittedNow,
+        ]);
     }
 
     public function approve(int $runId, int $reviewedByUserId): void
@@ -929,7 +944,22 @@ final class PayrollService
                 throw new RuntimeException('This payroll run changed status and can no longer be approved.');
             }
 
-            // 2. Generate one payslip row per employee payroll row (REQ048)
+            // 2. Payroll approval finalizes all of its generated contribution records.
+            // Individual records cannot be independently locked or reopened.
+            $pdo->prepare(
+                "UPDATE contribution_record cr
+                   JOIN payroll p ON p.payroll_id = cr.payroll_id
+                    SET cr.status    = 'Locked',
+                        cr.locked_at = :locked_at,
+                        cr.locked_by = :locked_by
+                  WHERE p.payroll_run_id = :run_id"
+            )->execute([
+                ':locked_at' => $now,
+                ':locked_by' => $reviewedByUserId,
+                ':run_id'    => $runId,
+            ]);
+
+            // 3. Generate one payslip row per employee payroll row (REQ048)
             // Skip employees that already have a payslip for this run
             $stmt = $pdo->prepare(
                 "SELECT p.payroll_id
@@ -956,6 +986,22 @@ final class PayrollService
                     ':generated_at' => $now,
                 ]);
             }
+
+            // 4. Audit log
+            $pdo->prepare(
+                "INSERT INTO audit_logs
+                    (user_id, event_type, action_performed, table_affected, record_id,
+                     description, action_at, created_at)
+                 VALUES
+                    (:user_id, 'payroll_approved', 'approve_payroll_run', 'payroll_run', :record_id,
+                     :description, :action_at, :created_at)"
+            )->execute([
+                ':user_id'     => $reviewedByUserId,
+                ':record_id'   => $runId,
+                ':description' => "Payroll run {$runId} approved by Owner. {$this->payslipCountMsg(count($payrollIds))}",
+                ':action_at'   => $now,
+                ':created_at'  => $now,
+            ]);
         });
     }
 
@@ -991,6 +1037,21 @@ final class PayrollService
         if ($updated->rowCount() !== 1) {
             throw new RuntimeException('This payroll run changed status and can no longer be returned.');
         }
+
+        $pdo->prepare(
+            "INSERT INTO audit_logs
+                (user_id, event_type, action_performed, table_affected, record_id,
+                 description, action_at, created_at)
+             VALUES
+                (:user_id, 'payroll_returned', 'return_payroll_run', 'payroll_run', :record_id,
+                 :description, :action_at, :created_at)"
+        )->execute([
+            ':user_id'     => $reviewedByUserId,
+            ':record_id'   => $runId,
+            ':description' => "Payroll run {$runId} returned to HR for revision. Reason: {$reason}",
+            ':action_at'   => $now,
+            ':created_at'  => $now,
+        ]);
     }
 
     /**
@@ -1866,6 +1927,13 @@ final class PayrollService
             return false;
         }
         return $date->format('Y-m-d') === $date->modify('last friday of this month')->format('Y-m-d');
+    }
+
+    private function payslipCountMsg(int $count): string
+    {
+        return $count === 0
+            ? 'No new payslips generated (all already existed).'
+            : "{$count} payslip(s) generated.";
     }
 
     private function utcNow(): string

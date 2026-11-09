@@ -197,6 +197,19 @@ final class RequestService
                 ]);
             }
 
+            $pdo->prepare(
+                "INSERT INTO audit_logs
+                    (user_id, event_type, action_performed, table_affected, record_id,
+                     description, action_at, created_at)
+                 VALUES
+                    (:user_id, 'request_submitted', 'submit_request', 'request', :record_id,
+                     :description, NOW(), NOW())"
+            )->execute([
+                ':user_id'     => $employeeId,
+                ':record_id'   => $requestId,
+                ':description' => "Employee {$employeeId} submitted a {$typeName} request (request_id={$requestId}).",
+            ]);
+
             return $requestId;
         });
     }
@@ -217,10 +230,23 @@ final class RequestService
             throw new RuntimeException('Only Pending or Returned requests can be cancelled.');
         }
 
-        $this->connection->transaction(function (PDO $pdo) use ($requestId): void {
+        $this->connection->transaction(function (PDO $pdo) use ($requestId, $employeeId): void {
             $pdo->prepare(
                 "UPDATE request SET status = 'Cancelled', updated_at = NOW() WHERE request_id = :id"
             )->execute([':id' => $requestId]);
+
+            $pdo->prepare(
+                "INSERT INTO audit_logs
+                    (user_id, event_type, action_performed, table_affected, record_id,
+                     description, action_at, created_at)
+                 VALUES
+                    (:user_id, 'request_cancelled', 'cancel_request', 'request', :record_id,
+                     :description, NOW(), NOW())"
+            )->execute([
+                ':user_id'     => $employeeId,
+                ':record_id'   => $requestId,
+                ':description' => "Employee {$employeeId} cancelled request {$requestId}.",
+            ]);
         });
     }
 
@@ -357,6 +383,19 @@ final class RequestService
                         updated_at  = NOW()
                   WHERE request_id  = :id"
             )->execute([':reviewer' => $actingUserId, ':id' => $requestId]);
+
+            $pdo->prepare(
+                "INSERT INTO audit_logs
+                    (user_id, event_type, action_performed, table_affected, record_id,
+                     description, action_at, created_at)
+                 VALUES
+                    (:user_id, 'request_hr_approved', 'hr_approve_request', 'request', :record_id,
+                     :description, NOW(), NOW())"
+            )->execute([
+                ':user_id'     => $actingUserId,
+                ':record_id'   => $requestId,
+                ':description' => "HR pre-approved request {$requestId} (user_id={$actingUserId}).",
+            ]);
         });
     }
 
@@ -415,6 +454,19 @@ final class RequestService
                     ':remaining_amount' => $amount,
                 ]);
             }
+
+            $pdo->prepare(
+                "INSERT INTO audit_logs
+                    (user_id, event_type, action_performed, table_affected, record_id,
+                     description, action_at, created_at)
+                 VALUES
+                    (:user_id, 'request_owner_approved', 'owner_approve_request', 'request', :record_id,
+                     :description, NOW(), NOW())"
+            )->execute([
+                ':user_id'     => $actingUserId,
+                ':record_id'   => $requestId,
+                ':description' => "Owner finally approved request {$requestId} ({$row['type_name']}) for employee {$row['employee_id']}.",
+            ]);
         });
     }
 
@@ -444,6 +496,20 @@ final class RequestService
                         updated_at        = NOW()
                   WHERE request_id = :id"
             )->execute([':owner' => $actingUserId, ':note' => trim($note), ':id' => $requestId]);
+
+            $pdo->prepare(
+                "INSERT INTO audit_logs
+                    (user_id, event_type, action_performed, table_affected, record_id,
+                     description, action_at, created_at)
+                 VALUES
+                    (:user_id, 'request_owner_cancelled', 'owner_cancel_request', 'request', :record_id,
+                     :description, NOW(), NOW())"
+            )->execute([
+                ':user_id'     => $actingUserId,
+                ':record_id'   => $requestId,
+                ':description' => "Owner cancelled request {$requestId}."
+                    . ($note !== '' ? " Note: {$note}" : ''),
+            ]);
         });
     }
 
@@ -476,6 +542,19 @@ final class RequestService
                         updated_at        = NOW()
                   WHERE request_id = :id"
             )->execute([':owner' => $actingUserId, ':note' => trim($note), ':id' => $requestId]);
+
+            $pdo->prepare(
+                "INSERT INTO audit_logs
+                    (user_id, event_type, action_performed, table_affected, record_id,
+                     description, action_at, created_at)
+                 VALUES
+                    (:user_id, 'request_owner_returned', 'owner_return_request', 'request', :record_id,
+                     :description, NOW(), NOW())"
+            )->execute([
+                ':user_id'     => $actingUserId,
+                ':record_id'   => $requestId,
+                ':description' => "Owner returned request {$requestId} to HR for revision. Note: {$note}",
+            ]);
         });
     }
 
@@ -508,6 +587,19 @@ final class RequestService
                         updated_at   = NOW()
                   WHERE request_id   = :id"
             )->execute([':reviewer' => $actingUserId, ':note' => trim($note), ':id' => $requestId]);
+
+            $pdo->prepare(
+                "INSERT INTO audit_logs
+                    (user_id, event_type, action_performed, table_affected, record_id,
+                     description, action_at, created_at)
+                 VALUES
+                    (:user_id, 'request_cancelled', 'cancel_request', 'request', :record_id,
+                     :description, NOW(), NOW())"
+            )->execute([
+                ':user_id'     => $actingUserId,
+                ':record_id'   => $requestId,
+                ':description' => "Request {$requestId} cancelled by user {$actingUserId}. Note: {$note}",
+            ]);
         });
     }
 
@@ -540,6 +632,19 @@ final class RequestService
                         updated_at  = NOW()
                   WHERE request_id  = :id"
             )->execute([':by' => $actingUserId, ':id' => $requestId]);
+
+            $pdo->prepare(
+                "INSERT INTO audit_logs
+                    (user_id, event_type, action_performed, table_affected, record_id,
+                     description, action_at, created_at)
+                 VALUES
+                    (:user_id, 'request_archived', 'archive_request', 'request', :record_id,
+                     :description, NOW(), NOW())"
+            )->execute([
+                ':user_id'     => $actingUserId,
+                ':record_id'   => $requestId,
+                ':description' => "Request {$requestId} archived by user {$actingUserId}.",
+            ]);
         });
     }
 
