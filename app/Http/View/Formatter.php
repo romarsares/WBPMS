@@ -32,7 +32,7 @@ final class Formatter
             return '—';
         }
         $date = is_string($value) ? new \DateTimeImmutable($value) : $value;
-        return $date->format('m/d/Y h:i A');
+        return $date->format('m/d/Y H:i');
     }
 
     public static function escape(string|int|float|null $value): string
