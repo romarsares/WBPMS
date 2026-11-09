@@ -95,8 +95,8 @@ $v = static fn(string $key, string $fallback = ''): string =>
                         <td><?= Formatter::escape($s['time_in'] ?? '—') ?></td>
                         <td><?= Formatter::escape($s['time_out'] ?? '—') ?></td>
                         <td><?= (int) ($s['break_minutes'] ?? 0) ?>m</td>
-                        <td><?= Formatter::escape($s['effective_from'] ?? '—') ?></td>
-                        <td><?= $s['effective_to'] ? Formatter::escape($s['effective_to']) : '<span class="muted">current</span>' ?></td>
+                        <td><?= Formatter::date($s['effective_from'] ?? null) ?></td>
+                        <td><?= $s['effective_to'] ? Formatter::date($s['effective_to']) : '<span class="muted">current</span>' ?></td>
                         <td><span class="badge <?= $badge ?>"><?= Formatter::escape(ucfirst($s['status'])) ?></span></td>
                         <td>
                             <a href="<?= $base ?>/hr/schedules/<?= (int) $s['id'] ?>/edit"
@@ -153,8 +153,8 @@ $v = static fn(string $key, string $fallback = ''): string =>
                             <small class="muted"><?= Formatter::escape($a['employee_number'] ?? '') ?></small>
                         </td>
                         <td><?= Formatter::escape($a['time_in'] ?? '—') ?> – <?= Formatter::escape($a['time_out'] ?? '—') ?></td>
-                        <td><?= Formatter::escape($a['effective_from'] ?? '—') ?></td>
-                        <td><?= $a['effective_to'] ? Formatter::escape($a['effective_to']) : '<span class="muted">current</span>' ?></td>
+                        <td><?= Formatter::date($a['effective_from'] ?? null) ?></td>
+                        <td><?= $a['effective_to'] ? Formatter::date($a['effective_to']) : '<span class="muted">current</span>' ?></td>
                         <td><span class="badge <?= $badge ?>"><?= Formatter::escape(ucfirst($a['status'])) ?></span></td>
                     </tr>
                 <?php endforeach; endif; ?>
