@@ -285,7 +285,7 @@ $typeLabel = static function (string $type): string {
         </p>
         <ul class="policy-evidence-modal__list">
             <?php foreach (explode(', ', (string) $evidence) as $date): ?>
-            <li><?= Formatter::escape($date) ?></li>
+            <li><?= Formatter::date($date) ?></li>
             <?php endforeach; ?>
         </ul>
     </dialog>

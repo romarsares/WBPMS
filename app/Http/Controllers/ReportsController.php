@@ -463,7 +463,7 @@ final class ReportsController
         $n = static fn(float $v): string  => number_format($v, 2);
         $f = static fn(\DateTimeInterface|string|null $v): string => PdfRenderer::formatDate($v);
 
-        $generatedDate = (new \DateTimeImmutable())->format('m/d/Y H:i');
+        $generatedDate = (new \DateTimeImmutable())->format('m/d/Y');
 
         // ----------------------------------------------------------------
         // Build standalone print document
@@ -864,7 +864,7 @@ body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;backgro
             }
         }
 
-        $generatedDate = (new \DateTimeImmutable())->format('m/d/Y H:i');
+        $generatedDate = (new \DateTimeImmutable())->format('m/d/Y');
 
         $csvUrl = '?' . http_build_query(array_merge($_GET, ['format' => 'csv']));
         $pdfUrl = '?' . http_build_query(array_merge($_GET, ['format' => 'pdf']));
@@ -933,7 +933,7 @@ body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;backgro
         $n = static fn(float $v): string => number_format($v, 2);
         $f = static fn(\DateTimeInterface|string|null $v): string => PdfRenderer::formatDate($v);
 
-        $generatedDate = (new \DateTimeImmutable())->format('m/d/Y H:i');
+        $generatedDate = (new \DateTimeImmutable())->format('m/d/Y');
 
         $totalGross = 0.0;
         $totalDeductions = 0.0;

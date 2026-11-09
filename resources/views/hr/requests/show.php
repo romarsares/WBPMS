@@ -76,7 +76,7 @@ $statusLabel = $statusLabels[$status] ?? $status;
             </tr>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Submitted</th>
-                <td style="padding:.4rem 0"><?= Formatter::escape((string) $request['submitted_at']) ?></td>
+                <td style="padding:.4rem 0"><?= Formatter::date($request['submitted_at']) ?></td>
             </tr>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500;vertical-align:top">Reason</th>
@@ -88,9 +88,9 @@ $statusLabel = $statusLabels[$status] ?? $status;
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Leave period</th>
                 <td style="padding:.4rem 0">
-                    <?= Formatter::escape((string) $request['start_date']) ?>
+                    <?= Formatter::date($request['start_date']) ?>
                     <?php if ($request['start_date'] !== $request['end_date']): ?>
-                        → <?= Formatter::escape((string) $request['end_date']) ?>
+                        → <?= Formatter::date($request['end_date']) ?>
                     <?php endif; ?>
                 </td>
             </tr>
@@ -104,7 +104,7 @@ $statusLabel = $statusLabels[$status] ?? $status;
             <tr><td colspan="2" style="padding:.5rem 0 0"><hr style="border:0;border-top:1px solid #f3f4f6;margin:0"></td></tr>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">OT date</th>
-                <td style="padding:.4rem 0"><?= Formatter::escape((string) $request['overtime_date']) ?></td>
+                <td style="padding:.4rem 0"><?= Formatter::date($request['overtime_date']) ?></td>
             </tr>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Time</th>
@@ -135,7 +135,7 @@ $statusLabel = $statusLabels[$status] ?? $status;
             <?php if (!empty($request['reviewed_at'])): ?>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">HR reviewed</th>
-                <td style="padding:.4rem 0"><?= Formatter::escape((string) $request['reviewed_at']) ?></td>
+                <td style="padding:.4rem 0"><?= Formatter::date($request['reviewed_at']) ?></td>
             </tr>
             <?php endif; ?>
 
@@ -150,7 +150,7 @@ $statusLabel = $statusLabels[$status] ?? $status;
             <?php if (!empty($request['owner_reviewed_at'])): ?>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Owner reviewed</th>
-                <td style="padding:.4rem 0"><?= Formatter::escape((string) $request['owner_reviewed_at']) ?></td>
+                <td style="padding:.4rem 0"><?= Formatter::date($request['owner_reviewed_at']) ?></td>
             </tr>
             <?php endif; ?>
         </table>

@@ -100,7 +100,7 @@ $errors   ??= [];
                     </td>
                     <td style="color:#374151"><?= Formatter::escape($entry['notes']) ?></td>
                     <td style="color:#6b7280"><?= Formatter::escape($entry['recorded_by_name']) ?></td>
-                    <td style="color:#6b7280;white-space:nowrap"><?= Formatter::escape($entry['created_at']) ?></td>
+                    <td style="color:#6b7280;white-space:nowrap"><?= Formatter::date($entry['created_at']) ?></td>
                 </tr>
                 <?php endforeach; ?>
                 </tbody>

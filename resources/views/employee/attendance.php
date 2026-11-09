@@ -40,7 +40,7 @@ $filtered = $dateFrom !== '' || $dateTo !== '';
     </form>
     <?php if ($filtered): ?>
     <p style="margin:.6rem 0 0;font-size:.8rem;color:#6b7280">
-        Showing records<?= $dateFrom !== '' ? ' from <strong>' . Formatter::escape($dateFrom) . '</strong>' : '' ?><?= $dateTo !== '' ? ' to <strong>' . Formatter::escape($dateTo) . '</strong>' : '' ?>.
+        Showing records<?= $dateFrom !== '' ? ' from <strong>' . Formatter::date($dateFrom) . '</strong>' : '' ?><?= $dateTo !== '' ? ' to <strong>' . Formatter::date($dateTo) . '</strong>' : '' ?>.
     </p>
     <?php else: ?>
     <p style="margin:.6rem 0 0;font-size:.8rem;color:#6b7280">Showing the last 90 days. Use the date filter to view a specific range.</p>

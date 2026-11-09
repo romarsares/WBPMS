@@ -179,7 +179,7 @@ $v = static fn(string $key, string $fallback = ''): string =>
                 $badge = $h['holiday_type'] === 'Regular' ? 'ok' : 'wait'; ?>
                 <tr>
                     <td><?= Formatter::escape($h['holiday_name']) ?></td>
-                    <td style="white-space:nowrap"><?= Formatter::escape($h['holiday_date']) ?></td>
+                    <td style="white-space:nowrap"><?= Formatter::date($h['holiday_date']) ?></td>
                     <td><span class="badge <?= $badge ?>"><?= Formatter::escape($h['holiday_type']) ?></span></td>
                 </tr>
             <?php endforeach; endif; ?>

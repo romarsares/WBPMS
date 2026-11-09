@@ -482,7 +482,7 @@ openEditModal(
                 $hActive = $h['status'] === 'Active';
             ?>
                 <tr style="<?= !$hActive ? 'opacity:.6' : '' ?>">
-                    <td style="white-space:nowrap"><?= Formatter::escape($h['holiday_date']) ?></td>
+                    <td style="white-space:nowrap"><?= Formatter::date($h['holiday_date']) ?></td>
                     <td><strong><?= Formatter::escape($h['description']) ?></strong></td>
                     <td>
                         <?php

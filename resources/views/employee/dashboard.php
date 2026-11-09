@@ -34,7 +34,7 @@ $reqStatusBadge = static function (string $status): string {
 
 <div class="page-header">
     <h1>Welcome, <?= Formatter::escape($employeeName) ?></h1>
-    <span style="font-size:.875rem;color:#6b7280"><?= date('l, F j, Y') ?></span>
+    <span style="font-size:.875rem;color:#6b7280"><?= date('m/d/Y') ?></span>
 </div>
 
 <!-- Employee info + stat row -->

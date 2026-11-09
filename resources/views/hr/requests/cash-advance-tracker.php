@@ -118,7 +118,7 @@ $repaid = count(array_filter($rows, static fn(array $r): bool => (float) $r['rem
                 <?php endif; ?>
             </td>
             <td style="font-size:.8rem;color:#6b7280;white-space:nowrap">
-                <?= Formatter::escape($r['approved_at'] ?? '—') ?>
+                <?= Formatter::date($r['approved_at'] ?? null) ?>
             </td>
             <td style="font-size:.82rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                 <?= Formatter::escape(mb_strimwidth((string) ($r['request_reason'] ?? ''), 0, 60, '…')) ?>

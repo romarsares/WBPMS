@@ -120,8 +120,8 @@ $typeIcons = [
                 <?= Formatter::escape((string) $r['type_name']) ?>
             </td>
             <td><span class="badge <?= $statusBadge ?>"><?= Formatter::escape((string) $r['status']) ?></span></td>
-            <td style="white-space:nowrap;font-size:.85rem"><?= Formatter::escape((string) $r['submitted_at']) ?></td>
-            <td style="white-space:nowrap;font-size:.85rem;color:#6366f1"><?= Formatter::escape((string) ($r['hr_reviewed_at'] ?? '—')) ?></td>
+            <td style="white-space:nowrap;font-size:.85rem"><?= Formatter::date($r['submitted_at']) ?></td>
+            <td style="white-space:nowrap;font-size:.85rem;color:#6366f1"><?= Formatter::date($r['hr_reviewed_at'] ?? null) ?></td>
             <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem">
                 <?= Formatter::escape((string) $r['reason']) ?>
             </td>
@@ -184,9 +184,9 @@ $typeIcons = [
                     <?= Formatter::escape((string) $r['status']) ?>
                 </span>
             </td>
-            <td style="white-space:nowrap;font-size:.85rem"><?= Formatter::escape((string) $r['submitted_at']) ?></td>
+            <td style="white-space:nowrap;font-size:.85rem"><?= Formatter::date($r['submitted_at']) ?></td>
             <td style="white-space:nowrap;font-size:.85rem;color:#6b7280">
-                <?= Formatter::escape((string) ($r['owner_reviewed_at'] ?? '—')) ?>
+                <?= Formatter::date($r['owner_reviewed_at'] ?? null) ?>
             </td>
             <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.8rem;color:#6b7280">
                 <?= $r['owner_notes'] ? Formatter::escape((string) $r['owner_notes']) : '—' ?>

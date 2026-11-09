@@ -48,7 +48,7 @@ foreach ($deductions as $deduction) {
     <div><div style="font-size:.7rem;color:#6b7280;text-transform:uppercase">Gross Total</div><div style="font-weight:700;font-size:1.1rem">₱<?= number_format($grossTotal, 2) ?></div></div>
     <div><div style="font-size:.7rem;color:#6b7280;text-transform:uppercase">Total Deductions</div><div style="font-weight:700;font-size:1.1rem;color:#ef4444">₱<?= number_format($dedTotal, 2) ?></div></div>
     <div><div style="font-size:.7rem;color:#6b7280;text-transform:uppercase">Net Total</div><div style="font-weight:700;font-size:1.3rem;color:#111827">₱<?= number_format($netTotal, 2) ?></div></div>
-    <div><div style="font-size:.7rem;color:#6b7280;text-transform:uppercase">Submitted</div><div style="font-weight:600"><?= htmlspecialchars((string)($run['submitted_at'] ?? '—')) ?></div></div>
+    <div><div style="font-size:.7rem;color:#6b7280;text-transform:uppercase">Submitted</div><div style="font-weight:600"><?= \Wbpms\Http\View\Formatter::date($run['submitted_at'] ?? null) ?></div></div>
 </div>
 
 <?php if ($earningSummary !== []): ?>

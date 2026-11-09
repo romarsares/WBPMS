@@ -63,7 +63,7 @@ $statusBadge = static function (string $s): string {
             <td style="text-align:right">₱<?= number_format((float)$r['gross_total'], 2) ?></td>
             <td style="text-align:right">₱<?= number_format((float)$r['net_total'], 2) ?></td>
             <td><?= $statusBadge($r['status']) ?></td>
-            <td style="font-size:.8rem"><?= htmlspecialchars($r['created_at']) ?></td>
+            <td style="font-size:.8rem"><?= \Wbpms\Http\View\Formatter::date($r['created_at']) ?></td>
             <td style="white-space:nowrap">
                 <a href="<?= $base ?>/hr/payroll/<?= (int)$r['payroll_run_id'] ?>" class="btn btn-sm btn-secondary">View</a>
             </td>

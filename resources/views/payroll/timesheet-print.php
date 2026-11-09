@@ -37,7 +37,7 @@ $statusColor = static function (string $status): string {
     <section class="payroll-print-meta">
         <span><b>Pay date</b><?= Formatter::date((string) $run['pay_date']) ?></span>
         <span><b>Payroll status</b><?= Formatter::escape((string) $run['status']) ?></span>
-        <span><b>Generated</b><?= Formatter::escape(date('M j, Y g:i A')) ?></span>
+        <span><b>Generated</b><?= Formatter::date(date('Y-m-d')) ?></span>
     </section>
 
     <section class="payroll-print-stats">

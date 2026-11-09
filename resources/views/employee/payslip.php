@@ -64,7 +64,7 @@ $data        = $payslip['data'] ?? [];
         </div>
         <div>
             <div style="font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Pay Date</div>
-            <div style="font-weight:600;margin-top:.2rem"><?= Formatter::escape((string) ($data['pay_date'] ?? '')) ?></div>
+            <div style="font-weight:600;margin-top:.2rem"><?= Formatter::date($data['pay_date'] ?? null) ?></div>
         </div>
         <div>
             <div style="font-size:.7rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em">Daily Rate</div>

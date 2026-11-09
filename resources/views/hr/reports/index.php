@@ -80,7 +80,7 @@
             <td style="text-align:center"><?= (int)$r['emp_count'] ?></td>
             <td style="text-align:right">₱<?= number_format((float)($r['gross'] ?? 0), 2) ?></td>
             <td style="text-align:right;font-weight:600">₱<?= number_format((float)($r['net'] ?? 0), 2) ?></td>
-            <td style="font-size:.8rem"><?= htmlspecialchars((string)$r['approved_at']) ?></td>
+            <td style="font-size:.8rem"><?= \Wbpms\Http\View\Formatter::date($r['approved_at']) ?></td>
         </tr>
         <?php endforeach; ?>
         </tbody>

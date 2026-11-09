@@ -26,6 +26,15 @@ final class Formatter
         return $date->format('H:i');
     }
 
+    public static function dateTime(DateTimeInterface|string|null $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+        $date = is_string($value) ? new \DateTimeImmutable($value) : $value;
+        return $date->format('m/d/Y h:i A');
+    }
+
     public static function escape(string|int|float|null $value): string
     {
         return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

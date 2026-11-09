@@ -45,7 +45,7 @@ $statusBadge = static function (string $status): string {
 
 <div class="page-header">
     <h1>HR Dashboard</h1>
-    <span style="font-size:.875rem;color:#6b7280"><?= date('l, F j, Y') ?></span>
+    <span style="font-size:.875rem;color:#6b7280"><?= date('m/d/Y') ?></span>
 </div>
 
 <!-- Stat cards -->
@@ -177,7 +177,7 @@ $statusBadge = static function (string $status): string {
                 <strong><?= Formatter::escape((string) $alert['employee_name']) ?></strong><br>
                 <small style="color:#6b7280"><?= Formatter::escape((string) $alert['employee_number']) ?></small>
             </td>
-            <td style="white-space:nowrap"><?= Formatter::escape((string) $alert['attendance_date']) ?></td>
+            <td style="white-space:nowrap"><?= Formatter::date($alert['attendance_date']) ?></td>
             <td style="white-space:nowrap"><?= Formatter::escape((string) ($alert['time_in'] ?? '—')) ?></td>
             <td style="white-space:nowrap;color:#dc2626"><?= $alert['time_out'] ? Formatter::escape((string) $alert['time_out']) : '<em>missing</em>' ?></td>
             <td><span class="badge badge-red"><?= Formatter::escape((string) $alert['status']) ?></span></td>

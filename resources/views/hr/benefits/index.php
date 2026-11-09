@@ -112,7 +112,7 @@
             </td>
             <td><?= htmlspecialchars($r['program']) ?></td>
             <td style="font-size:.8rem"><?= htmlspecialchars($r['period_start'].' – '.$r['period_end']) ?></td>
-            <td><?= htmlspecialchars($r['pay_date']) ?></td>
+            <td><?= \Wbpms\Http\View\Formatter::date($r['pay_date']) ?></td>
             <td style="text-align:right">₱<?= number_format((float)$r['employee_share'], 2) ?></td>
             <td style="text-align:right">₱<?= number_format((float)$r['employer_share'], 2) ?></td>
             <td>

@@ -57,7 +57,7 @@ $months = [
             <dt class="muted">Period</dt><dd style="margin:0"><?= Formatter::escape(($months[(int) $preview['sourceMonth']] ?? '?') . ' ' . (int) $preview['sourceYear']) ?></dd>
             <dt class="muted">Punches parsed</dt><dd style="margin:0"><?= (int) $preview['total'] ?></dd>
             <dt class="muted">Enrollment codes</dt><dd style="margin:0"><?= (int) $preview['employeeCount'] ?></dd>
-            <dt class="muted">Date range</dt><dd style="margin:0"><?= Formatter::escape((string) ($preview['dateFrom'] ?? '—')) ?> to <?= Formatter::escape((string) ($preview['dateTo'] ?? '—')) ?></dd>
+            <dt class="muted">Date range</dt><dd style="margin:0"><?= Formatter::date($preview['dateFrom'] ?? null) ?> to <?= Formatter::date($preview['dateTo'] ?? null) ?></dd>
         </dl>
         <div class="table-wrap" style="max-height:330px;overflow:auto;margin-bottom:1rem">
             <table style="font-size:12px;width:100%;border-collapse:collapse">
@@ -70,7 +70,7 @@ $months = [
                 <tbody><?php foreach ($preview['sample'] as $punch): ?>
                     <tr>
                         <td style="padding:7px;border-bottom:1px solid var(--line)"><?= (int) $punch['row'] ?></td>
-                        <td style="padding:7px;border-bottom:1px solid var(--line);white-space:nowrap"><?= Formatter::escape($punch['dateTime']) ?></td>
+                        <td style="padding:7px;border-bottom:1px solid var(--line);white-space:nowrap"><?= Formatter::dateTime($punch['dateTime']) ?></td>
                         <td style="padding:7px;border-bottom:1px solid var(--line)"><?= Formatter::escape($punch['enrollment']) ?></td>
                         <td style="padding:7px;border-bottom:1px solid var(--line)"><?= Formatter::escape($punch['name']) ?></td>
                     </tr>
@@ -213,7 +213,7 @@ $months = [
                     <?= Formatter::escape($period) ?>
                 </td>
                 <td style="padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;font-size:12px">
-                    <?= Formatter::escape((string)($b['uploaded_at'] ?? '')) ?><br>
+                    <?= Formatter::date($b['uploaded_at'] ?? null) ?><br>
                     <span class="muted"><?= Formatter::escape((string)($b['uploaded_by'] ?? '')) ?></span>
                 </td>
                 <td style="padding:8px 10px;border-bottom:1px solid var(--line);text-align:right">

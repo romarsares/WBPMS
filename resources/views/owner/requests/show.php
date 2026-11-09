@@ -66,7 +66,7 @@ $statusLabel = $statusLabels[$status] ?? $status;
             </tr>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Submitted</th>
-                <td style="padding:.4rem 0"><?= Formatter::escape((string) $request['submitted_at']) ?></td>
+                <td style="padding:.4rem 0"><?= Formatter::date($request['submitted_at']) ?></td>
             </tr>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500;vertical-align:top">Reason</th>
@@ -78,9 +78,9 @@ $statusLabel = $statusLabels[$status] ?? $status;
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Leave period</th>
                 <td style="padding:.4rem 0">
-                    <?= Formatter::escape((string) $request['start_date']) ?>
+                    <?= Formatter::date($request['start_date']) ?>
                     <?php if ($request['start_date'] !== $request['end_date']): ?>
-                        → <?= Formatter::escape((string) $request['end_date']) ?>
+                        → <?= Formatter::date($request['end_date']) ?>
                     <?php endif; ?>
                 </td>
             </tr>
@@ -94,7 +94,7 @@ $statusLabel = $statusLabels[$status] ?? $status;
             <tr><td colspan="2"><hr style="border:0;border-top:1px solid #f3f4f6;margin:.4rem 0"></td></tr>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">OT date</th>
-                <td style="padding:.4rem 0"><?= Formatter::escape((string) $request['overtime_date']) ?></td>
+                <td style="padding:.4rem 0"><?= Formatter::date($request['overtime_date']) ?></td>
             </tr>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Time</th>
@@ -122,7 +122,7 @@ $statusLabel = $statusLabels[$status] ?? $status;
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">HR pre-approved</th>
                 <td style="padding:.4rem 0;color:#6366f1;font-weight:500">
-                    <?= Formatter::escape((string) $request['reviewed_at']) ?>
+                    <?= Formatter::date($request['reviewed_at']) ?>
                 </td>
             </tr>
             <?php if (!empty($request['review_notes'])): ?>
@@ -221,7 +221,7 @@ $statusLabel = $statusLabels[$status] ?? $status;
         <div class="card" style="margin-top:1rem;padding:1rem;border-left:4px solid #f97316;background:#fff7ed">
             <p style="margin:0 0 .25rem;font-size:.8rem;font-weight:600;color:#c2410c">Your previous note</p>
             <p style="margin:0;font-size:.875rem;white-space:pre-wrap"><?= Formatter::escape((string) $request['owner_notes']) ?></p>
-            <p style="margin:.5rem 0 0;font-size:.75rem;color:#9ca3af"><?= Formatter::escape((string) $request['owner_reviewed_at']) ?></p>
+            <p style="margin:.5rem 0 0;font-size:.75rem;color:#9ca3af"><?= Formatter::date($request['owner_reviewed_at']) ?></p>
         </div>
         <?php endif; ?>
     </div>

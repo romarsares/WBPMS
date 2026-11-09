@@ -145,7 +145,7 @@ $statusColor = static function (string $status): string {
                     <?= Formatter::escape(mb_strimwidth((string) ($r['reason'] ?? ''), 0, 80, '…')) ?>
                 </td>
                 <td style="padding:.65rem 1rem;font-size:.85rem;white-space:nowrap">
-                    <?= Formatter::escape((string) $r['submitted_at']) ?>
+                    <?= Formatter::date($r['submitted_at']) ?>
                 </td>
                 <td style="padding:.65rem 1rem">
                     <span style="background:<?= $statusColor($r['status']) ?>;color:#fff;padding:2px 8px;border-radius:9999px;font-size:.75rem">

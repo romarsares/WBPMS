@@ -149,7 +149,7 @@ $rangeLabel = $dateFrom !== '' && $dateTo !== ''
             </tbody>
         </table>
     </div>
-    <footer>Generated <?= Formatter::escape(date('F j, Y g:i A')) ?> &middot; Frequency counts are for attendance review and do not apply discipline automatically.</footer>
+    <footer>Generated <?= Formatter::date(date('Y-m-d')) ?> &middot; Frequency counts are for attendance review and do not apply discipline automatically.</footer>
 </section>
 
 <style>

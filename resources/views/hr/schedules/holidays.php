@@ -93,7 +93,7 @@ $input = $input ?? [];
                 <tbody>
                     <?php foreach ($holidays as $h): ?>
                         <tr class="<?= $h['status'] === 'Inactive' ? 'row-muted' : '' ?>">
-                            <td><?= htmlspecialchars($h['holiday_date'], ENT_QUOTES) ?></td>
+                            <td><?= \Wbpms\Http\View\Formatter::date($h['holiday_date']) ?></td>
                             <td><?= htmlspecialchars($h['description'], ENT_QUOTES) ?></td>
                             <td>
                                 <?php

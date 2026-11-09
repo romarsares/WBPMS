@@ -164,7 +164,7 @@ $rowOffset = ($page - 1) * ($pageSize ?? 50);
                     <tr>
                         <td style="text-align:center;font-size:.75rem;color:#9ca3af;user-select:none"><?= $rowNum++ ?></td>
                         <td style="font-size:.8rem;white-space:nowrap">
-                            <?= Formatter::escape((string) ($row['action_at'] ?? '')) ?>
+                            <?= Formatter::dateTime($row['action_at'] ?? null) ?>
                         </td>
                         <td style="font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
                             title="<?= Formatter::escape((string) ($row['username'] ?? $row['attempted_identifier'] ?? '')) ?>">

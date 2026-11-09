@@ -72,7 +72,7 @@ $forwardNote = 'Payroll disbursement package for ' . (string) ($run['period_labe
         </tbody><tfoot><tr><td colspan="5">Aggregate cheque amount</td><td class="number">₱<?= number_format((float) $summary['cheque_total'], 2) ?></td></tr></tfoot></table></div>
     </section>
     <?php endif; ?>
-    <footer>Source documents: approved payroll runs for this cut-off and their corresponding attendance/timesheet records. Generated <?= Formatter::escape(date('M j, Y g:i A')) ?>.</footer>
+    <footer>Source documents: approved payroll runs for this cut-off and their corresponding attendance/timesheet records. Generated <?= Formatter::date(date('Y-m-d')) ?>.</footer>
 </div>
 
 <style>

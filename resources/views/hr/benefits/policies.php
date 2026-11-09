@@ -42,7 +42,7 @@
                     ?>
                     <span style="background:<?= $c ?>;color:#fff;padding:2px 8px;border-radius:9999px;font-size:.75rem"><?= htmlspecialchars($p['status']) ?></span>
                 </td>
-                <td style="font-size:.8rem"><?= htmlspecialchars((string)$p['created_at']) ?></td>
+                <td style="font-size:.8rem"><?= \Wbpms\Http\View\Formatter::date($p['created_at']) ?></td>
                 <td>
                     <?php if ($p['status'] === 'Draft'): ?>
                     <form method="post" action="<?= $base ?>/hr/benefits/policies/<?= (int)$p['contribution_policy_id'] ?>/approve" style="display:inline">
