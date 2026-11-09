@@ -42,4 +42,34 @@ final class ApprovedOvertimeCalculatorTest extends TestCase
             ['start_time' => '17:30:00', 'end_time' => '18:30:00'],
         ]));
     }
+
+    public function testItSeparatelyMatchesEarlyAndPostShiftOvertimeWindows(): void
+    {
+        $minutes = (new ApprovedOvertimeCalculator())->payableMinutesForAttendance(
+            '07:45:00',
+            '17:30:00',
+            '08:00:00',
+            '17:00:00',
+            60,
+            480,
+            [['start_time' => '17:00:00', 'end_time' => '17:30:00']],
+        );
+
+        self::assertSame(30, $minutes);
+    }
+
+    public function testItDoesNotTreatScheduledTimeAsApprovedOvertimeForEarlyArrivals(): void
+    {
+        $minutes = (new ApprovedOvertimeCalculator())->payableMinutesForAttendance(
+            '07:45:00',
+            '17:30:00',
+            '08:00:00',
+            '17:00:00',
+            60,
+            480,
+            [['start_time' => '16:45:00', 'end_time' => '17:00:00']],
+        );
+
+        self::assertSame(0, $minutes);
+    }
 }

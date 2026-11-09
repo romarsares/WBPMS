@@ -40,9 +40,9 @@ final class DashboardController
             ->query("SELECT COUNT(*) FROM request WHERE status = 'Pending'")
             ->fetchColumn();
 
-        // Incomplete attendance: rows where time_out IS NULL
+        // Incomplete or multi-punch attendance requires HR review.
         $incompleteAttendance = (int) $pdo
-            ->query("SELECT COUNT(*) FROM attendance WHERE status = 'Incomplete'")
+            ->query("SELECT COUNT(*) FROM attendance WHERE status IN ('Incomplete', 'ReviewRequired')")
             ->fetchColumn();
 
         // Payroll runs in Draft or Computed state
@@ -95,7 +95,7 @@ final class DashboardController
                     a.status
                FROM attendance a
                JOIN employee e ON e.employee_id = a.employee_id
-              WHERE a.status = 'Incomplete'
+              WHERE a.status IN ('Incomplete', 'ReviewRequired')
               ORDER BY a.attendance_date DESC, e.last_name
               LIMIT 20"
         );

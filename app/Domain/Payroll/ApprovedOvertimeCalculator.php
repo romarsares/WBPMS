@@ -14,6 +14,94 @@ namespace Wbpms\Domain\Payroll;
 final class ApprovedOvertimeCalculator
 {
     /**
+     * Return approved overtime for an attendance interval.
+     *
+     * Early arrivals and late departures are represented as separate overtime
+     * windows. This prevents an early punch from shifting the post-shift
+     * overtime window backwards when matching an approved request.
+     *
+     * @param list<array{start_time:string,end_time:string}> $approvedRequests
+     */
+    public function payableMinutesForAttendance(
+        ?string $timeIn,
+        ?string $timeOut,
+        string $scheduledStart,
+        string $scheduledEnd,
+        int $unpaidBreakMinutes,
+        int $standardMinutes,
+        array $approvedRequests,
+    ): int {
+        if ($timeIn === null || $timeOut === null || $approvedRequests === []) {
+            return 0;
+        }
+
+        $actualStart = $this->minutesFromMidnight($timeIn);
+        $actualEnd = $this->minutesFromMidnight($timeOut);
+        $scheduleStart = $this->minutesFromMidnight($scheduledStart);
+        $scheduleEnd = $this->minutesFromMidnight($scheduledEnd);
+        if ($actualStart === null || $actualEnd === null || $scheduleStart === null || $scheduleEnd === null) {
+            return 0;
+        }
+
+        $overnight = $scheduleEnd <= $scheduleStart;
+        if ($overnight) {
+            $scheduleEnd += 1440;
+            if ($actualEnd <= $actualStart) {
+                $actualEnd += 1440;
+            }
+        }
+        if ($actualEnd <= $actualStart) {
+            return 0;
+        }
+
+        $workedMinutes = max(0, ($actualEnd - $actualStart) - max(0, $unpaidBreakMinutes));
+        $recordedOvertime = max(0, $workedMinutes - max(1, $standardMinutes));
+        if ($recordedOvertime === 0) {
+            return 0;
+        }
+
+        $actualWindows = [];
+        if ($actualStart < $scheduleStart) {
+            $actualWindows[] = [$actualStart, min($actualEnd, $scheduleStart)];
+        }
+        if ($actualEnd > $scheduleEnd) {
+            $actualWindows[] = [max($actualStart, $scheduleEnd), $actualEnd];
+        }
+        $actualWindows = array_values(array_filter(
+            $actualWindows,
+            static fn (array $window): bool => $window[1] > $window[0],
+        ));
+        if ($actualWindows === []) {
+            return 0;
+        }
+
+        $overlaps = [];
+        foreach ($approvedRequests as $request) {
+            $requestStart = $this->minutesFromMidnight($request['start_time']);
+            $requestEnd = $this->minutesFromMidnight($request['end_time']);
+            if ($requestStart === null || $requestEnd === null) {
+                continue;
+            }
+            if ($requestEnd <= $requestStart) {
+                $requestEnd += 1440;
+            }
+            if ($overnight && $requestStart < $scheduleStart) {
+                $requestStart += 1440;
+                $requestEnd += 1440;
+            }
+            foreach ($actualWindows as [$actualWindowStart, $actualWindowEnd]) {
+                $overlapStart = max($actualWindowStart, $requestStart);
+                $overlapEnd = min($actualWindowEnd, $requestEnd);
+                if ($overlapEnd > $overlapStart) {
+                    $overlaps[] = [$overlapStart, $overlapEnd];
+                }
+            }
+        }
+
+        return min($recordedOvertime, $this->mergedMinutes($overlaps));
+    }
+
+    /**
      * @param list<array{start_time:string,end_time:string}> $approvedRequests
      */
     public function payableMinutes(
@@ -46,6 +134,12 @@ final class ApprovedOvertimeCalculator
             }
         }
 
+        return min($attendanceOvertimeMinutes, $this->mergedMinutes($intervals));
+    }
+
+    /** @param list<array{int,int}> $intervals */
+    private function mergedMinutes(array $intervals): int
+    {
         if ($intervals === []) {
             return 0;
         }
@@ -63,7 +157,7 @@ final class ApprovedOvertimeCalculator
         }
         $paid += $end - $start;
 
-        return min($attendanceOvertimeMinutes, $paid);
+        return $paid;
     }
 
     private function minutesFromMidnight(string $time): ?int

@@ -369,7 +369,7 @@ final class PayrollController
                LEFT JOIN attendance a
                       ON a.employee_id = p.employee_id
                      AND a.attendance_date BETWEEN :period_start AND :period_end
-                     AND a.status IN ('Complete', 'Approved', 'ReviewRequired')
+                     AND a.status IN ('Complete', 'Approved')
                      AND (
                          a.import_batch_id IS NULL
                          OR a.import_batch_id IN (

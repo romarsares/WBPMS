@@ -98,7 +98,7 @@ final class EmployeePortalController
                     COALESCE(undertime_minutes, 0)    AS undertime_minutes,
                     COALESCE(overtime_minutes, 0)     AS overtime_minutes,
                     CASE
-                        WHEN status = 'Incomplete' OR time_in IS NULL OR time_out IS NULL THEN 1
+                        WHEN status IN ('Incomplete', 'ReviewRequired') OR time_in IS NULL OR time_out IS NULL THEN 1
                         ELSE 0
                     END AS is_incomplete
              FROM attendance

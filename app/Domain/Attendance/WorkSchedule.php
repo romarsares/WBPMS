@@ -18,6 +18,7 @@ final class WorkSchedule
         public int $unpaidBreakMinutes = 60,
         public int $standardMinutes = 480,
         public int $graceMinutes = 0,
+        public bool $overtimeAllowed = false,
     ) {
         if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $startTime)
             || !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $endTime)

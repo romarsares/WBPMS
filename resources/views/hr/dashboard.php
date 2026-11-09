@@ -157,7 +157,7 @@ $statusBadge = static function (string $status): string {
 <!-- Attendance Alert Widget (Task 12.5) -->
 <div class="card" style="margin-top:1.5rem;padding:0;overflow:hidden;border-left:4px solid #dc2626">
     <div style="padding:.85rem 1.25rem;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center">
-        <strong style="font-size:.95rem;color:#dc2626">⚠ Incomplete Attendance Alerts</strong>
+        <strong style="font-size:.95rem;color:#dc2626">⚠ Attendance Review Alerts</strong>
         <a href="<?= $base ?>/hr/attendance" class="btn btn-secondary btn-sm">View All</a>
     </div>
     <table class="data-table">
@@ -185,6 +185,6 @@ $statusBadge = static function (string $status): string {
         <?php endforeach; ?>
         </tbody>
     </table>
-    <p style="padding:.6rem 1.25rem;margin:0;color:#6b7280;font-size:.8rem">Showing up to 20 most recent incomplete records. Adjust attendance records to resolve.</p>
+    <p style="padding:.6rem 1.25rem;margin:0;color:#6b7280;font-size:.8rem">Showing up to 20 records with missing punches or multiple-punch review requirements. Adjust attendance records to resolve.</p>
 </div>
 <?php endif; ?>

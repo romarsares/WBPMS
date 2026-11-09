@@ -35,6 +35,21 @@ final class TimesheetGeneratorTest extends TestCase
         self::assertSame(0, $attendance->workedMinutes);
     }
 
+    public function testEarlyTimeInWithoutTimeOutRemainsIncomplete(): void
+    {
+        $tz = new DateTimeZone('Asia/Manila');
+        $punch = new ParsedPunch(1, '00123', new DateTimeImmutable('2026-08-03 07:45', $tz), 2, 'E', '07:45', null, null, null);
+
+        $attendance = (new TimesheetGenerator())->generate(9, '2026-08-03', [$punch], new WorkSchedule(1, '08:00', '17:00'));
+
+        self::assertTrue($attendance->isIncomplete());
+        self::assertSame('07:45', $attendance->timeIn?->format('H:i'));
+        self::assertNull($attendance->timeOut);
+        self::assertSame(0, $attendance->workedMinutes);
+        self::assertSame(0, $attendance->lateMinutes);
+        self::assertSame(0, $attendance->overtimeMinutes);
+    }
+
     public function testItAppliesTheScheduleGracePeriodToImportedLateness(): void
     {
         $tz = new DateTimeZone('Asia/Manila');

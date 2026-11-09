@@ -544,7 +544,7 @@ final class PayrollService
                        LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
                       WHERE a.employee_id = :emp_id
                         AND attendance_date BETWEEN :start AND :end
-                        AND a.status IN ('Complete','Approved','ReviewRequired')
+                        AND a.status IN ('Complete','Approved')
                         AND (a.import_batch_id IS NULL OR aib.status IN ('Approved','Completed'))"
                 );
                 $stmt->execute([':emp_id' => $employeeId, ':start' => $periodStart, ':end' => $periodEnd]);
@@ -1432,23 +1432,37 @@ final class PayrollService
         }
 
         $stmt = $pdo->prepare(
-            "SELECT a.attendance_date, a.time_out, a.overtime_minutes
+            "SELECT a.attendance_date, a.time_in, a.time_out,
+                    COALESCE(ws.work_start_time, '07:00:00') AS work_start_time,
+                    COALESCE(ws.work_end_time, '16:00:00') AS work_end_time,
+                    COALESCE(ws.break_minutes, 60) AS break_minutes,
+                    COALESCE(ws.standard_minutes, 480) AS standard_minutes,
+                    COALESCE(ws.overtime_allowed, 0) AS overtime_allowed
                FROM attendance a
                LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
+               LEFT JOIN work_schedule ws ON ws.schedule_id = a.schedule_id
               WHERE a.employee_id = :emp_id
                 AND a.attendance_date BETWEEN :start AND :end
                 AND a.status IN ('Complete', 'Approved')
                 AND (a.import_batch_id IS NULL OR aib.status IN ('Approved','Completed'))
-                AND a.overtime_minutes > 0"
+                AND a.time_in IS NOT NULL
+                AND a.time_out IS NOT NULL"
         );
         $stmt->execute([':emp_id' => $employeeId, ':start' => $periodStart, ':end' => $periodEnd]);
 
         $payable = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            if (!(bool) $row['overtime_allowed']) {
+                continue;
+            }
             $date = (string) $row['attendance_date'];
-            $minutes = $this->approvedOvertimeCalc->payableMinutes(
-                (int) $row['overtime_minutes'],
+            $minutes = $this->approvedOvertimeCalc->payableMinutesForAttendance(
+                $row['time_in'] !== null ? (string) $row['time_in'] : null,
                 $row['time_out'] !== null ? (string) $row['time_out'] : null,
+                (string) $row['work_start_time'],
+                (string) $row['work_end_time'],
+                (int) $row['break_minutes'],
+                (int) $row['standard_minutes'],
                 $approvedOtByDate[$date] ?? [],
             );
             if ($minutes > 0) {
