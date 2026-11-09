@@ -54,6 +54,7 @@
         <span style="font-size:.8rem;color:#6b7280">Filters active</span>
         <?php endif; ?>
     </div>
+    <p style="margin:0 0 1rem;color:#6b7280;font-size:.875rem">Records are generated when payroll is computed and become final when the payroll run is approved.</p>
 
     <!-- Filter form -->
     <form method="GET" action="<?= $base ?>/hr/benefits" style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;margin-bottom:1.25rem;padding:.75rem 1rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:.5rem">
@@ -81,7 +82,6 @@
         <button type="submit" class="btn btn-primary">Apply</button>
         <a href="<?= $base ?>/hr/benefits" class="btn btn-secondary">Clear</a>
     </form>
-
     <?php if ($records === []): ?>
     <p style="color:#6b7280">
         <?php if ($isFiltered): ?>
@@ -97,6 +97,7 @@
                 <th>Employee</th>
                 <th>Program</th>
                 <th>Period</th>
+                <th>Pay Date</th>
                 <th style="text-align:right">Employee Share</th>
                 <th style="text-align:right">Employer Share</th>
                 <th>Status</th>
@@ -111,6 +112,7 @@
             </td>
             <td><?= htmlspecialchars($r['program']) ?></td>
             <td style="font-size:.8rem"><?= htmlspecialchars($r['period_start'].' – '.$r['period_end']) ?></td>
+            <td><?= htmlspecialchars($r['pay_date']) ?></td>
             <td style="text-align:right">₱<?= number_format((float)$r['employee_share'], 2) ?></td>
             <td style="text-align:right">₱<?= number_format((float)$r['employer_share'], 2) ?></td>
             <td>

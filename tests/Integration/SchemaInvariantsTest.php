@@ -261,27 +261,29 @@ final class SchemaInvariantsTest extends IntegrationTestCase
 
     /**
      * ADR-0002 §16 / chk_period_start_friday:
-     * A payroll_period whose start is not a Friday must be rejected.
+     * A payroll_period whose start matches neither supported cutoff pattern
+     * must be rejected.
      */
-    public function testPayrollPeriodNonSundayStartIsRejected(): void
+    public function testPayrollPeriodInvalidStartIsRejected(): void
     {
         // 2026-09-07 is a Monday
         $this->assertDbException(
             fn () => $this->insertPayrollPeriod('2026-09-07', '2026-09-13', '2026-09-14'),
-            'period_start is Monday, not Sunday'
+            'period_start is Monday, not Friday or Sunday'
         );
     }
 
     /**
      * ADR-0002 §16 / chk_period_end_thursday:
-     * A payroll_period whose end is not a Thursday must be rejected.
+     * A payroll_period whose end does not match its cutoff pattern must be
+     * rejected.
      */
-    public function testPayrollPeriodNonFridayEndIsRejected(): void
+    public function testPayrollPeriodInvalidEndIsRejected(): void
     {
         // 2026-09-04 is Friday, 2026-09-11 is Friday — not Thursday.
         $this->assertDbException(
             fn () => $this->insertPayrollPeriod('2026-09-06', '2026-09-10', '2026-09-10'),
-            'period_end is Thursday, not Friday'
+            'period_end does not match its cutoff pattern'
         );
     }
 
@@ -319,6 +321,15 @@ final class SchemaInvariantsTest extends IntegrationTestCase
         $this->assertDbSuccess(
             fn () => $this->insertPayrollPeriod('2026-09-06', '2026-09-11', '2026-09-11'),
             'valid Sunday-start payroll period'
+        );
+    }
+
+    /** A current Friday-to-Thursday period, paid Friday, must succeed. */
+    public function testCurrentFridayThursdayPayrollPeriodIsAccepted(): void
+    {
+        $this->assertDbSuccess(
+            fn () => $this->insertPayrollPeriod('2026-09-04', '2026-09-10', '2026-09-11'),
+            'valid Friday-through-Thursday payroll period'
         );
     }
 

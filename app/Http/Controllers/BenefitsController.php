@@ -101,7 +101,8 @@ final class BenefitsController
                     cr.deduction_date,
                     cr.status,
                     pp.period_start,
-                    pp.period_end
+                    pp.period_end,
+                    pp.pay_date
                FROM contribution_record cr
                JOIN payroll p           ON p.payroll_id              = cr.payroll_id
                JOIN employee e          ON e.employee_id              = p.employee_id

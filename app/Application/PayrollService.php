@@ -18,7 +18,7 @@ use Wbpms\Infrastructure\Database\Connection;
  * PayrollService — orchestrates the full payroll lifecycle.
  *
  * Responsibilities (ADR-0001):
- *   - Period management (create Sunday→Friday periods).
+ *   - Period management (create Friday→Thursday periods).
  *   - Draft payroll run creation.
  *   - Computation: gross from attendance and approved paid leave; deductions
  *     include late/undertime/contributions/cash-advance; unpaid absences are
@@ -32,7 +32,7 @@ use Wbpms\Infrastructure\Database\Connection;
  * Money is always handled as integer centavos internally, stored as DECIMAL(12,2).
  *
  * ADR-0001 payroll cycle:
- *   period_start = Sunday, period_end = Friday, pay_date = the period-ending Friday.
+ *   period_start = Friday, period_end = Thursday, pay_date = the following Friday.
  *   EEMR = (daily_rate × eemr_days_per_year) / 12.
  *   Late deduction = late_minutes × late_rate_per_minute (default ₱1.00/min).
  *   Undertime deduction = undertime_minutes × (daily_rate / standard_minutes).
@@ -56,8 +56,8 @@ final class PayrollService
     // ===================================================================
 
     /**
-     * Create one Sunday→Friday payroll period.
-     * Validates that the supplied date is a Sunday.
+     * Create one Friday→Thursday payroll period.
+     * Validates that the supplied date is a Friday.
      */
     public function createPeriod(string $periodStart): int
     {
@@ -65,27 +65,34 @@ final class PayrollService
         if ($start === false) {
             throw new RuntimeException('Invalid period start date. Use YYYY-MM-DD format.');
         }
-        if ((int) $start->format('N') !== 7) { // 7 = Sunday
-            throw new RuntimeException('Period start must be a Sunday.');
+        if ((int) $start->format('N') !== 5) { // 5 = Friday
+            throw new RuntimeException('Period start must be a Friday.');
         }
 
-        $end     = $start->modify('+5 days');  // Friday
-        $payDate = $end;                       // Salary is released Friday
+        $end     = $start->modify('+6 days');  // Thursday
+        $payDate = $end->modify('+1 day');     // Salary is released Friday
 
         $pdo = $this->connection->pdo();
 
         // Check for duplicate
-        $chk = $pdo->prepare("SELECT COUNT(*) FROM payroll_period WHERE period_start = :s");
-        $chk->execute([':s' => $start->format('Y-m-d')]);
+        $chk = $pdo->prepare(
+            "SELECT COUNT(*)
+               FROM payroll_period
+              WHERE period_start = :start OR pay_date = :pay_date"
+        );
+        $chk->execute([
+            ':start'    => $start->format('Y-m-d'),
+            ':pay_date' => $payDate->format('Y-m-d'),
+        ]);
         if ((int) $chk->fetchColumn() > 0) {
-            throw new RuntimeException('A payroll period starting on that date already exists.');
+            throw new RuntimeException('A payroll period with that start date or pay date already exists.');
         }
 
         $stmt = $pdo->prepare(
             "INSERT INTO payroll_period
                 (period_start, period_end, pay_date, cutoff_pattern, status, created_at, updated_at)
              VALUES
-                (:start, :end, :pay, 'SundayFriday', 'Open', :created_at, :updated_at)"
+                (:start, :end, :pay, 'FridayThursday', 'Open', :created_at, :updated_at)"
         );
         $now = $this->utcNow();
         $stmt->execute([
@@ -99,7 +106,7 @@ final class PayrollService
     }
 
     /**
-     * Generate every Sunday–Friday cutoff that overlaps a calendar month.
+     * Generate every Friday–Thursday cutoff that overlaps a calendar month.
      * A cutoff may begin in the preceding month or end in the following one.
      *
      * @return array{created:int,existing:int}
@@ -113,11 +120,14 @@ final class PayrollService
         $timezone = new DateTimeZone('Asia/Manila');
         $firstDay = new DateTimeImmutable($month . '-01', $timezone);
         $lastDay = $firstDay->modify('last day of this month');
-        $firstSunday = $firstDay->modify('-' . (int) $firstDay->format('w') . ' days');
+        // DateTime::format('w') is Sunday=0 through Saturday=6. This gives
+        // the Friday on or immediately before the first day of the month.
+        $daysSinceFriday = ((int) $firstDay->format('w') + 2) % 7;
+        $firstFriday = $firstDay->modify('-' . $daysSinceFriday . ' days');
         $created = 0;
         $existing = 0;
 
-        for ($start = $firstSunday; $start <= $lastDay; $start = $start->modify('+7 days')) {
+        for ($start = $firstFriday; $start <= $lastDay; $start = $start->modify('+7 days')) {
             try {
                 $this->createPeriod($start->format('Y-m-d'));
                 $created++;

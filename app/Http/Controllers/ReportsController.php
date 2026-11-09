@@ -1205,6 +1205,7 @@ body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;backgro
             $applyEmployeeSearch($where, $bind, $employeeSearch);
             $stmt = $pdo->prepare(
                 "SELECT CONCAT(e.last_name, ', ', e.first_name) AS name, CONCAT(pp.period_start, ' – ', pp.period_end) AS period,
+                        pp.pay_date,
                         SUM(CASE WHEN cr.contribution_type = 'SSS' THEN cr.employee_share ELSE 0 END) AS sss,
                         SUM(CASE WHEN cr.contribution_type = 'PhilHealth' THEN cr.employee_share ELSE 0 END) AS phil,
                         SUM(CASE WHEN cr.contribution_type = 'PagIBIG' THEN cr.employee_share ELSE 0 END) AS pag,
@@ -1214,12 +1215,12 @@ body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;backgro
                    JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
                    JOIN employee e ON e.employee_id = p.employee_id
                   WHERE " . implode(' AND ', $where) . "
-                  GROUP BY p.employee_id, pp.payroll_period_id, e.last_name, e.first_name, pp.period_start, pp.period_end
+                  GROUP BY p.employee_id, pp.payroll_period_id, e.last_name, e.first_name, pp.period_start, pp.period_end, pp.pay_date
                   ORDER BY pp.period_start DESC, e.last_name LIMIT 500"
             );
             $stmt->execute($bind);
-            $rows = array_map(static fn(array $row): array => [$row['name'], $row['period'], '₱' . number_format((float) $row['sss'], 2), '₱' . number_format((float) $row['phil'], 2), '₱' . number_format((float) $row['pag'], 2), '₱' . number_format((float) $row['total'], 2)], $stmt->fetchAll());
-            return [['Employee', 'Period', 'SSS Employee', 'PhilHealth Employee', 'Pag-IBIG Employee', 'Total'], $rows];
+            $rows = array_map(static fn(array $row): array => [$row['name'], $row['period'], $row['pay_date'], '₱' . number_format((float) $row['sss'], 2), '₱' . number_format((float) $row['phil'], 2), '₱' . number_format((float) $row['pag'], 2), '₱' . number_format((float) $row['total'], 2)], $stmt->fetchAll());
+            return [['Employee', 'Period', 'Pay Date', 'SSS Employee', 'PhilHealth Employee', 'Pag-IBIG Employee', 'Total'], $rows];
         }
 
         if ($filters['branch_id'] > 0) { $where[] = 'eba.branch_id = :branch_id'; $bind[':branch_id'] = $filters['branch_id']; }

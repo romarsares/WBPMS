@@ -262,7 +262,7 @@ abstract class IntegrationTestCase extends TestCase
         string $pay   = '2026-09-11'
     ): int {
         $pattern = (new \DateTimeImmutable($start))->format('w') === '5'
-            ? 'LegacyFridayThursday'
+            ? 'FridayThursday'
             : 'SundayFriday';
         $stmt = $this->pdo->prepare(
             "INSERT INTO payroll_period (period_start, period_end, pay_date, cutoff_pattern)
