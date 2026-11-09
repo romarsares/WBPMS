@@ -15,11 +15,42 @@ final class TimesheetGenerator
     {
         usort($punches, static fn (ParsedPunch $left, ParsedPunch $right): int => $left->localTimestamp <=> $right->localTimestamp);
         $first = $punches[0] ?? null;
-        $last = count($punches) > 1 ? $punches[array_key_last($punches)] : null;
+        $last  = count($punches) > 1 ? $punches[array_key_last($punches)] : null;
         $flags = [];
-        if (count($punches) === 1) {
+
+        if (count($punches) === 1 && $first !== null) {
+            // Determine whether the sole punch is a time-in or a time-out by
+            // comparing it against the schedule midpoint.  Punches that fall
+            // on or after the midpoint are treated as time-outs (the employee
+            // forgot to punch in); punches before the midpoint are time-ins
+            // (the employee forgot to punch out).  Both cases are incomplete.
+            $timezone  = $first->localTimestamp->getTimezone();
+            $schedStart = $schedule->startOn($first->localTimestamp, $timezone);
+            $schedEnd   = $schedule->endOn($first->localTimestamp, $timezone);
+            if ($schedEnd->getTimestamp() <= $schedStart->getTimestamp()) {
+                $schedEnd = $schedEnd->modify('+1 day');
+            }
+            $midpoint = (int) (($schedStart->getTimestamp() + $schedEnd->getTimestamp()) / 2);
+
+            if ($first->localTimestamp->getTimestamp() >= $midpoint) {
+                // Sole punch is past the schedule midpoint → timeout with no time-in
+                $flags[] = 'INCOMPLETE';
+                $flags[] = 'TIMEOUT_ONLY';
+                return new GeneratedAttendance(
+                    $employeeId,
+                    $attendanceDate,
+                    null,
+                    $first->localTimestamp,
+                    0, 0, 0, 0,
+                    $punches,
+                    $flags,
+                );
+            }
+
+            // Sole punch is before the midpoint → time-in with no time-out
             $flags[] = 'INCOMPLETE';
         }
+
         if (count($punches) > 2) {
             $flags[] = 'MULTI_PUNCH_REVIEW';
         }

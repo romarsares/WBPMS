@@ -50,6 +50,36 @@ final class TimesheetGeneratorTest extends TestCase
         self::assertSame(0, $attendance->overtimeMinutes);
     }
 
+    public function testSinglePunchAfterMidpointIsStoredAsTimeoutOnly(): void
+    {
+        $tz    = new DateTimeZone('Asia/Manila');
+        // Schedule 07:00–17:00 → midpoint 12:00. Punch at 17:01 is past midpoint.
+        $punch = new ParsedPunch(1, '00129', new DateTimeImmutable('2026-08-02 17:01', $tz), 4, 'F', '17:01', null, null, null);
+
+        $attendance = (new TimesheetGenerator())->generate(9, '2026-08-02', [$punch], new WorkSchedule(1, '07:00', '17:00'));
+
+        self::assertTrue($attendance->isIncomplete());
+        self::assertContains('TIMEOUT_ONLY', $attendance->flags);
+        self::assertNull($attendance->timeIn);
+        self::assertSame('17:01', $attendance->timeOut?->format('H:i'));
+        self::assertSame(0, $attendance->workedMinutes);
+    }
+
+    public function testSinglePunchBeforeMidpointIsStoredAsTimeinOnly(): void
+    {
+        $tz    = new DateTimeZone('Asia/Manila');
+        // Schedule 07:00–17:00 → midpoint 12:00. Punch at 06:40 is before midpoint.
+        $punch = new ParsedPunch(1, '00129', new DateTimeImmutable('2026-08-06 06:40', $tz), 10, 'J', '06:40', null, null, null);
+
+        $attendance = (new TimesheetGenerator())->generate(9, '2026-08-06', [$punch], new WorkSchedule(1, '07:00', '17:00'));
+
+        self::assertTrue($attendance->isIncomplete());
+        self::assertNotContains('TIMEOUT_ONLY', $attendance->flags);
+        self::assertSame('06:40', $attendance->timeIn?->format('H:i'));
+        self::assertNull($attendance->timeOut);
+        self::assertSame(0, $attendance->workedMinutes);
+    }
+
     public function testItAppliesTheScheduleGracePeriodToImportedLateness(): void
     {
         $tz = new DateTimeZone('Asia/Manila');

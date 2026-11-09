@@ -52,9 +52,13 @@ DELETE FROM attendance_import_batch;  -- FK → device, users (RESTRICT)
 
 -- -----------------------------------------------------------------------------
 -- SECTION 3A — Clear all users except owner, hrhead, and support
---    sessions and password_reset_challenge reference users via ON DELETE RESTRICT,
---    so they must be cleared for the target users before deleting from users.
+--    employee_document.uploaded_by and employee_hr_notice.issued_by reference
+--    users via ON DELETE RESTRICT, so those must be deleted first.
+--    sessions and password_reset_challenge also reference users via RESTRICT.
 -- -----------------------------------------------------------------------------
+DELETE FROM leave_ledger;                   -- leave_ledger.recorded_by → users (SET NULL — safe, but clear early)
+DELETE FROM employee_document;              -- uploaded_by → users (RESTRICT) — must go before user delete
+DELETE FROM employee_hr_notice;             -- issued_by → users (RESTRICT) — must go before user delete
 DELETE FROM sessions
  WHERE user_id IN (SELECT user_id FROM users WHERE username NOT IN ('owner', 'hrhead', 'support'));
 DELETE FROM password_reset_challenge
@@ -80,16 +84,14 @@ DELETE FROM users
 -- SECTION 4 — Employee management data (children first)
 --    Clears all employee records and every table that references employee.
 --    Must run AFTER sections 1–3A (payroll, attendance, and users already gone).
+--    employee_document, employee_hr_notice, and leave_ledger already deleted in 3A.
 -- -----------------------------------------------------------------------------
-DELETE FROM leave_ledger;                   -- FK → leave_entitlement, request, users (RESTRICT/SET NULL)
 DELETE FROM leave_entitlement;              -- FK → employee (RESTRICT)
 DELETE FROM employment_contract_review;     -- FK → employee, users (RESTRICT/SET NULL)
-DELETE FROM employee_hr_notice;             -- FK → employee, attendance_policy_flag, users (RESTRICT)
 DELETE FROM attendance_policy_flag;         -- FK → employee (RESTRICT)
 DELETE FROM employee_lifecycle_event;       -- FK → employee, users (RESTRICT/SET NULL)
 DELETE FROM employee_schedule_assignment;   -- FK → employee, work_schedule (RESTRICT)
 DELETE FROM employee_biometric_enrollment;  -- FK → employee, biometric_device (RESTRICT)
-DELETE FROM employee_document;              -- FK → employee, users (RESTRICT/SET NULL)
 DELETE FROM cash_advance_history;           -- FK → employee (RESTRICT)
 DELETE FROM salary;                         -- FK → employee, users (RESTRICT/SET NULL)
 DELETE FROM request;                        -- FK → employee (RESTRICT)
