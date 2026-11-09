@@ -1178,7 +1178,6 @@ final class AttendanceController
         $input = [
             'time_in' => trim((string) ($_POST['time_in'] ?? '')),
             'time_out' => trim((string) ($_POST['time_out'] ?? '')),
-            'manual_overtime_minutes' => trim((string) ($_POST['manual_overtime_minutes'] ?? '')),
             'reason' => trim((string) ($_POST['reason'] ?? '')),
         ];
 

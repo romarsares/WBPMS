@@ -18,15 +18,14 @@ final class AttendanceAdjustmentServiceTest extends IntegrationTestCase
         $this->service = new AttendanceAdjustmentService(new Connection([], $this->pdo));
     }
 
-    public function testAdjustmentResolvesIncompleteAttendanceAndAuditsManualOvertime(): void
+    public function testAdjustmentDoesNotRecordOvertimeWithoutAnApprovedRequest(): void
     {
         [$attendanceId, $userId] = $this->createAttendanceFixture('2026-09-07');
 
         $this->service->adjust($attendanceId, [
             'time_in' => '07:10',
             'time_out' => '17:30',
-            'manual_overtime_minutes' => '60',
-            'reason' => 'Supervisor-approved overtime; gate log verified.',
+            'reason' => 'Gate log verified.',
         ], $userId);
 
         $stmt = $this->pdo->prepare(
@@ -41,7 +40,7 @@ final class AttendanceAdjustmentServiceTest extends IntegrationTestCase
         $this->assertSame(560, (int) $attendance['hours_worked_minutes']);
         $this->assertSame(10, (int) $attendance['late_minutes']);
         $this->assertSame(0, (int) $attendance['undertime_minutes']);
-        $this->assertSame(60, (int) $attendance['overtime_minutes']);
+        $this->assertSame(0, (int) $attendance['overtime_minutes']);
         $this->assertSame('Complete', $attendance['status']);
 
         $adjustment = $this->pdo->query(
@@ -51,8 +50,8 @@ final class AttendanceAdjustmentServiceTest extends IntegrationTestCase
         $this->assertNull($adjustment['old_time_in']);
         $this->assertSame('07:10:00', $adjustment['new_time_in']);
         $this->assertSame(0, (int) $adjustment['old_overtime_minutes']);
-        $this->assertSame(60, (int) $adjustment['new_overtime_minutes']);
-        $this->assertSame('time_and_overtime', $adjustment['adjustment_type']);
+        $this->assertSame(0, (int) $adjustment['new_overtime_minutes']);
+        $this->assertSame('time_correction', $adjustment['adjustment_type']);
 
         $audit = $this->pdo->query(
             "SELECT event_type FROM audit_logs WHERE event_type = 'attendance_adjusted' ORDER BY log_id DESC LIMIT 1"
@@ -74,7 +73,6 @@ final class AttendanceAdjustmentServiceTest extends IntegrationTestCase
         $this->service->adjust($attendanceId, [
             'time_in' => '07:00',
             'time_out' => '16:00',
-            'manual_overtime_minutes' => '',
             'reason' => 'Late biometric synchronization.',
         ], $userId);
     }

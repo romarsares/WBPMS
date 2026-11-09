@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use PDO;
 use RuntimeException;
+use Wbpms\Domain\Payroll\ApprovedOvertimeCalculator;
 use Wbpms\Infrastructure\Database\Connection;
 
 /**
@@ -20,7 +21,12 @@ use Wbpms\Infrastructure\Database\Connection;
  */
 final class AttendanceAdjustmentService
 {
-    public function __construct(private Connection $connection) {}
+    private ApprovedOvertimeCalculator $approvedOvertimeCalculator;
+
+    public function __construct(private Connection $connection)
+    {
+        $this->approvedOvertimeCalculator = new ApprovedOvertimeCalculator();
+    }
 
     /** @return array<string, mixed> */
     public function findForAdjustment(int $attendanceId): array
@@ -50,7 +56,7 @@ final class AttendanceAdjustmentService
     }
 
     /**
-     * @param array{time_in:string,time_out:string,manual_overtime_minutes:string,reason:string} $input
+     * @param array{time_in:string,time_out:string,reason:string} $input
      */
     public function adjust(int $attendanceId, array $input, int $actingUserId): void
     {
@@ -69,10 +75,8 @@ final class AttendanceAdjustmentService
             throw new RuntimeException('Time in and time out are both required to resolve attendance.');
         }
 
-        $manualOvertime = $this->normaliseManualOvertime($input['manual_overtime_minutes']);
-
         $this->connection->transaction(function (PDO $pdo) use (
-            $attendanceId, $actingUserId, $reason, $timeIn, $timeOut, $manualOvertime
+            $attendanceId, $actingUserId, $reason, $timeIn, $timeOut
         ): void {
             $attendance = $this->findForUpdate($pdo, $attendanceId);
             if ($this->hasApprovedPayroll($pdo, (int) $attendance['employee_id'], (string) $attendance['attendance_date'])) {
@@ -80,7 +84,13 @@ final class AttendanceAdjustmentService
             }
 
             [$worked, $late, $undertime, $calculatedOvertime] = $this->calculateMinutes($attendance, $timeIn, $timeOut);
-            $overtime = $manualOvertime ?? $calculatedOvertime;
+            $overtime = $this->approvedOvertimeMinutes(
+                $pdo,
+                (int) $attendance['employee_id'],
+                (string) $attendance['attendance_date'],
+                $calculatedOvertime,
+                $timeOut,
+            );
 
             if (!(bool) $attendance['overtime_allowed'] && $overtime > 0) {
                 throw new RuntimeException('This work schedule does not allow overtime.');
@@ -92,8 +102,7 @@ final class AttendanceAdjustmentService
                 throw new RuntimeException('No attendance values were changed.');
             }
 
-            $type = $timeChanged && $overtimeChanged ? 'time_and_overtime'
-                : ($timeChanged ? 'time_correction' : 'manual_overtime');
+            $type = $timeChanged ? 'time_correction' : 'overtime_recalculated';
             $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
 
             $pdo->prepare(
@@ -235,15 +244,31 @@ final class AttendanceAdjustmentService
         return strlen($value) === 5 ? $value . ':00' : $value;
     }
 
-    private function normaliseManualOvertime(string $value): ?int
+    /** Overtime is retained only when an approved request overlaps actual work. */
+    private function approvedOvertimeMinutes(PDO $pdo, int $employeeId, string $attendanceDate, int $recordedMinutes, string $timeOut): int
     {
-        $value = trim($value);
-        if ($value === '') {
-            return null;
+        if ($recordedMinutes <= 0) {
+            return 0;
         }
-        if (!ctype_digit($value) || (int) $value > 1440) {
-            throw new RuntimeException('Manual overtime must be a whole number from 0 to 1,440 minutes.');
-        }
-        return (int) $value;
+
+        $stmt = $pdo->prepare(
+            "SELECT ord.start_time, ord.end_time
+               FROM request r
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+               JOIN overtime_request_detail ord ON ord.request_id = r.request_id
+              WHERE r.employee_id = :employee_id
+                AND rt.type_name = 'Overtime'
+                AND r.status = 'Approved'
+                AND ord.overtime_date = :attendance_date
+              ORDER BY ord.start_time"
+        );
+        $stmt->execute([
+            ':employee_id' => $employeeId,
+            ':attendance_date' => $attendanceDate,
+        ]);
+
+        /** @var list<array{start_time:string,end_time:string}> $requests */
+        $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $this->approvedOvertimeCalculator->payableMinutes($recordedMinutes, $timeOut, $requests);
     }
 }

@@ -13,6 +13,7 @@ use Wbpms\Application\Attendance\AttendancePunchMatch;
 use Wbpms\Domain\Attendance\GeneratedAttendance;
 use Wbpms\Domain\Attendance\WorkSchedule;
 use Wbpms\Domain\Attendance\Parsing\ParsedPunch;
+use Wbpms\Domain\Payroll\ApprovedOvertimeCalculator;
 use Wbpms\Infrastructure\Database\Connection;
 
 /**
@@ -26,12 +27,14 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
 {
     private PDO $pdo;
     private Connection $connection;
+    private ApprovedOvertimeCalculator $approvedOvertimeCalculator;
 
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
         // Wrap PDO in Connection so we can delegate transaction()
         $this->connection = new Connection([], $pdo);
+        $this->approvedOvertimeCalculator = new ApprovedOvertimeCalculator();
     }
 
     // -----------------------------------------------------------------------
@@ -393,6 +396,12 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
         $now      = $this->utcNow();
         $timeIn   = $attendance->timeIn  ? $attendance->timeIn->format('H:i:s')  : null;
         $timeOut  = $attendance->timeOut ? $attendance->timeOut->format('H:i:s') : null;
+        $overtime = $this->approvedOvertimeMinutes(
+            $attendance->employeeId,
+            $attendance->attendanceDate,
+            $attendance->overtimeMinutes,
+            $timeOut,
+        );
 
         // Determine status from flags
         $status = 'Complete';
@@ -510,7 +519,7 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
                         ':worked'     => $attendance->workedMinutes,
                         ':late'       => $attendance->lateMinutes,
                         ':undertime'  => $attendance->undertimeMinutes,
-                        ':overtime'   => $attendance->overtimeMinutes,
+                        ':overtime'   => $overtime,
                         ':status'     => $status,
                         ':batch_id'   => $batchId,
                         ':updated_at' => $now,
@@ -549,7 +558,7 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
             ':worked'     => $attendance->workedMinutes,
             ':late'       => $attendance->lateMinutes,
             ':undertime'  => $attendance->undertimeMinutes,
-            ':overtime'   => $attendance->overtimeMinutes,
+            ':overtime'   => $overtime,
             ':status'     => $status,
             ':batch_id'   => $batchId,
             ':created_at' => $now,
@@ -560,6 +569,37 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
+
+    /**
+     * Attendance records only retain overtime that an approved request
+     * authorizes and that overlaps the employee's actual overtime window.
+     */
+    private function approvedOvertimeMinutes(int $employeeId, string $attendanceDate, int $recordedMinutes, ?string $timeOut): int
+    {
+        if ($recordedMinutes <= 0 || $timeOut === null) {
+            return 0;
+        }
+
+        $stmt = $this->pdo->prepare(
+            "SELECT ord.start_time, ord.end_time
+               FROM request r
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+               JOIN overtime_request_detail ord ON ord.request_id = r.request_id
+              WHERE r.employee_id = :employee_id
+                AND rt.type_name = 'Overtime'
+                AND r.status = 'Approved'
+                AND ord.overtime_date = :attendance_date
+              ORDER BY ord.start_time"
+        );
+        $stmt->execute([
+            ':employee_id' => $employeeId,
+            ':attendance_date' => $attendanceDate,
+        ]);
+
+        /** @var list<array{start_time:string,end_time:string}> $requests */
+        $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $this->approvedOvertimeCalculator->payableMinutes($recordedMinutes, $timeOut, $requests);
+    }
 
     private function utcNow(): string
     {

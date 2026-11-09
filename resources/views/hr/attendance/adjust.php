@@ -14,7 +14,7 @@ $timeValue = static fn (?string $time): string => $time === null ? '' : substr($
 <div class="page-header">
     <div>
         <h1>Adjust Attendance</h1>
-        <p>Correct a biometric exception or enter approved manual overtime. The original punches remain unchanged.</p>
+        <p>Correct a biometric exception. The original punches remain unchanged.</p>
     </div>
     <a href="<?= $base ?>/hr/attendance" class="btn btn-secondary">← Back to Attendance</a>
 </div>
@@ -39,7 +39,7 @@ $timeValue = static fn (?string $time): string => $time === null ? '' : substr($
     <form method="POST" action="<?= $base ?>/hr/attendance/<?= (int) $attendance['attendance_id'] ?>/adjust">
         <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
 
-        <p style="margin-top:0;color:#6b7280;font-size:.9rem">Enter both times to resolve an incomplete record. Worked, late, undertime, and standard overtime are recalculated from the assigned schedule.</p>
+        <p style="margin-top:0;color:#6b7280;font-size:.9rem">Enter both times to resolve an incomplete record. Worked, late, and undertime are recalculated from the assigned schedule. Overtime is recorded only when an approved overtime request overlaps the actual overtime window.</p>
         <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem">
             <div>
                 <label for="time_in">Time in</label>
@@ -52,15 +52,8 @@ $timeValue = static fn (?string $time): string => $time === null ? '' : substr($
         </div>
 
         <div style="margin-top:1rem">
-            <label for="manual_overtime_minutes">Manual overtime minutes <small style="font-weight:normal;color:#6b7280">(optional override)</small></label>
-            <input id="manual_overtime_minutes" name="manual_overtime_minutes" type="number" min="0" max="1440" step="1"
-                   value="<?= Formatter::escape($value('manual_overtime_minutes')) ?>" style="max-width:240px">
-            <small style="display:block;color:#6b7280;margin-top:.3rem">Leave blank to use the overtime calculated from time in/out. Enter 0 to explicitly remove overtime.</small>
-        </div>
-
-        <div style="margin-top:1rem">
             <label for="reason">Reason and supporting reference</label>
-            <textarea id="reason" name="reason" required maxlength="1000" rows="4" placeholder="e.g. Supervisor-approved overtime, gate log reference, or missed biometric punch."><?= Formatter::escape($value('reason')) ?></textarea>
+            <textarea id="reason" name="reason" required maxlength="1000" rows="4" placeholder="e.g. Gate log reference or missed biometric punch."><?= Formatter::escape($value('reason')) ?></textarea>
         </div>
 
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:.75rem 1rem;margin:1rem 0;color:#92400e;font-size:.875rem">
