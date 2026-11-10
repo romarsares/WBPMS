@@ -90,18 +90,23 @@ $statusLabel = $statusLabels[$status] ?? $status;
             </tr>
             <?php endif; ?>
 
-            <?php if ($typeName === 'Overtime' && isset($request['overtime_date'])): ?>
+            <?php if ($typeName === 'Overtime' && isset($request['date_from'])): ?>
             <tr><td colspan="2"><hr style="border:0;border-top:1px solid #f3f4f6;margin:.4rem 0"></td></tr>
             <tr>
-                <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">OT date</th>
-                <td style="padding:.4rem 0"><?= Formatter::date($request['overtime_date']) ?></td>
+                <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">OT period</th>
+                <td style="padding:.4rem 0">
+                    <?= Formatter::date($request['date_from']) ?>
+                    <?php if ($request['date_from'] !== $request['date_to']): ?>
+                        → <?= Formatter::date($request['date_to']) ?>
+                    <?php endif; ?>
+                </td>
             </tr>
             <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Time</th>
                 <td style="padding:.4rem 0">
                     <?= Formatter::escape((string) $request['overtime_start_time']) ?>
                     → <?= Formatter::escape((string) $request['overtime_end_time']) ?>
-                    (<?= (int) ($request['requested_minutes'] ?? 0) ?> min)
+                    (<?= (int) ($request['requested_minutes'] ?? 0) ?> min/day)
                 </td>
             </tr>
             <?php endif; ?>

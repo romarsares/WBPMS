@@ -268,11 +268,11 @@ final class AttendanceAdjustmentService
               WHERE r.employee_id = :employee_id
                 AND rt.type_name = 'Overtime'
                 AND r.status = 'Approved'
-                AND ord.overtime_date = :attendance_date
+                AND :attendance_date BETWEEN ord.date_from AND ord.date_to
               ORDER BY ord.start_time"
         );
         $stmt->execute([
-            ':employee_id' => $employeeId,
+            ':employee_id'     => $employeeId,
             ':attendance_date' => $attendanceDate,
         ]);
 

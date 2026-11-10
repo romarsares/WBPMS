@@ -43,6 +43,106 @@ $paginationBase = $base . '/hr/audit?' . ($filterQuery !== '' ? $filterQuery . '
 
 // Row offset for page-aware numbering (page 1 = rows 1–50, page 2 = rows 51–100, etc.)
 $rowOffset = ($page - 1) * ($pageSize ?? 50);
+
+/**
+ * Render an audit description as a human-readable sentence or structured
+ * summary, depending on the event_type of the row.
+ *
+ * @param string $eventType  The event_type column value
+ * @param string|null $raw   The description column value (JSON or plain text)
+ */
+$fmtDesc = static function (string $eventType, ?string $raw): string {
+    $e  = static fn(?string $v): string => Formatter::escape((string) $v);
+    $t  = static fn(?string $v): string => $v !== null ? substr((string) $v, 0, 5) : '—'; // HH:MM from HH:MM:SS
+    $nil = '<span style="color:#9ca3af">—</span>';
+
+    // --- attendance_adjusted -------------------------------------------
+    // Raw is JSON: {"attendance_date":"…","reason":"…","old":{…},"new":{…}}
+    if ($eventType === 'attendance_adjusted') {
+        $d = json_decode((string) $raw, true);
+        if (!is_array($d)) {
+            return $e($raw);
+        }
+        $date   = $e($d['attendance_date'] ?? null);
+        $reason = $e($d['reason'] ?? null);
+        $old    = is_array($d['old'] ?? null) ? $d['old'] : [];
+        $new    = is_array($d['new'] ?? null) ? $d['new'] : [];
+
+        $oldIn  = $t($old['time_in']  ?? null);
+        $oldOut = $t($old['time_out'] ?? null) ?: '—';
+        $newIn  = $t($new['time_in']  ?? null);
+        $newOut = $t($new['time_out'] ?? null) ?: '—';
+        $oldOt  = isset($old['overtime_minutes']) ? (int) $old['overtime_minutes'] . ' min OT' : '';
+        $newOt  = isset($new['overtime_minutes']) ? (int) $new['overtime_minutes'] . ' min OT' : '';
+
+        $lines = [
+            'Attendance for <strong>' . $date . '</strong> adjusted.',
+            'Reason: ' . $reason,
+            'Before: ' . $e($oldIn) . ' – ' . $e($oldOut) . ($oldOt !== '' ? ', ' . $e($oldOt) : ''),
+            'After: '  . $e($newIn) . ' – ' . $e($newOut) . ($newOt !== '' ? ', ' . $e($newOt) : ''),
+        ];
+        return implode('<br>', $lines);
+    }
+
+    // --- payroll_adjusted ----------------------------------------------
+    // Raw is JSON: {"type":"…","amount":"…","reason":"…"}
+    if ($eventType === 'payroll_adjusted') {
+        $d = json_decode((string) $raw, true);
+        if (!is_array($d)) {
+            return $e($raw);
+        }
+        $kind   = $e($d['type']   ?? 'adjustment');
+        $amount = $e($d['amount'] ?? '');
+        $reason = $e($d['reason'] ?? '');
+        return 'Manual ' . $kind . ' of ₱' . $amount . ' added.'
+             . ($reason !== '' ? ' Reason: ' . $reason : '');
+    }
+
+    // --- payroll_cancelled ---------------------------------------------
+    // Raw is JSON: {"previous_status":"…","reason":"…"}
+    if ($eventType === 'payroll_cancelled') {
+        $d = json_decode((string) $raw, true);
+        if (!is_array($d)) {
+            return $e($raw);
+        }
+        $prev   = $e($d['previous_status'] ?? '');
+        $reason = $e($d['reason'] ?? '');
+        return 'Payroll run cancelled'
+             . ($prev !== '' ? ' (was ' . $prev . ')' : '') . '.'
+             . ($reason !== '' ? ' Reason: ' . $reason : '');
+    }
+
+    // --- document events -----------------------------------------------
+    // Raw is JSON: {"employee_id":N,"document_id":N,"description":"…"}
+    if (in_array($eventType, ['upload_document', 'replace_document', 'verify_document', 'archive_document'], true)) {
+        $d = json_decode((string) $raw, true);
+        if (!is_array($d)) {
+            return $e($raw);
+        }
+        $desc   = $e($d['description'] ?? null);
+        $empId  = isset($d['employee_id'])  ? '#' . (int) $d['employee_id']  : '';
+        $docId  = isset($d['document_id'])  ? '#' . (int) $d['document_id']  : '';
+        $prefix = match ($eventType) {
+            'upload_document'  => 'Document uploaded',
+            'replace_document' => 'Document replaced',
+            'verify_document'  => 'Document verified',
+            'archive_document' => 'Document archived',
+            default            => $desc,
+        };
+        return $prefix . ($docId !== '' ? ' (doc ' . $docId . ')' : '')
+             . ($empId !== '' ? ' for employee ' . $empId : '')
+             . ($desc !== '' && !str_starts_with($eventType, 'verify') && !str_starts_with($eventType, 'archive')
+                ? ': ' . $desc : '');
+    }
+
+    // --- plain-text descriptions ---------------------------------------
+    // All remaining event types use a simple human-readable string already.
+    // Just escape and return; it's already a full sentence.
+    if ($raw === null || $raw === '') {
+        return $nil;
+    }
+    return $e($raw);
+};
 ?>
 
 <div class="page-header">
@@ -208,7 +308,7 @@ $rowOffset = ($page - 1) * ($pageSize ?? 50);
                             <?= $row['record_id'] !== null ? (int) $row['record_id'] : '—' ?>
                         </td>
                         <td style="font-size:.8rem;color:#374151;word-break:break-word;white-space:normal">
-                            <?= Formatter::escape((string) ($row['description'] ?? '')) ?>
+                            <?= $fmtDesc((string) ($row['event_type'] ?? ''), isset($row['description']) ? (string) $row['description'] : null) ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

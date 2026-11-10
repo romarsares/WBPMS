@@ -55,7 +55,9 @@ final class RequestService
      * Submit a new request.
      *
      * Leave requests require start_date, end_date (YYYY-MM-DD).
-     * Overtime requests require overtime_date, start_time, end_time (HH:MM).
+     * Overtime requests require date_from, date_to (YYYY-MM-DD), start_time, end_time (HH:MM).
+     *   date_from / date_to define the range of days; start_time / end_time apply to every
+     *   day in that range (same window each day).
      * Cash advance requests require amount_requested (numeric string > 0).
      *
      * @param array{
@@ -63,14 +65,15 @@ final class RequestService
      *   reason:            string,
      *   start_date?:       string,
      *   end_date?:         string,
-     *   overtime_date?:    string,
+     *   date_from?:        string,
+     *   date_to?:          string,
      *   start_time?:       string,
      *   end_time?:         string,
      *   amount_requested?: string,
      * } $data
      * @throws RuntimeException on validation failure or insufficient leave balance
      */
-    public function submit(int $employeeId, array $data): int
+    public function submit(int $employeeId, array $data, int $actingUserId = 0): int
     {
         $typeId = (int) ($data['request_type_id'] ?? 0);
         $reason = trim($data['reason'] ?? '');
@@ -110,12 +113,19 @@ final class RequestService
         }
 
         if ($typeName === 'Overtime') {
-            $overtimeDate = trim($data['overtime_date'] ?? '');
-            $startTime    = trim($data['start_time']    ?? '');
-            $endTime      = trim($data['end_time']      ?? '');
+            $dateFrom  = trim($data['date_from']   ?? '');
+            $dateTo    = trim($data['date_to']     ?? '');
+            $startTime = trim($data['start_time']  ?? '');
+            $endTime   = trim($data['end_time']    ?? '');
 
-            if ($overtimeDate === '' || !$this->isValidDate($overtimeDate)) {
-                throw new RuntimeException('Overtime date is required (YYYY-MM-DD).');
+            if ($dateFrom === '' || !$this->isValidDate($dateFrom)) {
+                throw new RuntimeException('Overtime start date (From) is required (YYYY-MM-DD).');
+            }
+            if ($dateTo === '' || !$this->isValidDate($dateTo)) {
+                throw new RuntimeException('Overtime end date (To) is required (YYYY-MM-DD).');
+            }
+            if ($dateTo < $dateFrom) {
+                throw new RuntimeException('Overtime end date must be on or after the start date.');
             }
             if ($startTime === '' || !$this->isValidTime($startTime)) {
                 throw new RuntimeException('Overtime start time is required (HH:MM).');
@@ -123,7 +133,7 @@ final class RequestService
             if ($endTime === '' || !$this->isValidTime($endTime)) {
                 throw new RuntimeException('Overtime end time is required (HH:MM).');
             }
-            if ($endTime <= $startTime) {
+            if ($endTime <= $startTime && $dateTo === $dateFrom) {
                 throw new RuntimeException('Overtime end time must be after start time.');
             }
         }
@@ -133,12 +143,15 @@ final class RequestService
             if ($amount === '' || !is_numeric($amount) || (float) $amount <= 0) {
                 throw new RuntimeException('Cash advance amount must be a positive number.');
             }
+            if ((float) $amount > 2000.00) {
+                throw new RuntimeException('Cash advance amount cannot exceed ₱2,000.00.');
+            }
         }
 
         // --- Persist (header + detail in one transaction) --------------------
 
         return $this->connection->transaction(function (PDO $pdo) use (
-            $employeeId, $typeId, $typeName, $reason, $data
+            $employeeId, $typeId, $typeName, $reason, $data, $actingUserId
         ): int {
             $stmt = $pdo->prepare(
                 "INSERT INTO request
@@ -173,21 +186,22 @@ final class RequestService
             }
 
             if ($typeName === 'Overtime') {
-                $startTime    = $data['start_time'];
-                $endTime      = $data['end_time'];
-                $minutes      = $this->calcMinutes($startTime, $endTime);
+                $startTime = $data['start_time'];
+                $endTime   = $data['end_time'];
+                $minutes   = $this->calcMinutes($startTime, $endTime);
 
                 $pdo->prepare(
                     "INSERT INTO overtime_request_detail
-                        (request_id, overtime_date, start_time, end_time, requested_minutes)
+                        (request_id, date_from, date_to, start_time, end_time, requested_minutes)
                      VALUES
-                        (:rid, :date, :start, :end, :mins)"
+                        (:rid, :date_from, :date_to, :start, :end, :mins)"
                 )->execute([
-                    ':rid'   => $requestId,
-                    ':date'  => $data['overtime_date'],
-                    ':start' => $startTime . ':00',
-                    ':end'   => $endTime . ':00',
-                    ':mins'  => $minutes,
+                    ':rid'       => $requestId,
+                    ':date_from' => $data['date_from'],
+                    ':date_to'   => $data['date_to'],
+                    ':start'     => $startTime . ':00',
+                    ':end'       => $endTime . ':00',
+                    ':mins'      => $minutes,
                 ]);
             }
 
@@ -211,7 +225,7 @@ final class RequestService
                     (:user_id, 'request_submitted', 'submit_request', 'request', :record_id,
                      :description, NOW(), NOW())"
             )->execute([
-                ':user_id'     => $employeeId,
+                ':user_id'     => $actingUserId > 0 ? $actingUserId : null,
                 ':record_id'   => $requestId,
                 ':description' => "Employee {$employeeId} submitted a {$typeName} request (request_id={$requestId}).",
             ]);
@@ -225,7 +239,7 @@ final class RequestService
      *
      * @throws RuntimeException when request not found, not owned by employee, or not cancellable
      */
-    public function cancel(int $requestId, int $employeeId): void
+    public function cancel(int $requestId, int $employeeId, int $actingUserId = 0): void
     {
         $row = $this->findOrFail($requestId);
 
@@ -236,7 +250,7 @@ final class RequestService
             throw new RuntimeException('Only Pending or Returned requests can be cancelled.');
         }
 
-        $this->connection->transaction(function (PDO $pdo) use ($requestId, $employeeId): void {
+        $this->connection->transaction(function (PDO $pdo) use ($requestId, $employeeId, $actingUserId): void {
             $pdo->prepare(
                 "UPDATE request SET status = 'Cancelled', updated_at = NOW() WHERE request_id = :id"
             )->execute([':id' => $requestId]);
@@ -249,7 +263,7 @@ final class RequestService
                     (:user_id, 'request_cancelled', 'cancel_request', 'request', :record_id,
                      :description, NOW(), NOW())"
             )->execute([
-                ':user_id'     => $employeeId,
+                ':user_id'     => $actingUserId > 0 ? $actingUserId : null,
                 ':record_id'   => $requestId,
                 ':description' => "Employee {$employeeId} cancelled request {$requestId}.",
             ]);
@@ -342,7 +356,8 @@ final class RequestService
                     lrd.end_date,
                     lrd.days_requested,
                     -- Overtime detail
-                    ord2.overtime_date,
+                    ord2.date_from,
+                    ord2.date_to,
                     ord2.start_time   AS overtime_start_time,
                     ord2.end_time     AS overtime_end_time,
                     ord2.requested_minutes,
@@ -462,13 +477,20 @@ final class RequestService
             }
 
             if ($row['type_name'] === 'Overtime') {
-                $this->synchroniseApprovedOvertime(
-                    $pdo,
-                    (int) $row['employee_id'],
-                    (string) $row['overtime_date'],
-                    $actingUserId,
-                    $requestId,
-                );
+                // Synchronise overtime on every date in the approved range.
+                $dateFrom = new \DateTimeImmutable((string) $row['date_from']);
+                $dateTo   = new \DateTimeImmutable((string) $row['date_to']);
+                $current  = $dateFrom;
+                while ($current <= $dateTo) {
+                    $this->synchroniseApprovedOvertime(
+                        $pdo,
+                        (int) $row['employee_id'],
+                        $current->format('Y-m-d'),
+                        $actingUserId,
+                        $requestId,
+                    );
+                    $current = $current->modify('+1 day');
+                }
             }
 
             $pdo->prepare(
@@ -535,11 +557,11 @@ final class RequestService
               WHERE r.employee_id = :employee_id
                 AND rt.type_name = 'Overtime'
                 AND r.status = 'Approved'
-                AND ord.overtime_date = :attendance_date
+                AND :attendance_date BETWEEN ord.date_from AND ord.date_to
               ORDER BY ord.start_time"
         );
         $requestsStmt->execute([
-            ':employee_id' => $employeeId,
+            ':employee_id'    => $employeeId,
             ':attendance_date' => $attendanceDate,
         ]);
         /** @var list<array{start_time:string,end_time:string}> $requests */
@@ -1211,7 +1233,12 @@ final class RequestService
     {
         [$h1, $m1] = array_map('intval', explode(':', $startTime));
         [$h2, $m2] = array_map('intval', explode(':', $endTime));
-        return max(0, ($h2 * 60 + $m2) - ($h1 * 60 + $m1));
+        $diff = ($h2 * 60 + $m2) - ($h1 * 60 + $m1);
+        // Handle overnight shifts (e.g. 20:00 → 00:00 spanning midnight).
+        if ($diff <= 0) {
+            $diff += 1440; // add 24 hours
+        }
+        return $diff;
     }
 
     private function isValidDate(string $date): bool
