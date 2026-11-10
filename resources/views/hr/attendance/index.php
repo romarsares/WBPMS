@@ -388,8 +388,10 @@ $cellStyles = [
                         // Completed scheduled workdays are handled above as attendance,
                         // leave, absence, a draft upload, or missing upload coverage.
                         if ($date >= $today) {
-                            $exemptLabel = $date === $today ? 'TODAY' : 'FUTURE';
-                            $exemptTitle = 'Attendance validation is available after the workday is completed.';
+                            $exemptLabel = $date === $today ? 'PENDING TODAY' : 'NOT YET DUE';
+                            $exemptTitle = $date === $today
+                                ? 'Today is still in progress. Attendance can be reviewed after the workday ends.'
+                                : 'This workday has not happened yet.';
                         } elseif ($date < (string) $employee['hire_date']) {
                             $exemptLabel = 'PRE-HIRE';
                             $exemptTitle = 'This date is before the employee\'s hire date.';
