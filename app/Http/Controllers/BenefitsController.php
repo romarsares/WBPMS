@@ -16,6 +16,7 @@ use Wbpms\Infrastructure\Database\Connection;
  * Routes (all require HRHead role):
  *   GET  /hr/benefits                               → index()         — overview
  *   GET  /hr/benefits/policies                      → policies()      — policy versions list
+ *   GET  /hr/benefits/policies/{id}                 → showPolicy()    — statutory tables
  *   POST /hr/benefits/policies/{id}/approve         → approvePolicy() — approve a Draft policy
  *
  * REQ058–REQ062.
@@ -158,6 +159,77 @@ final class BenefitsController
         ViewRenderer::render('hr/benefits/policies', [
             'policies' => $policies,
         ], 'Contribution Policies');
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /hr/benefits/policies/{id} — effective statutory tables
+    // -----------------------------------------------------------------------
+
+    /** @param array<string, string> $params */
+    public function showPolicy(array $params = []): void
+    {
+        $id  = (int) ($params['id'] ?? 0);
+        $pdo = $this->makeConnection()->pdo();
+
+        $policyStmt = $pdo->prepare(
+            "SELECT contribution_policy_id, policy_code, version, effective_from,
+                    effective_to, demo_only, status, created_at
+               FROM contribution_policy_version
+              WHERE contribution_policy_id = :id"
+        );
+        $policyStmt->execute([':id' => $id]);
+        $policy = $policyStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($policy === false) {
+            http_response_code(404);
+            ViewRenderer::render('errors/404', [], '404 Not Found');
+            return;
+        }
+
+        $asOf = trim((string) ($_GET['as_of'] ?? date('Y-m-d')));
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $asOf);
+        if ($date === false || $date->format('Y-m-d') !== $asOf) {
+            $asOf = date('Y-m-d');
+        }
+
+        $sssStmt = $pdo->prepare(
+            "SELECT salary_from, salary_to, employee_share, employer_share,
+                    effective_from, effective_to
+               FROM sss_bracket
+              WHERE contribution_policy_id = :id
+                AND effective_from <= :as_of
+                AND (effective_to IS NULL OR effective_to >= :as_of)
+              ORDER BY salary_from ASC"
+        );
+        $sssStmt->execute([':id' => $id, ':as_of' => $asOf]);
+
+        $philhealthStmt = $pdo->prepare(
+            "SELECT rate_decimal, basis_floor, basis_ceiling, employee_share_decimal
+               FROM philhealth_rate
+              WHERE contribution_policy_id = :id
+              LIMIT 1"
+        );
+        $philhealthStmt->execute([':id' => $id]);
+
+        $pagibigStmt = $pdo->prepare(
+            "SELECT rate_decimal, basis_ceiling, employee_fixed_amount, employer_fixed_amount
+               FROM pagibig_rate
+              WHERE contribution_policy_id = :id
+              LIMIT 1"
+        );
+        $pagibigStmt->execute([':id' => $id]);
+
+        $isPolicyEffective = $policy['effective_from'] <= $asOf
+            && ($policy['effective_to'] === null || $policy['effective_to'] >= $asOf);
+
+        ViewRenderer::render('hr/benefits/show-policy', [
+            'policy'              => $policy,
+            'asOf'                => $asOf,
+            'isPolicyEffective'   => $isPolicyEffective,
+            'sssBrackets'         => $sssStmt->fetchAll(PDO::FETCH_ASSOC),
+            'philhealthRate'      => $philhealthStmt->fetch(PDO::FETCH_ASSOC) ?: null,
+            'pagibigRate'         => $pagibigStmt->fetch(PDO::FETCH_ASSOC) ?: null,
+        ], 'Contribution Tables');
     }
 
     // -----------------------------------------------------------------------

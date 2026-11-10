@@ -44,6 +44,7 @@
                 </td>
                 <td style="font-size:.8rem"><?= \Wbpms\Http\View\Formatter::date($p['created_at']) ?></td>
                 <td>
+                    <a class="btn btn-sm btn-secondary" href="<?= $base ?>/hr/benefits/policies/<?= (int)$p['contribution_policy_id'] ?>">View tables</a>
                     <?php if ($p['status'] === 'Draft'): ?>
                     <form method="post" action="<?= $base ?>/hr/benefits/policies/<?= (int)$p['contribution_policy_id'] ?>/approve" style="display:inline">
                         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf) ?>">

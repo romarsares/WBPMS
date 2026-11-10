@@ -207,6 +207,7 @@ $router->add('POST', '/hr/salary/{id}/archive', [SalaryController::class, 'archi
 
 $router->add('GET',  '/hr/benefits',                              [BenefitsController::class, 'index'],         ['HRHead']);
 $router->add('GET',  '/hr/benefits/policies',                     [BenefitsController::class, 'policies'],      ['HRHead']);
+$router->add('GET',  '/hr/benefits/policies/{id}',                [BenefitsController::class, 'showPolicy'],    ['HRHead']);
 $router->add('POST', '/hr/benefits/policies/{id}/approve',        [BenefitsController::class, 'approvePolicy'], ['HRHead']);
 
 // ---------------------------------------------------------------------------
