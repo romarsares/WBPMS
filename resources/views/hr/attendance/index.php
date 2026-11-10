@@ -331,6 +331,7 @@ $cellStyles = [
                         $employeeId = (int) $employee['employee_id'];
                         $cell = $attendanceByEmployeeDate[$employeeId][$date] ?? null;
                         $leave = $approvedLeaves[$employeeId][$date] ?? null;
+                        $hasSchedule = array_key_exists($date, $scheduledWorkingDays[$employeeId] ?? []);
                         $isWorkingDay = ($scheduledWorkingDays[$employeeId][$date] ?? false)
                             && !isset($holidayDates[$date]);
                         $uploadCoverage = $attendanceUploadCoverage[$employeeId][$date] ?? null;
@@ -383,7 +384,27 @@ $cellStyles = [
                             NOT UPLOADED
                         </span>
                         <?php else: ?>
-                        <span style="display:block;min-width:72px;color:#cbd5e1">—</span>
+                        <?php
+                        // Completed scheduled workdays are handled above as attendance,
+                        // leave, absence, a draft upload, or missing upload coverage.
+                        if ($date >= $today) {
+                            $exemptLabel = $date === $today ? 'TODAY' : 'FUTURE';
+                            $exemptTitle = 'Attendance validation is available after the workday is completed.';
+                        } elseif ($date < (string) $employee['hire_date']) {
+                            $exemptLabel = 'PRE-HIRE';
+                            $exemptTitle = 'This date is before the employee\'s hire date.';
+                        } elseif (!$hasSchedule) {
+                            $exemptLabel = 'NO SCHEDULE';
+                            $exemptTitle = 'No effective work schedule is assigned for this date.';
+                        } else {
+                            $exemptLabel = 'REST DAY';
+                            $exemptTitle = 'This date is not a scheduled workday for the employee.';
+                        }
+                        ?>
+                        <span title="<?= Formatter::escape($exemptTitle) ?>"
+                              style="display:block;min-width:72px;padding:8px 3px;color:#94a3b8;font-size:9px;font-weight:700">
+                            <?= Formatter::escape($exemptLabel) ?>
+                        </span>
                         <?php endif; ?>
                     </td>
                     <?php endforeach; ?>
@@ -399,7 +420,7 @@ $cellStyles = [
         </table>
     </div>
     <div style="padding:.75rem 1rem;border-top:1px solid var(--line);font-size:12px;color:#64748b">
-        Click a populated day to review or adjust it. Green = complete, yellow/red = review or absence, blue = draft import, purple = approved leave, orange = holiday, and grey = future/non-working day or missing upload coverage.
+        Click a populated day to review or adjust it. Green = complete, yellow/red = review or absence, blue = draft import, purple = approved leave, orange = holiday. Each remaining cell identifies its exemption: no biometric upload, no schedule, rest day, pre-hire, today, or future.
     </div>
     <?php endif; ?>
 </div>
