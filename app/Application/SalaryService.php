@@ -162,6 +162,17 @@ final class SalaryService
 
         $this->validateInput((int) $existing['employee_id'], $dailyRate, $effectiveFrom);
 
+        // Guard: the new effective_from must be strictly after the record being
+        // closed's own effective_from, otherwise DATE_SUB(effective_from, 1 day)
+        // would produce effective_to <= effective_from and violate chk_salary_period.
+        if ($effectiveFrom <= (string) $existing['effective_from']) {
+            throw new RuntimeException(
+                'Effective date must be after this record\'s start date ('
+                . (string) $existing['effective_from'] . '). '
+                . 'Choose a later date to preserve the salary period integrity.'
+            );
+        }
+
         return $this->connection->transaction(function (PDO $pdo) use (
             $existing, $dailyRate, $effectiveFrom, $actingUserId, $salaryId
         ): int {
