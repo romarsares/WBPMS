@@ -47,19 +47,30 @@ final class EmployeeController
         $statusInUrl = array_key_exists('status', $_GET);
         $status      = $statusInUrl ? (string) ($_GET['status'] ?? '') : 'active';
 
+        $position = trim((string) ($_GET['position'] ?? ''));
+
         $employees = $repo->findAll([
-            'search' => $search,
-            'branch' => $branch,
-            'status' => $status,
+            'search'   => $search,
+            'branch'   => $branch,
+            'status'   => $status,
+            'position' => $position,
         ]);
-        $branches = $repo->activeBranches();
+        $branches  = $repo->activeBranches();
+        $positions = $this->makeConnection()->pdo()->query(
+            "SELECT position_title AS name
+               FROM job_position
+              WHERE status = 'Active'
+              ORDER BY sort_order ASC, position_title ASC"
+        )->fetchAll(\PDO::FETCH_ASSOC);
 
         ViewRenderer::render('hr/employees/index', [
-            'employees'    => $employees,
-            'branches'     => $branches,
-            'search'       => $search,
-            'filterBranch' => $branch,
-            'filterStatus' => $status,
+            'employees'      => $employees,
+            'branches'       => $branches,
+            'positions'      => $positions,
+            'search'         => $search,
+            'filterBranch'   => $branch,
+            'filterStatus'   => $status,
+            'filterPosition' => $position,
         ], 'Employees');
     }
 
@@ -167,12 +178,14 @@ final class EmployeeController
                 }
 
                 // Auto-provision the Employee login account (Requirement 13).
+                // Login credential is the employee's email address (not username).
                 $userService->provisionForEmployee(
                     $pdo,
                     $employeeId,
                     $username,
                     $tempPwd,
-                    $actorId
+                    $actorId,
+                    $data['email']
                 );
 
                 $provisionedUsername = $username;
@@ -195,13 +208,42 @@ final class EmployeeController
             return;
         }
 
-        // Show credentials exactly once — HR must relay these to the employee.
-        // Requirement 13, AC7: display username + temporary password in a
-        // dismissible confirmation screen; do NOT persist the plain password.
-        ViewRenderer::render('hr/employees/created', [
+        // Store credentials in session and redirect (PRG pattern) so a browser
+        // reload does not resubmit the form and attempt to create a duplicate.
+        // Requirement 13, AC7: display email + temporary password exactly once.
+        $_SESSION['_employee_created'] = [
             'employeeName' => trim($data['first_name'] . ' ' . $data['last_name']),
-            'username'     => $provisionedUsername,
+            'accountEmail' => $data['email'],
             'tempPassword' => $tempPwd,
+        ];
+        $this->redirect('/hr/employees/created');
+    }
+
+    /**
+     * GET /hr/employees/created — one-time credential confirmation screen.
+     *
+     * Reads and clears the session stash written by store() so that a browser
+     * reload or back-navigation shows a safe "already shown" message instead
+     * of re-running the POST (PRG pattern, Requirement 13 AC7).
+     *
+     * @param array<string, string> $params
+     */
+    public function created(array $params = []): void
+    {
+        $payload = $_SESSION['_employee_created'] ?? null;
+        unset($_SESSION['_employee_created']);
+
+        if ($payload === null) {
+            // Session data already consumed or user navigated here directly.
+            ViewRenderer::flashError('Employee credentials have already been displayed or the page was reloaded.');
+            $this->redirect('/hr/employees');
+            return;
+        }
+
+        ViewRenderer::render('hr/employees/created', [
+            'employeeName' => (string) $payload['employeeName'],
+            'accountEmail' => (string) $payload['accountEmail'],
+            'tempPassword' => (string) $payload['tempPassword'],
         ], 'Employee Created');
     }
 
@@ -226,6 +268,9 @@ final class EmployeeController
         $branchHistory  = $repo->branchHistory($id);
         $salaryHistory  = $repo->salaryHistory($id);
 
+        // Bank account details
+        $bankDetails = $repo->findBankDetails($id);
+
         // Document count (current only)
         $docCount = (new \Wbpms\Application\EmployeeDocumentService($con))
             ->listForEmployee($id);
@@ -238,6 +283,7 @@ final class EmployeeController
             'employee'        => $employee,
             'branchHistory'   => $branchHistory,
             'salaryHistory'   => $salaryHistory,
+            'bankDetails'     => $bankDetails,
             'currentDocCount' => $currentDocCount,
             'activePage'      => 'employees',
         ], $employee['last_name'] . ', ' . $employee['first_name']);
@@ -256,6 +302,17 @@ final class EmployeeController
         if ($row === null) {
             http_response_code(404);
             ViewRenderer::render('errors/404', [], '404 Not Found');
+            return;
+        }
+
+        // Issue 2.3: Archived employees cannot be edited through the normal
+        // workflow; they must be rehired first. Redirect with a clear message
+        // rather than displaying an editable form that would only fail on save.
+        if (strtolower((string) $row['status']) === 'archived') {
+            ViewRenderer::flashError(
+                'Archived employees cannot be edited. Use the Rehire workflow to restore this employee before making changes.'
+            );
+            $this->redirect('/hr/employees/' . $id);
             return;
         }
 
@@ -322,8 +379,8 @@ final class EmployeeController
         if ($newBranchId <= 0) {
             $errors['branch_id'] = 'Destination branch is required.';
         }
-        if ($transferDate === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $transferDate)) {
-            $errors['transfer_date'] = 'Transfer date is required (YYYY-MM-DD).';
+        if ($transferDate === '' || !$this->isIsoDate($transferDate)) {
+            $errors['transfer_date'] = 'Transfer date is required and must be a valid date (YYYY-MM-DD).';
         }
 
         if ($errors === []) {
@@ -457,6 +514,18 @@ final class EmployeeController
                 $this->redirect('/hr/employees/' . $id);
             } catch (\RuntimeException $e) {
                 $errors['form'] = $e->getMessage();
+            } catch (\PDOException $e) {
+                // Surface database constraint violations (e.g. duplicate branch/schedule
+                // assignment for the same effective date) as a friendly form error
+                // instead of a 500 page.
+                $driverCode = (int) ($e->errorInfo[1] ?? 0);
+                if ($driverCode === 1062) {
+                    $errors['form'] = 'A duplicate assignment record was detected for the selected rehire date. '
+                        . 'This employee may already have a branch, schedule, salary, or biometric record '
+                        . 'starting on that date. Choose a different rehire date or resolve the conflict first.';
+                } else {
+                    $errors['form'] = 'A database error occurred during rehire: ' . $e->getMessage();
+                }
             }
         }
         [$branches, $schedules, $devices, $positions] = $this->dropdownData();
@@ -505,29 +574,78 @@ final class EmployeeController
             return;
         }
 
-        $repo->updateEmployee($id, [
-            'employee_type'     => $data['employee_type'] ?: 'Regular',
-            'first_name'        => $data['first_name'],
-            'middle_initial'    => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
-            'last_name'         => $data['last_name'],
-            'email'             => $data['email']          !== '' ? $data['email']          : null,
-            'contact_number'    => $data['contact_number'] !== '' ? $data['contact_number'] : null,
-            'birthdate'         => $data['birthdate']      !== '' ? $data['birthdate']      : null,
-            'position'          => $data['position']       !== '' ? $data['position']       : null,
-            'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
-            'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
-            'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
-            'sss_number'        => $data['sss_number']        !== '' ? $data['sss_number']        : null,
-            'status'            => ucfirst(strtolower($data['status'] ?? 'active')),
-        ]);
+        $connection = $this->makeConnection();
+        $actorId    = (int) (AuthMiddleware::identity()['user_id'] ?? 0);
 
-        // Salary is effective-dated. Do not create a new row merely because an
-        // employee profile was saved with the unchanged current rate; doing so
-        // can create an invalid zero-length same-day salary period.
-        if ($data['daily_rate'] !== ''
-            && (float) $data['daily_rate'] > 0
-            && abs((float) $data['daily_rate'] - (float) $row['daily_rate']) > 0.00001) {
-            $repo->updateSalary($id, (float) $data['daily_rate']);
+        try {
+            $connection->transaction(function (\PDO $pdo) use (
+                $id, $data, $row, $repo, $connection, $actorId
+            ): void {
+                $repo->updateEmployee($id, [
+                    'employee_type'     => $data['employee_type'] ?: 'Regular',
+                    'first_name'        => $data['first_name'],
+                    'middle_initial'    => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
+                    'last_name'         => $data['last_name'],
+                    'email'             => $data['email']          !== '' ? $data['email']          : null,
+                    'contact_number'    => $data['contact_number'] !== '' ? $data['contact_number'] : null,
+                    'birthdate'         => $data['birthdate']      !== '' ? $data['birthdate']      : null,
+                    'position'          => $data['position']       !== '' ? $data['position']       : null,
+                    'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
+                    'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
+                    'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
+                    'sss_number'        => $data['sss_number']        !== '' ? $data['sss_number']        : null,
+                    'status'            => ucfirst(strtolower($data['status'] ?? 'active')),
+                ]);
+
+                // Salary is effective-dated. Do not create a new row merely because an
+                // employee profile was saved with the unchanged current rate; doing so
+                // can create an invalid zero-length same-day salary period.
+                if ($data['daily_rate'] !== ''
+                    && (float) $data['daily_rate'] > 0
+                    && abs((float) $data['daily_rate'] - (float) $row['daily_rate']) > 0.00001) {
+                    $repo->updateSalary($id, (float) $data['daily_rate']);
+                }
+
+                // Sync employee.email → users.account_email for the linked user account.
+                // When HR changes the employee's email address the linked login account must
+                // reflect that change so the employee can still log in with the new address.
+                // Only runs when (a) an email was supplied, (b) it actually changed, and
+                // (c) the employee has an active or inactive (non-archived) linked account.
+                $newEmail = $data['email'];
+                $oldEmail = (string) ($row['email'] ?? '');
+                if ($newEmail !== '' && $newEmail !== $oldEmail) {
+                    $stmt = $pdo->prepare(
+                        "SELECT user_id FROM users
+                          WHERE employee_id = :emp
+                            AND status != 'Archived'
+                          LIMIT 1"
+                    );
+                    $stmt->execute([':emp' => $id]);
+                    $linkedUserId = $stmt->fetchColumn();
+
+                    if ($linkedUserId !== false) {
+                        (new UserService($connection))->update(
+                            (int) $linkedUserId,
+                            ['account_email' => $newEmail],
+                            $actorId
+                        );
+                    }
+                }
+            });
+        } catch (\RuntimeException $e) {
+            // Surface domain errors (e.g. email already used by another account)
+            // as a field-level form error rather than a fatal crash.
+            [$branches, $schedules, $devices, $positions] = $this->dropdownData();
+            $merged = array_merge($row, $data, ['id' => $id]);
+            ViewRenderer::render('hr/employees/edit', [
+                'employee'  => $merged,
+                'branches'  => $branches,
+                'schedules' => $schedules,
+                'devices'   => $devices,
+                'positions' => $positions,
+                'errors'    => ['email' => $e->getMessage()],
+            ], 'Edit Employee');
+            return;
         }
 
         ViewRenderer::flash('Employee updated successfully.');
@@ -606,6 +724,8 @@ final class EmployeeController
 
         if (!$isEdit && $data['employee_number'] === '') {
             $errors['employee_number'] = 'Employee number is required.';
+        } elseif ($data['employee_number'] !== '' && mb_strlen($data['employee_number']) > 30) {
+            $errors['employee_number'] = 'Employee number must be 30 characters or fewer.';
         }
 
         if (!$isEdit && $data['employee_number'] !== '' && $repo !== null
@@ -618,25 +738,103 @@ final class EmployeeController
             $errors['email'] = 'This email address is already assigned to another employee.';
         }
 
+        if ($data['email'] === '') {
+            $errors['email'] = 'Email address is required.';
+        }
+
+        if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = 'Please enter a valid email address.';
+        }
+
         if ($data['first_name'] === '') {
             $errors['first_name'] = 'First name is required.';
+        } elseif (!preg_match("/^[\p{L}][\p{L} .'\-]{0,48}[\p{L}.]$|^[\p{L}.]$/u", $data['first_name'])) {
+            $errors['first_name'] = 'First name may only contain letters, spaces, hyphens, apostrophes, and periods.';
+        }
+
+        if ($data['middle_name'] !== '' && !preg_match("/^[\p{L}][\p{L} .'\-]{0,48}[\p{L}.]$|^[\p{L}.]$/u", $data['middle_name'])) {
+            $errors['middle_name'] = 'Middle name may only contain letters, spaces, hyphens, apostrophes, and periods.';
         }
 
         if ($data['last_name'] === '') {
             $errors['last_name'] = 'Last name is required.';
+        } elseif (!preg_match("/^[\p{L}][\p{L} .'\-]{0,48}[\p{L}.]$|^[\p{L}.]$/u", $data['last_name'])) {
+            $errors['last_name'] = 'Last name may only contain letters, spaces, hyphens, apostrophes, and periods.';
+        }
+
+        // Birthdate: required, and must be a real calendar date.
+        if ($data['birthdate'] === '') {
+            $errors['birthdate'] = 'Birthdate is required.';
+        } else {
+            $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['birthdate']);
+            if ($parsed === false || $parsed->format('Y-m-d') !== $data['birthdate']) {
+                $errors['birthdate'] = 'Birthdate must be a valid date (YYYY-MM-DD).';
+            }
+        }
+
+        // Contact number: required; Philippine mobile 09XXXXXXXXX (11 digits).
+        if ($data['contact_number'] === '') {
+            $errors['contact_number'] = 'Contact number is required.';
+        } elseif (!preg_match('/^09\d{9}$/', $data['contact_number'])) {
+            $errors['contact_number'] = 'Contact number must be a valid Philippine mobile number starting with 09 and exactly 11 digits (e.g. 09171234567).';
+        }
+
+        // Government IDs: optional, but enforce format and length when provided.
+        // SSS: XX-XXXXXXX-X (10 digits with dashes) or plain 10 digits.
+        if ($data['sss_number'] !== '') {
+            $sssClean = str_replace('-', '', $data['sss_number']);
+            if (!preg_match('/^\d{10}$/', $sssClean) || mb_strlen($data['sss_number']) > 13) {
+                $errors['sss_number'] = 'SSS number must be in XX-XXXXXXX-X format (10 digits).';
+            }
+        }
+        // PhilHealth: 12-digit number.
+        if ($data['philhealth_number'] !== '') {
+            $phClean = str_replace(['-', ' '], '', $data['philhealth_number']);
+            if (!preg_match('/^\d{12}$/', $phClean) || mb_strlen($data['philhealth_number']) > 15) {
+                $errors['philhealth_number'] = 'PhilHealth number must be 12 digits.';
+            }
+        }
+        // Pag-IBIG: 12-digit number.
+        if ($data['pagibig_number'] !== '') {
+            $piClean = str_replace(['-', ' '], '', $data['pagibig_number']);
+            if (!preg_match('/^\d{12}$/', $piClean) || mb_strlen($data['pagibig_number']) > 15) {
+                $errors['pagibig_number'] = 'Pag-IBIG number must be 12 digits.';
+            }
+        }
+        // TIN: 9 or 12 digits, optionally formatted with dashes (XXX-XXX-XXX or XXX-XXX-XXX-XXX).
+        if ($data['tin_number'] !== '') {
+            $tinClean = str_replace('-', '', $data['tin_number']);
+            if (!preg_match('/^\d{9}(\d{3})?$/', $tinClean) || mb_strlen($data['tin_number']) > 16) {
+                $errors['tin_number'] = 'TIN must be 9 or 12 digits (e.g. 123-456-789 or 123-456-789-000).';
+            }
         }
 
         if ($data['position'] === '') {
             $errors['position'] = 'Position is required.';
+        } elseif (mb_strlen($data['position']) > 100) {
+            $errors['position'] = 'Position title must be 100 characters or fewer.';
+        }
+
+        // Employee type: only two valid values.
+        if (!in_array($data['employee_type'], ['Regular', 'Contractual'], true)) {
+            $errors['employee_type'] = 'Employee type must be Regular or Contractual.';
         }
 
         if ($data['daily_rate'] === '' || (float) $data['daily_rate'] <= 0) {
             $errors['daily_rate'] = 'Daily rate is required and must be greater than 0.';
+        } elseif ((float) $data['daily_rate'] > 999999.99) {
+            $errors['daily_rate'] = 'Daily rate cannot exceed ₱999,999.99.';
         }
 
         if (!$isEdit) {
+            // Effective-from must be a real calendar date on create.
             if ($data['effective_from'] === '') {
                 $errors['effective_from'] = 'Effective date is required.';
+            } else {
+                $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['effective_from']);
+                if ($parsed === false || $parsed->format('Y-m-d') !== $data['effective_from']) {
+                    $errors['effective_from'] = 'Effective date must be a valid calendar date (YYYY-MM-DD).';
+                }
             }
             if ($data['branch_id'] === '') {
                 $errors['branch_id'] = 'Branch is required.';
@@ -754,8 +952,125 @@ final class EmployeeController
     private function redirect(string $path): void
     {
         $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        // Flush the session before redirecting so flash messages written to
+        // $_SESSION are committed to the database handler before exit kills
+        // the process. Without this, the custom DatabaseSessionHandler's
+        // write() may not be called in time and the toast never appears.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
         header('Location: ' . $base . $path, true, 302);
         exit;
+    }
+
+    // -----------------------------------------------------------------------
+    // Bank account management
+    // -----------------------------------------------------------------------
+
+    /**
+     * GET /hr/employees/{id}/bank
+     * Show the bank account form for an employee.
+     *
+     * @param array<string, string> $params
+     */
+    public function bankForm(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $repo     = $this->makeRepo();
+        $employee = $repo->findById($id);
+
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $bank = $repo->findBankDetails($id);
+
+        ViewRenderer::render('hr/employees/bank', [
+            'employee' => $employee,
+            'bank'     => $bank,
+            'errors'   => [],
+            'activePage' => 'employees',
+        ], 'Bank Account – ' . $employee['last_name'] . ', ' . $employee['first_name']);
+    }
+
+    /**
+     * POST /hr/employees/{id}/bank
+     * Save (upsert) the bank account for an employee.
+     *
+     * @param array<string, string> $params
+     */
+    public function saveBank(array $params = []): void
+    {
+        $id       = (int) ($params['id'] ?? 0);
+        $repo     = $this->makeRepo();
+        $employee = $repo->findById($id);
+
+        if ($employee === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $data = [
+            'bank_name'      => trim((string) ($_POST['bank_name']      ?? 'BDO')),
+            'account_name'   => trim((string) ($_POST['account_name']   ?? '')),
+            'account_number' => trim((string) ($_POST['account_number'] ?? '')),
+            'account_type'   => trim((string) ($_POST['account_type']   ?? '')),
+            'effective_from' => trim((string) ($_POST['effective_from'] ?? '')),
+        ];
+
+        $errors = [];
+
+        if ($data['bank_name'] === '') {
+            $errors['bank_name'] = 'Bank name is required.';
+        }
+        if ($data['account_name'] === '') {
+            $errors['account_name'] = 'Account name is required.';
+        }
+        if ($data['account_number'] === '') {
+            $errors['account_number'] = 'Account number is required.';
+        } elseif (!preg_match('/^[\d\-\s]+$/', $data['account_number'])) {
+            $errors['account_number'] = 'Account number must contain digits, hyphens, or spaces only.';
+        }
+        if ($data['effective_from'] === '' || !$this->isIsoDate($data['effective_from'])) {
+            $errors['effective_from'] = 'Effective date is required (YYYY-MM-DD).';
+        }
+
+        if ($errors !== []) {
+            $bank = $repo->findBankDetails($id);
+            ViewRenderer::render('hr/employees/bank', [
+                'employee' => $employee,
+                'bank'     => $bank,
+                'errors'   => $errors,
+                'activePage' => 'employees',
+            ], 'Bank Account – ' . $employee['last_name'] . ', ' . $employee['first_name']);
+            return;
+        }
+
+        try {
+            $repo->saveBankDetails($id, $data);
+        } catch (\PDOException $e) {
+            // Catch duplicate-key or other DB constraint violations and surface
+            // them as a user-facing form error instead of a 500 page.
+            $driverCode = (int) ($e->errorInfo[1] ?? 0);
+            if ($driverCode === 1062) {
+                $errorMessage = 'This bank account number is already on record with the same effective date. '
+                    . 'Choose a different effective date or update the existing record.';
+            } else {
+                $errorMessage = 'Could not save bank details: ' . $e->getMessage();
+            }
+            $bank = $repo->findBankDetails($id);
+            ViewRenderer::render('hr/employees/bank', [
+                'employee'   => $employee,
+                'bank'       => $bank,
+                'errors'     => ['bank_name' => $errorMessage],
+                'activePage' => 'employees',
+            ], 'Bank Account – ' . $employee['last_name'] . ', ' . $employee['first_name']);
+            return;
+        }
+
+        ViewRenderer::flash('Bank account details saved successfully.');
+        $this->redirect('/hr/employees/' . $id);
     }
 
     // -----------------------------------------------------------------------

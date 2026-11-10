@@ -24,6 +24,7 @@ use Wbpms\Http\Controllers\EmployeePortalController;
 use Wbpms\Http\Controllers\HealthController;
 use Wbpms\Http\Controllers\OwnerController;
 use Wbpms\Http\Controllers\PayrollController;
+use Wbpms\Http\Controllers\AuditController;
 use Wbpms\Http\Controllers\ReportsController;
 use Wbpms\Http\Controllers\RequestsController;
 use Wbpms\Http\Controllers\SalaryController;
@@ -74,12 +75,14 @@ $router->add('GET', '/owner/dashboard', [DashboardController::class, 'ownerDashb
 // ---------------------------------------------------------------------------
 
 $router->add('GET',  '/users',              [UserController::class, 'index'],         ['BusinessOwner', 'HRHead']);
-$router->add('GET',  '/users/create',       [UserController::class, 'create'],        ['BusinessOwner']);
-$router->add('POST', '/users',              [UserController::class, 'store'],         ['BusinessOwner']);
+$router->add('GET',  '/users/create',       [UserController::class, 'create'],        ['BusinessOwner', 'HRHead']);
+$router->add('POST', '/users',              [UserController::class, 'store'],         ['BusinessOwner', 'HRHead']);
 $router->add('GET',  '/users/{id}/edit',    [UserController::class, 'edit'],          ['BusinessOwner', 'HRHead']);
 $router->add('PUT',  '/users/{id}',         [UserController::class, 'update'],        ['BusinessOwner', 'HRHead']);
-$router->add('POST', '/users/{id}/toggle',  [UserController::class, 'toggle'],        ['BusinessOwner']);
-$router->add('POST', '/users/{id}/archive', [UserController::class, 'archive'],       ['BusinessOwner']);
+$router->add('POST', '/users/{id}/toggle',    [UserController::class, 'toggle'],    ['BusinessOwner', 'HRHead']);
+$router->add('POST', '/users/{id}/archive',   [UserController::class, 'archive'],   ['BusinessOwner', 'HRHead']);
+$router->add('POST', '/users/{id}/unarchive', [UserController::class, 'unarchive'], ['BusinessOwner', 'HRHead']);
+$router->add('POST', '/users/{id}/archive', [UserController::class, 'archive'],       ['BusinessOwner', 'HRHead']);
 $router->add('POST', '/users/{id}/reset-password', [UserController::class, 'resetPassword'], ['BusinessOwner', 'HRHead']);
 
 // ---------------------------------------------------------------------------
@@ -116,6 +119,7 @@ $router->add('GET', '/hr/dashboard', [DashboardController::class, 'hrDashboard']
 
 $router->add('GET',  '/hr/employees',                [EmployeeController::class, 'index'],        ['HRHead']);
 $router->add('GET',  '/hr/employees/new',             [EmployeeController::class, 'create'],       ['HRHead']);
+$router->add('GET',  '/hr/employees/created',         [EmployeeController::class, 'created'],      ['HRHead']);
 $router->add('POST', '/hr/employees',                [EmployeeController::class, 'store'],         ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}/transfer',  [EmployeeController::class, 'transferForm'],  ['HRHead']);
 $router->add('POST', '/hr/employees/{id}/transfer',  [EmployeeController::class, 'transfer'],      ['HRHead']);
@@ -147,8 +151,10 @@ $router->add('GET',  '/hr/schedules/assign',        [ScheduleController::class, 
 $router->add('POST', '/hr/schedules/assign',        [ScheduleController::class, 'assign'],      ['HRHead']);
 // Legacy: /hr/schedules/holidays* redirect to /hr/settings/holidays
 $router->add('GET',  '/hr/schedules/holidays',      [ScheduleController::class, 'redirectHolidays'], ['HRHead']);
-$router->add('GET',  '/hr/schedules/{id}/edit',     [ScheduleController::class, 'editForm'],    ['HRHead']);
-$router->add('PUT',  '/hr/schedules/{id}',          [ScheduleController::class, 'update'],      ['HRHead']);
+$router->add('GET',  '/hr/schedules/{id}/edit',     [ScheduleController::class, 'editForm'],        ['HRHead']);
+$router->add('PUT',  '/hr/schedules/{id}',          [ScheduleController::class, 'update'],          ['HRHead']);
+$router->add('POST', '/hr/schedules/{id}/archive',  [ScheduleController::class, 'archiveSchedule'], ['HRHead']);
+$router->add('POST', '/hr/schedules/{id}/restore',  [ScheduleController::class, 'restoreSchedule'], ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Attendance import  (REQ018–REQ024)
@@ -202,9 +208,8 @@ $router->add('POST', '/hr/salary/{id}/archive', [SalaryController::class, 'archi
 
 $router->add('GET',  '/hr/benefits',                              [BenefitsController::class, 'index'],         ['HRHead']);
 $router->add('GET',  '/hr/benefits/policies',                     [BenefitsController::class, 'policies'],      ['HRHead']);
+$router->add('GET',  '/hr/benefits/policies/{id}',                [BenefitsController::class, 'showPolicy'],    ['HRHead']);
 $router->add('POST', '/hr/benefits/policies/{id}/approve',        [BenefitsController::class, 'approvePolicy'], ['HRHead']);
-$router->add('POST', '/hr/benefits/contributions/{id}/lock',      [BenefitsController::class, 'lockRecord'],    ['HRHead']);
-$router->add('POST', '/hr/benefits/contributions/{id}/unlock',    [BenefitsController::class, 'unlockRecord'],  ['HRHead']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Payroll  (REQ047–REQ052)
@@ -241,6 +246,12 @@ $router->add('GET',  '/hr/reports/payslips', [ReportsController::class, 'payslip
 $router->add('GET',  '/hr/reports/payslips/bulk', [ReportsController::class, 'bulkPrintPayslips'], ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/export', [ReportsController::class, 'export'],   ['HRHead', 'BusinessOwner']);
 $router->add('GET',  '/hr/reports/{type}', [ReportsController::class, 'preview'],  ['HRHead', 'BusinessOwner']);
+
+// ---------------------------------------------------------------------------
+// Audit Trail  (HRHead + BusinessOwner only)
+// ---------------------------------------------------------------------------
+
+$router->add('GET', '/hr/audit', [AuditController::class, 'index'], ['HRHead', 'BusinessOwner']);
 
 // ---------------------------------------------------------------------------
 // HR Head — Settings  (Job Positions · Payroll Periods · Holidays)

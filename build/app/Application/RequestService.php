@@ -127,6 +127,9 @@ final class RequestService
             if ($amount === '' || !is_numeric($amount) || (float) $amount <= 0) {
                 throw new RuntimeException('Cash advance amount must be a positive number.');
             }
+            if ((float) $amount > 2000.00) {
+                throw new RuntimeException('Cash advance amount cannot exceed ₱2,000.00.');
+            }
         }
 
         // --- Persist (header + detail in one transaction) --------------------

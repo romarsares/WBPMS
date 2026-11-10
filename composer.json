@@ -38,7 +38,8 @@
         "sort-packages": true,
         "platform": {
             "php": "8.5.0"
-        }
+        },
+        "platform-check": false
     },
     "minimum-stability": "stable"
 }

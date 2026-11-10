@@ -58,7 +58,7 @@ foreach ($types as $t) {
     </div>
     <?php endif; ?>
 
-    <form method="POST" action="<?= $base ?>/hr/requests" novalidate>
+    <form method="POST" action="<?= $base ?>/hr/requests" novalidate data-validate>
         <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
 
         <!-- ── Employee picker ─────────────────────────────────────────── -->
@@ -69,7 +69,7 @@ foreach ($types as $t) {
             </label>
             <select id="employee_id" name="employee_id"
                     style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['employee_id']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem"
-                    required>
+                    required data-msg-required="Please select an employee.">
                 <option value="">— select employee —</option>
                 <?php foreach ($employees as $emp): ?>
                 <option value="<?= (int) $emp['id'] ?>"
@@ -93,7 +93,7 @@ foreach ($types as $t) {
             </label>
             <select id="request_type_id" name="request_type_id"
                     style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['request_type_id']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem"
-                    required>
+                    required data-msg-required="Please select a request type.">
                 <option value="">— select type —</option>
                 <?php foreach ($types as $t): ?>
                 <option value="<?= (int) $t['request_type_id'] ?>"
@@ -133,24 +133,36 @@ foreach ($types as $t) {
 
         <!-- ── Overtime fields ──────────────────────────────────────────── -->
         <div id="section-overtime" style="display:none">
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:1rem">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
                 <div>
-                    <label for="overtime_date"
+                    <label for="date_from"
                            style="display:block;font-weight:500;font-size:.875rem;margin-bottom:.3rem">
-                        OT date
+                        From date
                     </label>
-                    <input type="date" id="overtime_date" name="overtime_date"
-                           value="<?= $o('overtime_date') ?>"
-                           style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['overtime_date']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
-                    <?= $err('overtime_date') ?>
+                    <input type="date" id="date_from" name="date_from"
+                           value="<?= $o('date_from') ?>"
+                           style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['date_from']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
+                    <?= $err('date_from') ?>
                 </div>
+                <div>
+                    <label for="date_to"
+                           style="display:block;font-weight:500;font-size:.875rem;margin-bottom:.3rem">
+                        To date
+                    </label>
+                    <input type="date" id="date_to" name="date_to"
+                           value="<?= $o('date_to') ?>"
+                           style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['date_to']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
+                    <?= $err('date_to') ?>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem">
                 <div>
                     <label for="start_time"
                            style="display:block;font-weight:500;font-size:.875rem;margin-bottom:.3rem">
                         Start time
                     </label>
-                    <input type="time" id="start_time" name="start_time"
-                           value="<?= $o('start_time') ?>"
+                    <input type="text" id="start_time" name="start_time" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                           value="<?= $o('start_time') ?>" placeholder="HH:MM"
                            style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['start_time']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
                     <?= $err('start_time') ?>
                 </div>
@@ -159,12 +171,13 @@ foreach ($types as $t) {
                            style="display:block;font-weight:500;font-size:.875rem;margin-bottom:.3rem">
                         End time
                     </label>
-                    <input type="time" id="end_time" name="end_time"
-                           value="<?= $o('end_time') ?>"
+                    <input type="text" id="end_time" name="end_time" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                           value="<?= $o('end_time') ?>" placeholder="HH:MM"
                            style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['end_time']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
                     <?= $err('end_time') ?>
                 </div>
             </div>
+            <p class="muted" style="margin:-.5rem 0 1rem;font-size:.8rem">Use 24-hour time (HH:MM), for example 13:30. The same time window applies to every day in the range.</p>
         </div>
 
         <!-- ── Cash advance fields ──────────────────────────────────────── -->
@@ -176,8 +189,9 @@ foreach ($types as $t) {
                 </label>
                 <input type="number" id="amount_requested" name="amount_requested"
                        value="<?= $o('amount_requested') ?>"
-                       min="1" step="0.01"
+                       min="1" max="2000" step="0.01"
                        style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['amount_requested']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
+                <small style="color:#6b7280;font-size:.78rem">Maximum: ₱2,000.00 per request.</small>
                 <?= $err('amount_requested') ?>
             </div>
         </div>
@@ -191,7 +205,7 @@ foreach ($types as $t) {
             <textarea id="reason" name="reason" rows="4"
                       placeholder="Describe the reason for this request..."
                       style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['reason']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem;resize:vertical"
-                      required><?= $o('reason') ?></textarea>
+                      required data-msg-required="Reason is required."><?= $o('reason') ?></textarea>
             <?= $err('reason') ?>
         </div>
 
@@ -207,14 +221,24 @@ foreach ($types as $t) {
     var sel   = document.getElementById('request_type_id');
     var types = <?= json_encode($typeCodeMap, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 
+    function setSection(id, visible) {
+        var section = document.getElementById(id);
+        section.style.display = visible ? '' : 'none';
+        section.querySelectorAll('input, select, textarea').forEach(function (field) {
+            field.disabled = !visible;
+        });
+    }
+
     function update() {
         var code = types[sel.value] || '';
-        document.getElementById('section-leave').style.display        = (code === 'leave')        ? '' : 'none';
-        document.getElementById('section-overtime').style.display     = (code === 'overtime')     ? '' : 'none';
-        document.getElementById('section-cash-advance').style.display = (code === 'cash_advance') ? '' : 'none';
+        setSection('section-leave', code === 'leave');
+        setSection('section-overtime', code === 'overtime');
+        setSection('section-cash-advance', code === 'cash_advance');
     }
 
     sel.addEventListener('change', update);
     update(); // apply on page load when re-rendering with POST data
 }());
 </script>
+
+<script src="<?= $base ?>/assets/inline-validate.js"></script>
