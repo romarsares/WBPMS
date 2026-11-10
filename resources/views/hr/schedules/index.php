@@ -27,6 +27,8 @@ $dayChecked = static function (string $day) use ($input): bool {
 
 $v = static fn(string $key, string $fallback = ''): string =>
     Formatter::escape((string) ($input[$key] ?? $fallback));
+$timeValue = static fn(string $key): string =>
+    Formatter::escape((string) ($input[$key] ?? ''));
 ?>
 
 <div class="page-head">
@@ -92,8 +94,8 @@ $v = static fn(string $key, string $fallback = ''): string =>
                         <td><strong><?= Formatter::escape($s['employee_name'] ?? '—') ?></strong><br>
                             <small class="muted"><?= Formatter::escape($s['employee_number'] ?? '') ?></small></td>
                         <td style="font-size:13px"><?= Formatter::escape($days) ?></td>
-                        <td><?= Formatter::escape($s['time_in'] ?? '—') ?></td>
-                        <td><?= Formatter::escape($s['time_out'] ?? '—') ?></td>
+                        <td><?= Formatter::time($s['time_in'] ?? null) ?></td>
+                        <td><?= Formatter::time($s['time_out'] ?? null) ?></td>
                         <td><?= (int) ($s['break_minutes'] ?? 0) ?>m</td>
                         <td><?= Formatter::date($s['effective_from'] ?? null) ?></td>
                         <td><?= $s['effective_to'] ? Formatter::date($s['effective_to']) : '<span class="muted">current</span>' ?></td>
@@ -152,7 +154,7 @@ $v = static fn(string $key, string $fallback = ''): string =>
                             <strong><?= Formatter::escape($a['employee_name'] ?? '—') ?></strong><br>
                             <small class="muted"><?= Formatter::escape($a['employee_number'] ?? '') ?></small>
                         </td>
-                        <td><?= Formatter::escape($a['time_in'] ?? '—') ?> – <?= Formatter::escape($a['time_out'] ?? '—') ?></td>
+                        <td><?= Formatter::time($a['time_in'] ?? null) ?> – <?= Formatter::time($a['time_out'] ?? null) ?></td>
                         <td><?= Formatter::date($a['effective_from'] ?? null) ?></td>
                         <td><?= $a['effective_to'] ? Formatter::date($a['effective_to']) : '<span class="muted">current</span>' ?></td>
                         <td><span class="badge <?= $badge ?>"><?= Formatter::escape(ucfirst($a['status'])) ?></span></td>
@@ -234,8 +236,8 @@ $v = static fn(string $key, string $fallback = ''): string =>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
                 <div class="form-group">
                     <label for="time_in">Time In <span style="color:#dc2626">*</span></label>
-                    <input type="time" id="time_in" name="time_in"
-                           value="<?= $v('time_in') ?>"
+                    <input type="text" id="time_in" name="time_in" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                           value="<?= $timeValue('time_in') ?>" placeholder="HH:MM"
                            class="<?= isset($errors['time_in']) ? 'is-invalid' : '' ?>" required>
                     <?php if (isset($errors['time_in'])): ?>
                         <small class="field-error"><?= Formatter::escape($errors['time_in']) ?></small>
@@ -243,8 +245,8 @@ $v = static fn(string $key, string $fallback = ''): string =>
                 </div>
                 <div class="form-group">
                     <label for="time_out">Time Out <span style="color:#dc2626">*</span></label>
-                    <input type="time" id="time_out" name="time_out"
-                           value="<?= $v('time_out') ?>"
+                    <input type="text" id="time_out" name="time_out" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                           value="<?= $timeValue('time_out') ?>" placeholder="HH:MM"
                            class="<?= isset($errors['time_out']) ? 'is-invalid' : '' ?>" required>
                     <?php if (isset($errors['time_out'])): ?>
                         <small class="field-error"><?= Formatter::escape($errors['time_out']) ?></small>
@@ -265,17 +267,22 @@ $v = static fn(string $key, string $fallback = ''): string =>
                 </div>
                 <div class="form-group">
                     <label for="break_start">Break Start</label>
-                    <input type="time" id="break_start" name="break_start"
-                           value="<?= $v('break_start') ?>"
-                           placeholder="12:00">
+                    <input type="text" id="break_start" name="break_start" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                           value="<?= $timeValue('break_start') ?>" placeholder="HH:MM">
+                    <?php if (isset($errors['break_start'])): ?>
+                        <small class="field-error"><?= Formatter::escape($errors['break_start']) ?></small>
+                    <?php endif; ?>
                 </div>
                 <div class="form-group">
                     <label for="break_end">Break End</label>
-                    <input type="time" id="break_end" name="break_end"
-                           value="<?= $v('break_end') ?>"
-                           placeholder="13:00">
+                    <input type="text" id="break_end" name="break_end" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                           value="<?= $timeValue('break_end') ?>" placeholder="HH:MM">
+                    <?php if (isset($errors['break_end'])): ?>
+                        <small class="field-error"><?= Formatter::escape($errors['break_end']) ?></small>
+                    <?php endif; ?>
                 </div>
             </div>
+            <p class="muted" style="margin:-.4rem 0 1rem;font-size:.8rem">Use 24-hour time (HH:MM), for example 13:30.</p>
 
             <!-- Grace Period / Overtime -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">

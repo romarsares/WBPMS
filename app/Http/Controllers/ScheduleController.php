@@ -518,13 +518,17 @@ final class ScheduleController
 
         if ($data['time_in'] === '') {
             $errors['time_in'] = 'Time in is required.';
+        } elseif (!$this->isValidTime($data['time_in'])) {
+            $errors['time_in'] = 'Time in must use 24-hour HH:MM format.';
         }
 
         if ($data['time_out'] === '') {
             $errors['time_out'] = 'Time out is required.';
+        } elseif (!$this->isValidTime($data['time_out'])) {
+            $errors['time_out'] = 'Time out must use 24-hour HH:MM format.';
         }
 
-        if ($data['time_in'] !== '' && $data['time_out'] !== '') {
+        if (!isset($errors['time_in'], $errors['time_out'])) {
             // Convert to total minutes for a reliable numeric comparison.
             // This also correctly rejects overnight spans (e.g. 18:00–06:00)
             // where a raw string comparison would pass if time_out < time_in.
@@ -545,7 +549,7 @@ final class ScheduleController
         $breakMin = (int) $data['break_minutes'];
         if ($breakMin < 0 || $breakMin > 480) {
             $errors['break_minutes'] = 'Break time must be between 0 and 480 minutes.';
-        } elseif (!isset($errors['time_out']) && $data['time_in'] !== '' && $data['time_out'] !== '') {
+        } elseif (!isset($errors['time_in'], $errors['time_out'])) {
             // Ensure break doesn't consume the entire shift
             [$h1, $m1] = array_map('intval', explode(':', $data['time_in']));
             [$h2, $m2] = array_map('intval', explode(':', $data['time_out']));
@@ -560,6 +564,12 @@ final class ScheduleController
             $errors['grace_minutes'] = 'Grace period must be between 0 and 120 minutes.';
         }
 
+        foreach (['break_start' => 'Break start', 'break_end' => 'Break end'] as $field => $label) {
+            if ($data[$field] !== '' && !$this->isValidTime($data[$field])) {
+                $errors[$field] = "{$label} must use 24-hour HH:MM format.";
+            }
+        }
+
         // Issue 4.1: effective_from must be a real calendar date — do not silently default to today.
         if ($data['effective_from'] === '') {
             $errors['effective_from'] = 'Effective date is required.';
@@ -571,6 +581,11 @@ final class ScheduleController
         }
 
         return $errors;
+    }
+
+    private function isValidTime(string $time): bool
+    {
+        return (bool) preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $time);
     }
 
     /**

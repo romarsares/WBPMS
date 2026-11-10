@@ -1222,6 +1222,6 @@ final class RequestService
 
     private function isValidTime(string $time): bool
     {
-        return (bool) preg_match('/^\d{2}:\d{2}$/', $time);
+        return (bool) preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $time);
     }
 }

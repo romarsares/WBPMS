@@ -40,8 +40,8 @@ use Wbpms\Http\View\Formatter;
                         <div class="muted"><?= Formatter::escape($s['employee_number']) ?></div>
                     </td>
                     <td style="font-size:13px"><?= Formatter::escape($days) ?></td>
-                    <td><?= Formatter::escape($s['time_in'] ?? '—') ?></td>
-                    <td><?= Formatter::escape($s['time_out'] ?? '—') ?></td>
+                    <td><?= Formatter::time($s['time_in'] ?? null) ?></td>
+                    <td><?= Formatter::time($s['time_out'] ?? null) ?></td>
                     <td><?= (int)$s['break_minutes'] ?>m</td>
                     <td>
                         <?= Formatter::date($s['effective_from']) ?>

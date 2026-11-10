@@ -149,8 +149,8 @@ foreach ($types as $t) {
                            style="display:block;font-weight:500;font-size:.875rem;margin-bottom:.3rem">
                         Start time
                     </label>
-                    <input type="time" id="start_time" name="start_time"
-                           value="<?= $o('start_time') ?>"
+                    <input type="text" id="start_time" name="start_time" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                           value="<?= $o('start_time') ?>" placeholder="HH:MM"
                            style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['start_time']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
                     <?= $err('start_time') ?>
                 </div>
@@ -159,12 +159,13 @@ foreach ($types as $t) {
                            style="display:block;font-weight:500;font-size:.875rem;margin-bottom:.3rem">
                         End time
                     </label>
-                    <input type="time" id="end_time" name="end_time"
-                           value="<?= $o('end_time') ?>"
+                    <input type="text" id="end_time" name="end_time" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                           value="<?= $o('end_time') ?>" placeholder="HH:MM"
                            style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['end_time']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
                     <?= $err('end_time') ?>
                 </div>
             </div>
+            <p class="muted" style="margin:-.5rem 0 1rem;font-size:.8rem">Use 24-hour time (HH:MM), for example 13:30.</p>
         </div>
 
         <!-- ── Cash advance fields ──────────────────────────────────────── -->
@@ -207,11 +208,19 @@ foreach ($types as $t) {
     var sel   = document.getElementById('request_type_id');
     var types = <?= json_encode($typeCodeMap, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
 
+    function setSection(id, visible) {
+        var section = document.getElementById(id);
+        section.style.display = visible ? '' : 'none';
+        section.querySelectorAll('input, select, textarea').forEach(function (field) {
+            field.disabled = !visible;
+        });
+    }
+
     function update() {
         var code = types[sel.value] || '';
-        document.getElementById('section-leave').style.display        = (code === 'leave')        ? '' : 'none';
-        document.getElementById('section-overtime').style.display     = (code === 'overtime')     ? '' : 'none';
-        document.getElementById('section-cash-advance').style.display = (code === 'cash_advance') ? '' : 'none';
+        setSection('section-leave', code === 'leave');
+        setSection('section-overtime', code === 'overtime');
+        setSection('section-cash-advance', code === 'cash_advance');
     }
 
     sel.addEventListener('change', update);

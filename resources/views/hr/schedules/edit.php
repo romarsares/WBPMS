@@ -15,8 +15,8 @@ $schedule = $schedule ?? [];
 
 $allDays  = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-$currentDays = [];
-if (!empty($schedule['working_days'])) {
+$currentDays = is_array($schedule['work_days'] ?? null) ? $schedule['work_days'] : [];
+if ($currentDays === [] && !empty($schedule['working_days'])) {
     $decoded = json_decode((string) $schedule['working_days'], true);
     if (is_array($decoded)) {
         $currentDays = $decoded;
@@ -25,6 +25,17 @@ if (!empty($schedule['working_days'])) {
 
 $v = static fn(string $key, string $fallback = ''): string =>
     Formatter::escape((string) ($schedule[$key] ?? $fallback));
+$timeValue = static function (string $key) use ($schedule): string {
+    $fallbacks = ['break_start_time' => 'break_start', 'break_end_time' => 'break_end'];
+    $value = $schedule[$key] ?? $schedule[$fallbacks[$key] ?? ''] ?? '';
+    $value = (string) $value;
+
+    return Formatter::escape(
+        preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/', $value)
+            ? Formatter::inputTime($value)
+            : $value
+    );
+};
 ?>
 
 <div class="page-head">
@@ -72,8 +83,8 @@ $v = static fn(string $key, string $fallback = ''): string =>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
             <div class="form-group">
                 <label for="time_in">Time In <span style="color:#dc2626">*</span></label>
-                <input type="time" id="time_in" name="time_in"
-                       value="<?= $v('time_in') ?>"
+                <input type="text" id="time_in" name="time_in" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                       value="<?= $timeValue('time_in') ?>" placeholder="HH:MM"
                        class="<?= isset($errors['time_in']) ? 'is-invalid' : '' ?>" required>
                 <?php if (isset($errors['time_in'])): ?>
                     <small class="field-error"><?= Formatter::escape($errors['time_in']) ?></small>
@@ -81,8 +92,8 @@ $v = static fn(string $key, string $fallback = ''): string =>
             </div>
             <div class="form-group">
                 <label for="time_out">Time Out <span style="color:#dc2626">*</span></label>
-                <input type="time" id="time_out" name="time_out"
-                       value="<?= $v('time_out') ?>"
+                <input type="text" id="time_out" name="time_out" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                       value="<?= $timeValue('time_out') ?>" placeholder="HH:MM"
                        class="<?= isset($errors['time_out']) ? 'is-invalid' : '' ?>" required>
                 <?php if (isset($errors['time_out'])): ?>
                     <small class="field-error"><?= Formatter::escape($errors['time_out']) ?></small>
@@ -100,15 +111,22 @@ $v = static fn(string $key, string $fallback = ''): string =>
             </div>
             <div class="form-group">
                 <label for="break_start">Break Start</label>
-                <input type="time" id="break_start" name="break_start"
-                       value="<?= $v('break_start_time') ?>">
+                <input type="text" id="break_start" name="break_start" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                       value="<?= $timeValue('break_start_time') ?>" placeholder="HH:MM">
+                <?php if (isset($errors['break_start'])): ?>
+                    <small class="field-error"><?= Formatter::escape($errors['break_start']) ?></small>
+                <?php endif; ?>
             </div>
             <div class="form-group">
                 <label for="break_end">Break End</label>
-                <input type="time" id="break_end" name="break_end"
-                       value="<?= $v('break_end_time') ?>">
+                <input type="text" id="break_end" name="break_end" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
+                       value="<?= $timeValue('break_end_time') ?>" placeholder="HH:MM">
+                <?php if (isset($errors['break_end'])): ?>
+                    <small class="field-error"><?= Formatter::escape($errors['break_end']) ?></small>
+                <?php endif; ?>
             </div>
         </div>
+        <p class="muted" style="margin:-.4rem 0 1rem;font-size:.8rem">Use 24-hour time (HH:MM), for example 13:30.</p>
 
         <!-- Grace Period / Overtime -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
