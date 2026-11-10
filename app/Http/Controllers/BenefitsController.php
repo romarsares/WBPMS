@@ -197,11 +197,15 @@ final class BenefitsController
                     effective_from, effective_to
                FROM sss_bracket
               WHERE contribution_policy_id = :id
-                AND effective_from <= :as_of
-                AND (effective_to IS NULL OR effective_to >= :as_of)
+                AND effective_from <= :as_of_from
+                AND (effective_to IS NULL OR effective_to >= :as_of_to)
               ORDER BY salary_from ASC"
         );
-        $sssStmt->execute([':id' => $id, ':as_of' => $asOf]);
+        $sssStmt->execute([
+            ':id'         => $id,
+            ':as_of_from' => $asOf,
+            ':as_of_to'   => $asOf,
+        ]);
 
         $philhealthStmt = $pdo->prepare(
             "SELECT rate_decimal, basis_floor, basis_ceiling, employee_share_decimal
