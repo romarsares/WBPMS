@@ -226,6 +226,9 @@ $router->add('POST', '/hr/payroll/{id}/employees/{payrollId}/adjust', [PayrollCo
 $router->add('POST', '/hr/payroll/{id}/compute',     [PayrollController::class, 'compute'],  ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/submit',      [PayrollController::class, 'submit'],   ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/cancel',      [PayrollController::class, 'cancel'],   ['HRHead']);
+// Individual payslip printing — HR Head and Business Owner (REQ074)
+$router->add('GET',  '/hr/payroll/{id}/payslips/{payslipId}/print',    [PayrollController::class, 'payslipPrint'],       ['HRHead', 'BusinessOwner']);
+$router->add('GET',  '/hr/payroll/{id}/payslips/{payslipId}/download', [PayrollController::class, 'payslipPdfDownload'], ['HRHead', 'BusinessOwner']);
 
 // Printable payroll documents. These use a neutral path because both HR and
 // the Business Owner may review the same source records.

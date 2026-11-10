@@ -104,11 +104,12 @@ foreach ($deductions as $deduction) {
                 <th style="text-align:right">Total Deductions</th>
                 <th>Deduction Details</th>
                 <th style="text-align:right;font-weight:700">Net Pay</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
         <?php if ($details === []): ?>
-            <tr><td colspan="6" style="text-align:center;color:#6b7280;padding:2rem">No employee records found.</td></tr>
+            <tr><td colspan="7" style="text-align:center;color:#6b7280;padding:2rem">No employee records found.</td></tr>
         <?php else: ?>
             <?php foreach ($details as $d): ?>
             <tr>
@@ -149,6 +150,19 @@ foreach ($deductions as $deduction) {
                     <?php endif; ?>
                 </td>
                 <td style="text-align:right;font-weight:700">₱<?= number_format((float)$d['net_pay'], 2) ?></td>
+                <td style="text-align:right">
+                    <?php if ($run['status'] === 'Approved' && !empty($d['payslip_id'])): ?>
+                    <div style="display:flex;flex-direction:column;gap:.3rem;align-items:flex-end">
+                        <a href="<?= $base ?>/hr/payroll/<?= $runId ?>/payslips/<?= (int) $d['payslip_id'] ?>/print"
+                           target="_blank" rel="noopener"
+                           class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.8rem">🖨 Print</a>
+                        <a href="<?= $base ?>/hr/payroll/<?= $runId ?>/payslips/<?= (int) $d['payslip_id'] ?>/download"
+                           class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.8rem">⬇ PDF</a>
+                    </div>
+                    <?php else: ?>
+                    <span style="color:#6b7280">—</span>
+                    <?php endif; ?>
+                </td>
             </tr>
             <?php endforeach; ?>
         <?php endif; ?>
@@ -160,6 +174,7 @@ foreach ($deductions as $deduction) {
                 <td style="text-align:right;padding:.6rem .85rem;color:#ef4444">₱<?= number_format($dedTotal, 2) ?></td>
                 <td></td>
                 <td style="text-align:right;padding:.6rem .85rem">₱<?= number_format($netTotal, 2) ?></td>
+                <td></td>
             </tr>
         </tfoot>
     </table>

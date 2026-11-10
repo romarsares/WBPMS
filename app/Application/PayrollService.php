@@ -288,9 +288,11 @@ final class PayrollService
                     p.daily_rate_snapshot,
                     p.gross_pay,
                     p.total_deductions,
-                    p.net_pay
+                    p.net_pay,
+                    ps.payslip_id
                FROM payroll p
-               JOIN employee e ON e.employee_id = p.employee_id
+               JOIN employee e   ON e.employee_id = p.employee_id
+               LEFT JOIN payslip ps ON ps.payroll_id = p.payroll_id
               WHERE p.payroll_run_id = :id
               ORDER BY e.last_name, e.first_name"
         );
@@ -1211,6 +1213,7 @@ final class PayrollService
             'payslip_id'        => (int) $header['payslip_id'],
             'issue_date'        => $header['issue_date'],
             'employee_id'       => (int) $header['employee_id'],
+            'payroll_id'        => (int) $header['payroll_id'],
             'employee_name'     => $header['employee_name'],
             'employee_number'   => $header['employee_number'],
             'position'          => $header['position'] ?? '',

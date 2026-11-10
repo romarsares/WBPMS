@@ -187,11 +187,18 @@ foreach ($deductions as $deduction) {
                     <?php if (in_array($run['status'], ['Computed', 'Returned'], true)): ?>
                     <a href="<?= $base ?>/hr/payroll/<?= (int) $run['payroll_run_id'] ?>/employees/<?= (int) $d['payroll_id'] ?>/adjust"
                        class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.8rem">Adjust</a>
+                    <?php elseif ($run['status'] === 'Approved' && !empty($d['payslip_id'])): ?>
+                    <div style="display:flex;flex-direction:column;gap:.3rem;align-items:flex-end">
+                        <a href="<?= $base ?>/hr/payroll/<?= (int) $run['payroll_run_id'] ?>/payslips/<?= (int) $d['payslip_id'] ?>/print"
+                           target="_blank" rel="noopener"
+                           class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.8rem">🖨 Print</a>
+                        <a href="<?= $base ?>/hr/payroll/<?= (int) $run['payroll_run_id'] ?>/payslips/<?= (int) $d['payslip_id'] ?>/download"
+                           class="btn btn-secondary" style="padding:.3rem .65rem;font-size:.8rem">⬇ PDF</a>
+                    </div>
                     <?php else: ?>
                     <span style="color:#6b7280">—</span>
                     <?php endif; ?>
                 </td>
-            </tr>
             <?php endforeach; ?>
         <?php endif; ?>
         </tbody>

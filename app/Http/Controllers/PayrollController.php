@@ -337,6 +337,60 @@ final class PayrollController
     }
 
     // -----------------------------------------------------------------------
+    // GET /hr/payroll/{id}/payslips/{payslipId}/print   (REQ074 — HR side)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Print-ready individual payslip accessible by HR Head and Business Owner.
+     * No employee ownership check — role-based access only.
+     * Confirms the payslip belongs to the referenced payroll run before rendering.
+     *
+     * @param array<string, string> $params
+     */
+    public function payslipPrint(array $params = []): void
+    {
+        $runId     = (int) ($params['id']        ?? 0);
+        $payslipId = (int) ($params['payslipId'] ?? 0);
+
+        $data = $this->resolvePayslipForRun($runId, $payslipId);
+        if ($data === null) {
+            http_response_code(404);
+            ViewRenderer::render('errors/404', [], '404 Not Found');
+            return;
+        }
+
+        header('Content-Type: text/html; charset=utf-8');
+        echo $this->buildPayslipHtml($data, backPath: '/hr/payroll/' . $runId);
+    }
+
+    // -----------------------------------------------------------------------
+    // GET /hr/payroll/{id}/payslips/{payslipId}/download  (REQ074 — HR side)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Download individual payslip as PDF, accessible by HR Head and Business Owner.
+     *
+     * @param array<string, string> $params
+     */
+    public function payslipPdfDownload(array $params = []): void
+    {
+        $runId     = (int) ($params['id']        ?? 0);
+        $payslipId = (int) ($params['payslipId'] ?? 0);
+
+        $data = $this->resolvePayslipForRun($runId, $payslipId);
+        if ($data === null) {
+            http_response_code(404);
+            echo 'Payslip not found.';
+            return;
+        }
+
+        $html     = $this->buildPayslipHtml($data, backPath: null);
+        $filename = 'payslip-' . preg_replace('/[^a-z0-9_-]/i', '_', (string) $data['employee_number']) . '-' . str_replace([' ', '–', '/'], '-', (string) $data['period_start']) . '.pdf';
+
+        \Wbpms\Infrastructure\Reports\PdfRenderer::download($html, $filename);
+    }
+
+    // -----------------------------------------------------------------------
     // GET /payroll/{id}/timesheet
     // -----------------------------------------------------------------------
 
@@ -634,5 +688,115 @@ final class PayrollController
         }
         header('Location: ' . $base . $path, true, 302);
         exit;
+    }
+
+    // -----------------------------------------------------------------------
+    // Payslip helpers (HR-side individual printing)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Load payslip data and confirm it belongs to the given payroll run.
+     * Returns null when the payslip cannot be found or does not belong to $runId.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function resolvePayslipForRun(int $runId, int $payslipId): ?array
+    {
+        try {
+            $data = $this->makeService()->payslipData($payslipId);
+        } catch (RuntimeException) {
+            return null;
+        }
+
+        // Verify the payslip's payroll row belongs to the referenced run.
+        $stmt = $this->makeConnection()->pdo()->prepare(
+            "SELECT 1 FROM payroll WHERE payroll_id = :pid AND payroll_run_id = :rid LIMIT 1"
+        );
+        $stmt->execute([':pid' => $data['payroll_id'] ?? 0, ':rid' => $runId]);
+        if (!$stmt->fetchColumn()) {
+            return null;
+        }
+
+        return $data;
+    }
+
+    /**
+     * Build a standalone print-ready HTML payslip document.
+     * When $backPath is non-null a "Back" link and Print/Download buttons
+     * are included; pass null for clean PDF generation.
+     *
+     * @param array<string,mixed> $data  From PayrollService::payslipData()
+     */
+    private function buildPayslipHtml(array $data, ?string $backPath): string
+    {
+        $e = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+        $n = static fn(float $v): string  => number_format($v, 2);
+        $f = static fn(\DateTimeInterface|string|null $v): string => \Wbpms\Infrastructure\Reports\PdfRenderer::formatDate($v);
+
+        $html  = '<!doctype html><html lang="en"><head><meta charset="utf-8">';
+        $html .= '<title>Payslip — ' . $e((string) ($data['period'] ?? '')) . '</title>';
+        $html .= '<style>
+            *,*::before,*::after{box-sizing:border-box}
+            body{font-family:"DejaVu Sans",Arial,sans-serif;font-size:12px;margin:20px;color:#111}
+            h2{margin:0 0 4px}
+            .header{display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:12px}
+            .meta{margin-bottom:12px;font-size:11px;line-height:1.6}
+            table{width:100%;border-collapse:collapse;margin-bottom:12px}
+            th,td{border:1px solid #ccc;padding:5px 8px;font-size:11px}
+            th{background:#f0f0f0;text-align:left}
+            .total-row td{font-weight:bold;background:#f9f9f9}
+            .net-row td{font-weight:bold;font-size:13px;background:#e8f5e9}
+            .controls{display:flex;gap:8px;margin-top:8px}
+            @media print{.no-print{display:none!important}}
+        </style></head><body>';
+
+        $html .= '<div class="header">';
+        $html .= '<div><h2>Light Diamond Enterprises</h2><small>PAYSLIP</small></div>';
+        $html .= '<div style="text-align:right"><b>Pay Period:</b> ' . $e((string) ($data['period'] ?? '')) . '<br>';
+        $html .= '<b>Pay Date:</b> ' . $e($f($data['pay_date'] ?? null)) . '</div>';
+        $html .= '</div>';
+
+        $html .= '<div class="meta">';
+        $html .= '<b>Employee:</b> ' . $e((string) ($data['employee_name'] ?? '')) . ' (' . $e((string) ($data['employee_number'] ?? '')) . ')<br>';
+        $html .= '<b>Position:</b> ' . $e((string) ($data['position'] ?? '—')) . ' &nbsp;&nbsp; <b>Branch:</b> ' . $e((string) ($data['branch_name'] ?? '')) . '<br>';
+        $html .= '<b>Daily Rate:</b> ₱' . $n((float) ($data['daily_rate'] ?? 0)) . ' &nbsp;&nbsp; <b>Issue Date:</b> ' . $e($f($data['issue_date'] ?? null));
+        $html .= '</div>';
+
+        $html .= '<table><thead><tr><th>EARNINGS</th><th style="text-align:right">AMOUNT</th></tr></thead><tbody>';
+        foreach (($data['earnings'] ?? []) as $row) {
+            $html .= '<tr><td>' . $e((string) ($row['description'] ?? '')) . '</td><td style="text-align:right">₱' . $n((float) ($row['amount'] ?? 0)) . '</td></tr>';
+        }
+        $html .= '<tr class="total-row"><td>GROSS PAY</td><td style="text-align:right">₱' . $n((float) ($data['gross_pay'] ?? 0)) . '</td></tr>';
+        $html .= '</tbody></table>';
+
+        $html .= '<table><thead><tr><th>DEDUCTIONS</th><th style="text-align:right">AMOUNT</th></tr></thead><tbody>';
+        foreach (($data['deductions'] ?? []) as $row) {
+            $html .= '<tr><td>' . $e((string) ($row['description'] ?? '')) . '</td><td style="text-align:right">₱' . $n((float) ($row['amount'] ?? 0)) . '</td></tr>';
+        }
+        $html .= '<tr class="total-row"><td>TOTAL DEDUCTIONS</td><td style="text-align:right">₱' . $n((float) ($data['total_deductions'] ?? 0)) . '</td></tr>';
+        $html .= '</tbody></table>';
+
+        $html .= '<table><tbody>';
+        $html .= '<tr class="net-row"><td><b>NET PAY</b></td><td style="text-align:right"><b>₱' . $n((float) ($data['net_pay'] ?? 0)) . '</b></td></tr>';
+        $html .= '</tbody></table>';
+
+        $html .= '<p style="font-size:10px;margin-top:16px;color:#666">This is a system-generated payslip. — Light Diamond Enterprises</p>';
+
+        if ($backPath !== null) {
+            $base      = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+            $payslipId = (int) ($data['payslip_id'] ?? 0);
+            // Extract run ID from backPath (e.g. "/hr/payroll/42")
+            preg_match('#/payroll/(\d+)#', $backPath, $m);
+            $runId     = (int) ($m[1] ?? 0);
+            $pdfUrl    = $base . '/hr/payroll/' . $runId . '/payslips/' . $payslipId . '/download';
+            $html .= '<div class="no-print controls">';
+            $html .= '<button onclick="window.print()" style="padding:6px 16px;cursor:pointer">🖨 Print</button>';
+            $html .= '<a href="' . $e($pdfUrl) . '" style="padding:6px 16px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:4px">⬇ Download PDF</a>';
+            $html .= '<a href="' . $e($base . $backPath) . '" style="padding:6px 16px;border:1px solid #d1d5db;border-radius:4px;text-decoration:none;color:#374151">← Back to Payroll Run</a>';
+            $html .= '</div>';
+        }
+
+        $html .= '</body></html>';
+        return $html;
     }
 }

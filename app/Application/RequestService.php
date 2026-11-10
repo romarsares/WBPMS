@@ -589,16 +589,18 @@ final class RequestService
                 (attendance_id, adjusted_by, old_time_in, new_time_in, old_time_out, new_time_out,
                  old_overtime_minutes, new_overtime_minutes, adjustment_type, reason, adjustment_at)
              VALUES
-                (:attendance_id, :adjusted_by, :time_in, :time_in, :time_out, :time_out,
+                (:attendance_id, :adjusted_by, :old_time_in, :new_time_in, :old_time_out, :new_time_out,
                  :old_overtime, :new_overtime, 'overtime_request_approved', :reason, NOW())"
         )->execute([
             ':attendance_id' => $attendance['attendance_id'],
-            ':adjusted_by' => $actingUserId,
-            ':time_in' => $attendance['time_in'],
-            ':time_out' => $attendance['time_out'],
-            ':old_overtime' => $attendance['overtime_minutes'],
-            ':new_overtime' => $overtime,
-            ':reason' => $reason,
+            ':adjusted_by'   => $actingUserId,
+            ':old_time_in'   => $attendance['time_in'],
+            ':new_time_in'   => $attendance['time_in'],
+            ':old_time_out'  => $attendance['time_out'],
+            ':new_time_out'  => $attendance['time_out'],
+            ':old_overtime'  => $attendance['overtime_minutes'],
+            ':new_overtime'  => $overtime,
+            ':reason'        => $reason,
         ]);
     }
 
