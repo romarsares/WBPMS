@@ -554,8 +554,13 @@ final class AuthController
 
     private function clientIp(): string
     {
-        return (string) ($_SERVER['HTTP_X_FORWARDED_FOR']
-            ?? $_SERVER['REMOTE_ADDR']
-            ?? '');
+        $forwarded = (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+        if ($forwarded !== '') {
+            // X-Forwarded-For may be a comma-separated list; take only the
+            // leftmost value (the original client IP as seen by the first proxy).
+            return trim(explode(',', $forwarded)[0]);
+        }
+
+        return (string) ($_SERVER['REMOTE_ADDR'] ?? '');
     }
 }

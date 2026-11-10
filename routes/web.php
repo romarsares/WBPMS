@@ -82,7 +82,6 @@ $router->add('PUT',  '/users/{id}',         [UserController::class, 'update'],  
 $router->add('POST', '/users/{id}/toggle',    [UserController::class, 'toggle'],    ['BusinessOwner', 'HRHead']);
 $router->add('POST', '/users/{id}/archive',   [UserController::class, 'archive'],   ['BusinessOwner', 'HRHead']);
 $router->add('POST', '/users/{id}/unarchive', [UserController::class, 'unarchive'], ['BusinessOwner', 'HRHead']);
-$router->add('POST', '/users/{id}/archive', [UserController::class, 'archive'],       ['BusinessOwner', 'HRHead']);
 $router->add('POST', '/users/{id}/reset-password', [UserController::class, 'resetPassword'], ['BusinessOwner', 'HRHead']);
 
 // ---------------------------------------------------------------------------
@@ -119,6 +118,7 @@ $router->add('GET', '/hr/dashboard', [DashboardController::class, 'hrDashboard']
 
 $router->add('GET',  '/hr/employees',                [EmployeeController::class, 'index'],        ['HRHead']);
 $router->add('GET',  '/hr/employees/new',             [EmployeeController::class, 'create'],       ['HRHead']);
+$router->add('GET',  '/hr/employees/created',         [EmployeeController::class, 'created'],      ['HRHead']);
 $router->add('POST', '/hr/employees',                [EmployeeController::class, 'store'],         ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}/transfer',  [EmployeeController::class, 'transferForm'],  ['HRHead']);
 $router->add('POST', '/hr/employees/{id}/transfer',  [EmployeeController::class, 'transfer'],      ['HRHead']);

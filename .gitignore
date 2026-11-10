@@ -29,3 +29,35 @@ Thumbs.db
 
 # Windows
 desktop.ini
+
+# Database dumps and backups — never commit production data
+*.sql
+*.sql.gz
+*.bak
+reseed.sql
+clean_database.sql
+cleanup-attendance-payroll.sql
+
+# Archives and build snapshots — never commit these
+*.zip
+*.gz
+backup*/
+railway-backup*
+
+# Build mirror — credentials and drift risk
+/build/.env
+
+# Diagnostic / debug scripts — delete before committing
+check_db.php
+diag_payroll.php
+read_xls.php
+read_xls_all.php
+diag_*.php
+check_*.php
+
+# Capstone documents and change logs — keep out of repo
+*.docx
+Capstone*/
+
+# Semantic review output
+/semantic-review/
