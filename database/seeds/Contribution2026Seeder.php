@@ -5,27 +5,22 @@ declare(strict_types=1);
 use Phinx\Seed\AbstractSeed;
 
 /**
- * Seeder: 2026 Government Contribution Policy (statutory, non-demo).
+ * Seeder: Philippine Statutory Government Contribution Policy — 2026.
  *
  * Creates an Approved, production-grade contribution_policy_version
- * (CONTRIB-2026 / V1, demo_only = FALSE, effective 2026-01-01) with:
+ * (PH-STATUTORY-2026 / V1, demo_only = FALSE, effective 2026-01-01) with:
  *
  *   SSS        — full MSC bracket table, 5% employee / 10% employer,
  *                MSC ₱5,000–₱35,000 in ₱500 steps (61 brackets).
+ *                RA 11199 final tranche (Jan 2025), carried through 2026.
  *   PhilHealth — 5.0% total, 2.5% employee share,
- *                basis floor ₱10,000 / ceiling ₱100,000.
+ *                basis floor ₱10,000 / ceiling ₱100,000. (UHC Law)
  *   Pag-IBIG   — 2% rate, MFS cap ₱10,000 (max ₱200 EE / ₱200 ER),
  *                percentage mode (fixed amounts NULL).
- *
- * Rate sources (2026 contribution schedule):
- *   SSS:        15% total (10% employer / 5% employee); MSC ₱5,000–₱35,000;
- *                RA 11199 final tranche effective Jan 1 2025, carried through 2026.
- *   PhilHealth: 5.0% premium (UHC Law); maintained at 5% for 2026.
- *   Pag-IBIG:   2% EE / 2% ER, MFS cap ₱10,000 (HDMF Circular No. 460, Feb 2024);
- *                continues into 2026.
+ *                HDMF Circular No. 460, Feb 2024, effective 2026.
  *
  * Resolution: PayrollService::resolveContribPolicy() selects the latest Approved
- * policy by effective_from DESC. CONTRIB-2026 (2026-01-01) is the active policy.
+ * policy by effective_from DESC. PH-STATUTORY-2026 (2026-01-01) is the active policy.
  *
  * Dependencies: ContributionFixtureSeeder (creates the Business Owner approver).
  */
@@ -50,11 +45,11 @@ class Contribution2026Seeder extends AbstractSeed
         $mscStep          = 500;
 
         // -------------------------------------------------------------------
-        // contribution_policy_version — CONTRIB-2026 / V1
+        // contribution_policy_version — PH-STATUTORY-2026 / V1
         // -------------------------------------------------------------------
         $exists = $this->fetchRow(
             "SELECT contribution_policy_id FROM contribution_policy_version
-              WHERE policy_code = 'CONTRIB-2026' AND version = 'V1'"
+              WHERE policy_code = 'PH-STATUTORY-2026' AND version = 'V1'"
         );
 
         if ($exists === false) {
@@ -63,16 +58,16 @@ class Contribution2026Seeder extends AbstractSeed
                     (policy_code, version, effective_from, effective_to,
                      demo_only, status, approved_by, approved_at, created_at, updated_at)
                 VALUES
-                    ('CONTRIB-2026', 'V1', '{$effectiveFrom}', NULL,
+                    ('PH-STATUTORY-2026', 'V1', '{$effectiveFrom}', NULL,
                      FALSE, 'Approved', {$ownerUserId}, '{$now}', '{$now}', '{$now}')
             ");
         }
 
-        $policyId = $this->fetchContribPolicyId('CONTRIB-2026', 'V1');
+        $policyId = $this->fetchContribPolicyId('PH-STATUTORY-2026', 'V1');
 
         // -------------------------------------------------------------------
         // sss_bracket — full MSC bracket table.
-        //   Floor bracket (0.00–5,499.99) maps sub-₱5,000 earnings to MSC ₱5,000.
+        //   Floor bracket (0.00–5,249.99) maps sub-₱5,250 earnings to MSC ₱5,000.
         //   Top bracket (₱35,000+) is open-ended (salary_to NULL) = ceiling.
         // -------------------------------------------------------------------
         $countRow     = $this->fetchRow(
@@ -83,9 +78,9 @@ class Contribution2026Seeder extends AbstractSeed
         if ($bracketCount === 0) {
             $valueRows = [];
 
-            // Floor bracket: MSC ₱5,000, covers 0.00–5,499.99
+            // Floor bracket: MSC ₱5,000, covers 0.00–5,249.99
             $valueRows[] = sprintf(
-                '(%d, 0.00, 5499.99, %s, %s, %s, NULL, %s, %s)',
+                '(%d, 0.00, 5249.99, %s, %s, %s, NULL, %s, %s)',
                 $policyId,
                 $this->money($mscFloor * $sssRateEmployee),  // 250.00
                 $this->money($mscFloor * $sssRateEmployer),  // 500.00
@@ -95,14 +90,17 @@ class Contribution2026Seeder extends AbstractSeed
             );
 
             for ($msc = $mscFloor + $mscStep; $msc <= $mscCeiling; $msc += $mscStep) {
+                // SSS brackets are centred on the MSC in ₱500 increments.
+                // Example: MSC ₱18,500 covers compensation ₱18,250–₱18,749.99.
+                $salaryFrom = $msc - ($mscStep / 2);
                 $salaryTo = ($msc === $mscCeiling)
                     ? 'NULL'
-                    : $this->money($msc + $mscStep - 0.01); // e.g. 5,500 → 5,999.99
+                    : $this->money($msc + ($mscStep / 2) - 0.01);
 
                 $valueRows[] = sprintf(
                     '(%d, %s, %s, %s, %s, %s, NULL, %s, %s)',
                     $policyId,
-                    $this->money((float) $msc),
+                    $this->money((float) $salaryFrom),
                     $salaryTo,
                     $this->money($msc * $sssRateEmployee),
                     $this->money($msc * $sssRateEmployer),
