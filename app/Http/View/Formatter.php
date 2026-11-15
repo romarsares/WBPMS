@@ -26,6 +26,12 @@ final class Formatter
         return $date->format('H:i');
     }
 
+    /** Return a database time value in the HH:MM format accepted by forms. */
+    public static function inputTime(DateTimeInterface|string|null $value): string
+    {
+        return $value === null || $value === '' ? '' : self::time($value);
+    }
+
     public static function dateTime(DateTimeInterface|string|null $value): string
     {
         if ($value === null || $value === '') {

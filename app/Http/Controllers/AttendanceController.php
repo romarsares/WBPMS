@@ -208,8 +208,7 @@ final class AttendanceController
                LEFT JOIN branch b ON b.branch_id = eba.branch_id
                LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
                {$whereClause}
-              ORDER BY e.last_name ASC, e.first_name ASC, a.attendance_date ASC
-              LIMIT 500"
+              ORDER BY e.last_name ASC, e.first_name ASC, a.attendance_date ASC"
         );
         $rows->execute($bind);
         $rows = $rows->fetchAll();
@@ -410,11 +409,13 @@ final class AttendanceController
                 $attendanceBind[$placeholder] = $employeeId;
             }
             $attendanceStmt = $pdo->prepare(
-                "SELECT employee_id, attendance_date, late_minutes
-                   FROM attendance
-                  WHERE employee_id IN (" . implode(', ', $placeholders) . ")
-                    AND attendance_date BETWEEN :report_from AND :report_to
-                    AND status <> 'Cancelled'"
+                "SELECT a.employee_id, a.attendance_date, a.late_minutes
+                   FROM attendance a
+                   LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
+                  WHERE a.employee_id IN (" . implode(', ', $placeholders) . ")
+                    AND a.attendance_date BETWEEN :report_from AND :report_to
+                    AND a.status <> 'Cancelled'
+                    AND (a.import_batch_id IS NULL OR aib.status NOT IN ('Cancelled', 'Processing'))"
             );
             $attendanceStmt->execute($attendanceBind);
             foreach ($attendanceStmt->fetchAll() as $attendance) {
@@ -631,9 +632,9 @@ final class AttendanceController
                 if ((int) substr($date, 0, 4) !== (int) $row['source_year']
                     || (int) substr($date, 5, 2) !== (int) $row['source_month']
                     || (string) $row['assignment_from'] > $date
-                    || ($row['assignment_to'] !== null && (string) $row['assignment_to'] < $date)
+                    || ($row['assignment_to'] !== null && (string) $row['assignment_to'] <= $date)
                     || (string) $row['device_from'] > $date
-                    || ($row['device_to'] !== null && (string) $row['device_to'] < $date)) {
+                    || ($row['device_to'] !== null && (string) $row['device_to'] <= $date)) {
                     continue;
                 }
                 $employeeId = (int) $row['employee_id'];
@@ -805,26 +806,6 @@ final class AttendanceController
                     $preview['token'] = (string) $this->stagedImport()['token'];
                     $this->renderImport([], $preview);
                     return;
-
-                    /*
-                    $summary = $service->import($uploadedFile, $context, 0);
-
-                    // Update file_name now that we have the batch_id
-                    // (the gateway createImportBatch stored an empty string;
-                    //  fetch the row we just committed and patch it)
-                    $this->patchFileName($pdo, $sha256, $origName);
-
-                    ViewRenderer::flash(sprintf(
-                        "Import complete — %d punches parsed, %d matched, %d unmatched, %d duplicates skipped, %d incomplete days.",
-                        $summary->parsedTokens,
-                        $summary->matchedPunches,
-                        $summary->unmatchedPunches,
-                        $summary->duplicatePunches,
-                        $summary->incompleteDays,
-                    ));
-                    $this->redirect('/hr/attendance/import');
-                    return;
-                    */
 
                 } catch (DuplicateAttendanceFileException) {
                     $errors[] = 'This file has already been imported (duplicate checksum detected).';

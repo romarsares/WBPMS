@@ -391,6 +391,15 @@ final class UserService
                 )->execute([':email' => $email, ':emp' => $employeeId]);
             }
 
+            // Email OTP gate: when the account_email changes, reset is_email_verified
+            // so the employee must re-confirm the new address on their next login.
+            if ($email !== (string) $user['account_email']) {
+                $pdo->prepare(
+                    "UPDATE users SET is_email_verified = 0, updated_at = UTC_TIMESTAMP()
+                      WHERE user_id = :id"
+                )->execute([':id' => $userId]);
+            }
+
             $this->insertAudit($pdo, $actingUserId, 'user_updated', 'users', $userId,
                 "Updated user_id={$userId}: username='{$username}', role_id={$roleId}, status='{$status}'");
         });

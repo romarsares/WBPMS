@@ -110,6 +110,7 @@ $v = static fn(string $key, string $fallback = ''): string =>
             <tr>
                 <th>Position Title</th>
                 <th>Department / Group</th>
+                <th style="text-align:right">Daily Rate</th>
                 <th style="text-align:center">Sort</th>
                 <th style="text-align:center">Status</th>
                 <th>Actions</th>
@@ -117,7 +118,7 @@ $v = static fn(string $key, string $fallback = ''): string =>
         </thead>
         <tbody>
         <?php if (empty($positions)): ?>
-            <tr><td colspan="5" class="muted" style="text-align:center;padding:2rem">
+            <tr><td colspan="6" class="muted" style="text-align:center;padding:2rem">
                 No positions defined yet. Click <strong>+ Add Position</strong> to get started.
             </td></tr>
         <?php else: foreach ($positions as $p):
@@ -126,6 +127,9 @@ $v = static fn(string $key, string $fallback = ''): string =>
             <tr>
                 <td><strong><?= Formatter::escape($p['position_title']) ?></strong></td>
                 <td class="muted"><?= $p['department'] ? Formatter::escape($p['department']) : '—' ?></td>
+                <td style="text-align:right">
+                    <?= $p['default_daily_rate'] !== null ? '₱' . number_format((float) $p['default_daily_rate'], 2) : '—' ?>
+                </td>
                 <td style="text-align:center"><?= (int) $p['sort_order'] ?></td>
                 <td style="text-align:center">
                     <span class="badge <?= $isActive ? 'ok' : 'off' ?>"><?= $p['status'] ?></span>
@@ -135,6 +139,7 @@ $v = static fn(string $key, string $fallback = ''): string =>
                             data-id="<?= (int) $p['position_id'] ?>"
                             data-title="<?= Formatter::escape($p['position_title']) ?>"
                             data-dept="<?= Formatter::escape((string) $p['department']) ?>"
+                            data-rate="<?= $p['default_daily_rate'] !== null ? Formatter::escape((string) $p['default_daily_rate']) : '' ?>"
                             data-sort="<?= (int) $p['sort_order'] ?>">
                         Edit
                     </button>
@@ -175,6 +180,16 @@ $v = static fn(string $key, string $fallback = ''): string =>
                        maxlength="100" placeholder="e.g. Warehouse, Admin, Sales">
                 <small class="muted">Used for grouping in reports only.</small>
             </div>
+            <div class="form-group" style="margin-bottom:.85rem">
+                <label for="add_default_daily_rate">Default Daily Rate (₱) <span class="muted">(optional)</span></label>
+                <input type="number" id="add_default_daily_rate" name="default_daily_rate"
+                       value="<?= ($editRow === null) ? $v('default_daily_rate') : '' ?>"
+                       min="0.01" max="999999.99" step="0.01"
+                       placeholder="e.g. 500.00"
+                       class="<?= (isset($errors['default_daily_rate']) && $editRow === null) ? 'is-invalid' : '' ?>">
+                <small class="muted">Pre-fills the Daily Rate when this position is selected on the Add Employee form. HR may still override it.</small>
+                <?= ($editRow === null) ? $e('default_daily_rate') : '' ?>
+            </div>
             <div class="form-group" style="margin-bottom:1.25rem">
                 <label for="add_sort_order">Sort Order</label>
                 <input type="number" id="add_sort_order" name="sort_order"
@@ -211,6 +226,16 @@ $v = static fn(string $key, string $fallback = ''): string =>
                        value="<?= ($editRow !== null) ? $v('department') : '' ?>"
                        maxlength="100">
             </div>
+            <div class="form-group" style="margin-bottom:.85rem">
+                <label for="edit_default_daily_rate">Default Daily Rate (₱) <span class="muted">(optional)</span></label>
+                <input type="number" id="edit_default_daily_rate" name="default_daily_rate"
+                       value="<?= ($editRow !== null) ? $v('default_daily_rate') : '' ?>"
+                       min="0.01" max="999999.99" step="0.01"
+                       placeholder="e.g. 500.00"
+                       class="<?= (isset($errors['default_daily_rate']) && $editRow !== null) ? 'is-invalid' : '' ?>">
+                <small class="muted">Pre-fills the Daily Rate when this position is selected on the Add Employee form. Leave blank to clear it.</small>
+                <?= ($editRow !== null) ? $e('default_daily_rate') : '' ?>
+            </div>
             <div class="form-group" style="margin-bottom:1.25rem">
                 <label for="edit_sort_order">Sort Order</label>
                 <input type="number" id="edit_sort_order" name="sort_order"
@@ -226,11 +251,12 @@ $v = static fn(string $key, string $fallback = ''): string =>
 </div>
 
 <script>
-function openEditModal(id, title, dept, sort) {
+function openEditModal(id, title, dept, sort, rate) {
     var form = document.getElementById('editPositionForm');
     form.action = '<?= rtrim($base, '/') ?>/hr/settings/positions/' + id;
     document.getElementById('edit_position_title').value = title;
     document.getElementById('edit_department').value     = dept;
+    document.getElementById('edit_default_daily_rate').value = rate || '';
     document.getElementById('edit_sort_order').value     = sort;
     openModal('modalEditPosition');
 }
@@ -242,7 +268,8 @@ document.querySelectorAll('.js-edit-pos').forEach(function(btn) {
             this.dataset.id,
             this.dataset.title,
             this.dataset.dept,
-            this.dataset.sort
+            this.dataset.sort,
+            this.dataset.rate
         );
     });
 });
@@ -251,7 +278,8 @@ openEditModal(
     <?= (int) $editRow ?>,
     <?= json_encode($input['position_title'] ?? '') ?>,
     <?= json_encode($input['department']     ?? '') ?>,
-    <?= (int) ($input['sort_order'] ?? 0) ?>
+    <?= (int) ($input['sort_order'] ?? 0) ?>,
+    <?= json_encode($input['default_daily_rate'] ?? '') ?>
 );
 <?php endif; ?>
 </script>

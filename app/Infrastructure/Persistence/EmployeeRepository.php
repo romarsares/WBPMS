@@ -147,6 +147,36 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
     }
 
     /**
+     * Suggest the next employee number following the EMP-NNN convention.
+     *
+     * Finds the highest numeric suffix among all existing employee_number
+     * values that match the pattern EMP-<digits>, increments it by one,
+     * and returns a zero-padded three-digit string (EMP-001, EMP-002, …).
+     * If no matching number exists the sequence starts at EMP-001.
+     *
+     * The returned value is a *suggestion only*. It is never reserved or
+     * locked; two concurrent add-forms may receive the same candidate.
+     * The unique-constraint catch in EmployeeController::store() handles
+     * that race: if the number is taken at save time, the controller
+     * surfaces a recoverable field-level error rather than a 500 page.
+     *
+     * Padding is 3 digits for numbers 1–999 and grows naturally beyond that
+     * (1000 → "EMP-1000") so the field's 30-character limit is never at risk.
+     */
+    public function nextEmployeeNumber(): string
+    {
+        $stmt = $this->pdo()->query(
+            "SELECT MAX(CAST(SUBSTRING(employee_number, 5) AS UNSIGNED))
+               FROM employee
+              WHERE employee_number REGEXP '^EMP-[0-9]+$'"
+        );
+        $max = $stmt !== false ? (int) $stmt->fetchColumn() : 0;
+        $next = $max + 1;
+
+        return 'EMP-' . ($next < 1000 ? str_pad((string) $next, 3, '0', STR_PAD_LEFT) : (string) $next);
+    }
+
+    /**
      * Return whether an employee number is already assigned.
      */
     public function employeeNumberExists(string $employeeNumber): bool

@@ -168,13 +168,13 @@ final class AuthService
      * calls this on every protected request so status, role, and link changes
      * take effect immediately.
      *
-     * @return array{user_id:int, username:string, role_name:string, employee_id:int|null, requires_password_change:bool, status:string}|null
+     * @return array{user_id:int, username:string, role_name:string, employee_id:int|null, requires_password_change:bool, is_email_verified:bool, status:string}|null
      */
     public function currentIdentity(int $userId): ?array
     {
         $stmt = $this->connection->pdo()->prepare(
             "SELECT u.user_id, u.username, u.employee_id,
-                    u.requires_password_change, u.status, r.role_name
+                    u.requires_password_change, u.is_email_verified, u.status, r.role_name
                FROM users u
                JOIN role r ON r.role_id = u.role_id
               WHERE u.user_id = :id
@@ -193,6 +193,7 @@ final class AuthService
             'role_name'                => (string) $user['role_name'],
             'employee_id'              => $user['employee_id'] !== null ? (int) $user['employee_id'] : null,
             'requires_password_change' => (bool) ($user['requires_password_change'] ?? false),
+            'is_email_verified'        => (bool) ($user['is_email_verified'] ?? false),
             'status'                   => (string) $user['status'],
         ];
     }

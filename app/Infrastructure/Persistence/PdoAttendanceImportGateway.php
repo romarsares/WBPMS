@@ -617,12 +617,14 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
     private function reconcileAttendance(GeneratedAttendance $attendance, WorkSchedule $schedule): array
     {
         $stmt = $this->pdo->prepare(
-            "SELECT source_local_at
-               FROM biometric_punch
-              WHERE employee_id = :employee_id
-                AND match_status = :matched
-                AND DATE(source_local_at) = :attendance_date
-              ORDER BY source_local_at"
+            "SELECT bp.source_local_at
+               FROM biometric_punch bp
+               JOIN attendance_import_batch aib ON aib.import_batch_id = bp.import_batch_id
+              WHERE bp.employee_id = :employee_id
+                AND bp.match_status = :matched
+                AND DATE(bp.source_local_at) = :attendance_date
+                AND aib.status NOT IN ('Cancelled', 'Processing')
+              ORDER BY bp.source_local_at"
         );
         $stmt->execute([
             ':employee_id' => $attendance->employeeId,

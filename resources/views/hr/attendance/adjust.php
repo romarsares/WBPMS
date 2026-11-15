@@ -43,12 +43,13 @@ $timeValue = static fn (?string $time): string => $time === null ? '' : substr($
         <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem">
             <div>
                 <label for="time_in">Time in</label>
-                <input id="time_in" name="time_in" type="time" required value="<?= Formatter::escape($value('time_in', $timeValue($attendance['time_in']))) ?>">
+                <input id="time_in" name="time_in" type="text" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]" required value="<?= Formatter::escape($value('time_in', $timeValue($attendance['time_in']))) ?>" placeholder="HH:MM">
             </div>
             <div>
                 <label for="time_out">Time out</label>
-                <input id="time_out" name="time_out" type="time" required value="<?= Formatter::escape($value('time_out', $timeValue($attendance['time_out']))) ?>">
+                <input id="time_out" name="time_out" type="text" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]" required value="<?= Formatter::escape($value('time_out', $timeValue($attendance['time_out']))) ?>" placeholder="HH:MM">
             </div>
+            <p class="muted" style="margin:.5rem 0 0;font-size:.8rem">Use 24-hour time (HH:MM), for example 13:30.</p>
         </div>
 
         <div style="margin-top:1rem">
