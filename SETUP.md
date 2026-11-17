@@ -205,10 +205,10 @@ Double-click `RUNME.bat` in the project folder. It will:
 Use these accounts to log in and explore the system.
 **Change or delete these before going live.**
 
-| Role | Username | Password |
+| Role | Email | Password |
 |---|---|---|
-| Business Owner | `owner` | `owner-demo-pass` |
-| HR Head | `hrhead` | `hrhead-demo-pass` |
+| Business Owner | `owner@demo.test` | `admin12354` |
+| HR Head | `hrhead@demo.test` | `admin12354` |
 | Employee | `employee` | `employee-demo-pass` |
 
 ---

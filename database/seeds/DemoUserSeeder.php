@@ -11,8 +11,8 @@ use Phinx\Seed\AbstractSeed;
  * Passwords are hashed with password_hash(PASSWORD_DEFAULT) per ADR-0001.
  *
  * Demo credentials (NEVER use in production):
- *   owner@demo.test   / owner-demo-pass
- *   hrhead@demo.test  / hrhead-demo-pass
+ *   owner@demo.test   / admin12354
+ *   hrhead@demo.test  / admin12354
  *   employee@demo.test / employee-demo-pass
  *
  * employee_id is intentionally NULL for BusinessOwner (non-payroll user).
@@ -38,13 +38,13 @@ class DemoUserSeeder extends AbstractSeed
 
         // Hash passwords with PASSWORD_DEFAULT (bcrypt at cost 10+)
         // These are synthetic demo values; change before any real use.
-        $ownerHash    = password_hash('owner-demo-pass',    PASSWORD_DEFAULT);
-        $hrheadHash   = password_hash('hrhead-demo-pass',   PASSWORD_DEFAULT);
+        $ownerHash    = password_hash('admin12354',         PASSWORD_DEFAULT);
+        $hrheadHash   = password_hash('admin12354',         PASSWORD_DEFAULT);
         $employeeHash = password_hash('employee-demo-pass', PASSWORD_DEFAULT);
 
         // Insert only if the username does not already exist (idempotent)
-        $this->insertIfAbsent('owner',    'owner@demo.test',    $ownerRoleId,    null, $ownerHash,    $now);
-        $this->insertIfAbsent('hrhead',   'hrhead@demo.test',   $hrheadRoleId,   null, $hrheadHash,   $now);
+        $this->insertIfAbsent('owner',    'owner@demo.test',    $ownerRoleId,    null, $ownerHash,    $now, 1);
+        $this->insertIfAbsent('hrhead',   'hrhead@demo.test',   $hrheadRoleId,   null, $hrheadHash,   $now, 1);
         $this->insertIfAbsent('employee', 'employee@demo.test', $employeeRoleId, null, $employeeHash, $now);
 
         // Note: the employee user's employee_id will be set by DemoEmployeeSeeder
@@ -67,7 +67,8 @@ class DemoUserSeeder extends AbstractSeed
         int     $roleId,
         ?int    $employeeId,
         string  $passwordHash,
-        string  $now
+        string  $now,
+        int     $requiresPasswordChange = 0
     ): void {
         $exists = $this->fetchRow(
             "SELECT user_id FROM `users` WHERE username = '" . $username . "'"
@@ -81,9 +82,9 @@ class DemoUserSeeder extends AbstractSeed
 
         $this->execute("
             INSERT INTO `users`
-                (employee_id, role_id, username, account_email, password_hash, status, created_at, updated_at)
+                (employee_id, role_id, username, account_email, password_hash, status, requires_password_change, created_at, updated_at)
             VALUES
-                ({$empVal}, {$roleId}, '{$username}', '{$email}', '{$passwordHash}', 'Active', '{$now}', '{$now}')
+                ({$empVal}, {$roleId}, '{$username}', '{$email}', '{$passwordHash}', 'Active', {$requiresPasswordChange}, '{$now}', '{$now}')
         ");
     }
 }

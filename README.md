@@ -221,8 +221,8 @@ for local development and testing. **Never use these in production.**
 
 | Role | Email | Password |
 |---|---|---|
-| Business Owner | `owner@demo.test` | `owner-demo-pass` |
-| HR Head | `hrhead@demo.test` | `hrhead-demo-pass` |
+| Business Owner | `owner@demo.test` | `admin12354` |
+| HR Head | `hrhead@demo.test` | `admin12354` |
 | Employee | `employee@demo.test` | `employee-demo-pass` |
 
 Passwords are hashed with `password_hash(PASSWORD_DEFAULT)` at seed time.
