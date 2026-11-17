@@ -57,7 +57,7 @@ $err = static fn(string $key): string => isset($errors[$key])
 </div>
 
 <div class="card" style="max-width:720px">
-    <form method="POST" action="<?= Formatter::escape($action) ?>" novalidate>
+    <form method="POST" action="<?= Formatter::escape($action) ?>" novalidate data-validate>
         <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
         <?php if ($isEdit): ?>
         <input type="hidden" name="_method" value="PUT">
@@ -70,8 +70,10 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="text" id="first_name" name="first_name"
                     value="<?= $v('first_name') ?>"
                     maxlength="50"
-                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.]|[A-Za-zÀ-ÖØ-öø-ÿ.]"
-                    title="Letters, spaces, hyphens, apostrophes, and periods only."
+                    required
+                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]*"
+                    data-msg-required="First name is required."
+                    data-msg-pattern="First name may only contain letters, spaces, hyphens, apostrophes, and periods."
                     class="<?= isset($errors['first_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('first_name') ?>
             </div>
@@ -80,8 +82,8 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="text" id="middle_name" name="middle_name"
                     value="<?= $v('middle_name') ?? $v('middle_initial') ?>"
                     maxlength="50"
-                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.]|[A-Za-zÀ-ÖØ-öø-ÿ.]"
-                    title="Letters, spaces, hyphens, apostrophes, and periods only."
+                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]*"
+                    data-msg-pattern="Middle name may only contain letters, spaces, hyphens, apostrophes, and periods."
                     class="<?= isset($errors['middle_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('middle_name') ?>
             </div>
@@ -90,8 +92,10 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="text" id="last_name" name="last_name"
                     value="<?= $v('last_name') ?>"
                     maxlength="50"
-                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]{0,48}[A-Za-zÀ-ÖØ-öø-ÿ.]|[A-Za-zÀ-ÖØ-öø-ÿ.]"
-                    title="Letters, spaces, hyphens, apostrophes, and periods only."
+                    required
+                    pattern="[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'\-]*"
+                    data-msg-required="Last name is required."
+                    data-msg-pattern="Last name may only contain letters, spaces, hyphens, apostrophes, and periods."
                     class="<?= isset($errors['last_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('last_name') ?>
             </div>
@@ -99,28 +103,36 @@ $err = static fn(string $key): string => isset($errors[$key])
 
         <div class="form-row">
             <div class="form-group">
-                <label for="birthdate">Birthdate</label>
+                <label for="birthdate">Birthdate <span style="color:#dc2626">*</span></label>
                 <input type="date" id="birthdate" name="birthdate"
-                    value="<?= $v('birthdate') ?>">
+                    value="<?= $v('birthdate') ?>"
+                    required
+                    data-msg-required="Birthdate is required."
+                    class="<?= isset($errors['birthdate']) ? 'is-invalid' : '' ?>">
+                <?= $err('birthdate') ?>
             </div>
             <div class="form-group">
-                <label for="contact_number">Contact number</label>
+                <label for="contact_number">Contact number <span style="color:#dc2626">*</span></label>
                 <input type="text" id="contact_number" name="contact_number"
                     value="<?= $v('contact_number') ?>"
                     placeholder="09XXXXXXXXX"
                     maxlength="11"
                     pattern="09[0-9]{9}"
-                    title="Philippine mobile number starting with 09, exactly 11 digits (e.g. 09171234567)."
                     inputmode="numeric"
+                    required
+                    data-msg-required="Contact number is required."
+                    data-msg-pattern="Contact number must start with 09 and be exactly 11 digits (e.g. 09171234567)."
                     class="<?= isset($errors['contact_number']) ? 'is-invalid' : '' ?>">
                 <?= $err('contact_number') ?>
             </div>
             <div class="form-group">
-                <label for="email">Email <?= !$isEdit ? '<span style="color:#dc2626">*</span>' : '' ?></label>
+                <label for="email">Email <span style="color:#dc2626">*</span></label>
                 <input type="email" id="email" name="email"
                     value="<?= $v('email') ?>"
                     maxlength="254"
-                    <?= !$isEdit ? 'required' : '' ?>
+                    required
+                    data-msg-required="Email address is required."
+                    data-msg-type="Please enter a valid email address."
                     class="<?= isset($errors['email']) ? 'is-invalid' : '' ?>"
                     placeholder="e.g. juan@lightdiamond.com">
                 <?= $err('email') ?>
@@ -132,6 +144,8 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <label for="position">Position / Job title <span style="color:#dc2626">*</span></label>
                 <select id="position_select" name="position"
                         onchange="syncPositionInput(this)"
+                        required
+                        data-msg-required="Position / Job title is required."
                         class="<?= isset($errors['position']) ? 'is-invalid' : '' ?>">
                     <option value="">— select position —</option>
                     <?php
@@ -156,6 +170,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="text" id="position_other" name="position_other"
                        value="<?= (!$matched && $currentPosition !== '') ? Formatter::escape($currentPosition) : '' ?>"
                        placeholder="Type custom position title"
+                       data-msg-required="Position / Job title is required."
                        style="margin-top:.4rem;<?= (!$matched && $currentPosition !== '') ? '' : 'display:none' ?>">
                 <small class="muted">
                     Can't find the title?
@@ -178,11 +193,17 @@ $err = static fn(string $key): string => isset($errors[$key])
             if (sel.value === '__other__') {
                 other.style.display = '';
                 other.name = 'position';
+                other.required = true;
                 sel.name = '_position_select';
+                sel.required = false;
+                sel.removeAttribute('required');
             } else {
                 other.style.display = 'none';
                 other.name = 'position_other';
+                other.required = false;
+                other.removeAttribute('required');
                 sel.name = 'position';
+                sel.required = true;
             }
         }
         // Run on page load to handle the pre-selected "Other" state
@@ -394,3 +415,5 @@ $err = static fn(string $key): string => isset($errors[$key])
         </div>
     </form>
 </div>
+
+<script src="<?= $base ?>/assets/inline-validate.js"></script>

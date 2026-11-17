@@ -267,6 +267,14 @@ final class AuthMiddleware
     /**
      * Destroy the server session.
      * Called by AuthController::logout() and on expiry.
+     *
+     * Also expires the session cookie so the browser does not reuse the old
+     * session ID on the next request.  Without this, the client sends the old
+     * (now-destroyed) session ID, PHP finds no matching DB row, creates an
+     * empty session under the same ID, and the CSRF token generated during
+     * GET /login ends up stored in a different session than the one PHP reads
+     * on the subsequent POST /login — causing CSRF_TOKEN_INVALID on rapid
+     * login/logout cycles.
      */
     public static function destroySession(): void
     {
@@ -275,6 +283,22 @@ final class AuthMiddleware
         if (session_status() === PHP_SESSION_ACTIVE) {
             $_SESSION = [];
             session_destroy();
+
+            // Expire the session cookie in the browser so the next request
+            // arrives without a session ID and PHP issues a fresh one.
+            $params = session_get_cookie_params();
+            setcookie(
+                session_name(),
+                '',
+                [
+                    'expires'  => time() - 42000,
+                    'path'     => $params['path'],
+                    'domain'   => $params['domain'],
+                    'secure'   => $params['secure'],
+                    'httponly' => $params['httponly'],
+                    'samesite' => $params['samesite'] ?? 'Lax',
+                ]
+            );
         }
     }
 
@@ -285,8 +309,28 @@ final class AuthMiddleware
             return;
         }
 
+        // Destroy the existing session and issue a new ID so the client's
+        // cookie is updated, then carry the flash message in the new session.
         $_SESSION = [];
-        session_regenerate_id(true);
+        session_destroy();
+
+        // Expire the old cookie and start a brand-new session under a fresh ID.
+        $params = session_get_cookie_params();
+        setcookie(
+            session_name(),
+            '',
+            [
+                'expires'  => time() - 42000,
+                'path'     => $params['path'],
+                'domain'   => $params['domain'],
+                'secure'   => $params['secure'],
+                'httponly' => $params['httponly'],
+                'samesite' => $params['samesite'] ?? 'Lax',
+            ]
+        );
+
+        // Re-open a new session and carry the flash message across.
+        self::startSession();
         $_SESSION['_flash_error'] = $message;
     }
 }

@@ -274,16 +274,8 @@ final class EmployeePortalController
         $caRow->execute([':id' => $employeeId]);
         $cashAdvanceOutstanding = (float) $caRow->fetchColumn();
 
-        // Cash advance max = 1 month equivalent (daily_rate × 26 working days)
-        // Falls back to null if no active salary record exists.
-        $salRow = $pdo->prepare(
-            "SELECT daily_rate FROM salary
-              WHERE employee_id = :id AND status = 'Active'
-              ORDER BY effective_from DESC LIMIT 1"
-        );
-        $salRow->execute([':id' => $employeeId]);
-        $dailyRate = $salRow->fetchColumn();
-        $cashAdvanceMax = $dailyRate !== false ? round((float) $dailyRate * 26, 2) : null;
+        // Cash advance maximum is ₱2,000 per request (business rule).
+        $cashAdvanceMax = 2000.00;
 
         ViewRenderer::render('employee/requests/index', [
             'requests'               => $requests,
@@ -356,7 +348,7 @@ final class EmployeePortalController
      *
      * Field-name bridge (form → RequestService):
      *   leave:         start_date, end_date          (form sends same names after fix)
-     *   overtime:      overtime_date, start_time, end_time
+     *   overtime:      date_from, date_to, start_time, end_time
      *   cash_advance:  amount_requested
      *
      * @param array<string, string> $params
@@ -376,7 +368,8 @@ final class EmployeePortalController
             'start_date'       => trim((string) ($_POST['start_date']       ?? '')),
             'end_date'         => trim((string) ($_POST['end_date']         ?? '')),
             // Overtime
-            'overtime_date'    => trim((string) ($_POST['overtime_date']    ?? '')),
+            'date_from'        => trim((string) ($_POST['date_from']        ?? '')),
+            'date_to'          => trim((string) ($_POST['date_to']          ?? '')),
             'start_time'       => trim((string) ($_POST['start_time']       ?? '')),
             'end_time'         => trim((string) ($_POST['end_time']         ?? '')),
             // Cash advance
@@ -384,7 +377,8 @@ final class EmployeePortalController
         ];
 
         try {
-            $service->submit($employeeId, $data);
+            $identity = AuthMiddleware::identity();
+            $service->submit($employeeId, $data, (int) ($identity['user_id'] ?? 0));
             ViewRenderer::flash('Request submitted successfully.');
             $this->redirect('/employee/requests');
         } catch (RuntimeException $e) {

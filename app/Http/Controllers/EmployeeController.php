@@ -208,13 +208,42 @@ final class EmployeeController
             return;
         }
 
-        // Show credentials exactly once — HR must relay these to the employee.
-        // Requirement 13, AC7: display email + temporary password in a
-        // dismissible confirmation screen; do NOT persist the plain password.
-        ViewRenderer::render('hr/employees/created', [
+        // Store credentials in session and redirect (PRG pattern) so a browser
+        // reload does not resubmit the form and attempt to create a duplicate.
+        // Requirement 13, AC7: display email + temporary password exactly once.
+        $_SESSION['_employee_created'] = [
             'employeeName' => trim($data['first_name'] . ' ' . $data['last_name']),
             'accountEmail' => $data['email'],
             'tempPassword' => $tempPwd,
+        ];
+        $this->redirect('/hr/employees/created');
+    }
+
+    /**
+     * GET /hr/employees/created — one-time credential confirmation screen.
+     *
+     * Reads and clears the session stash written by store() so that a browser
+     * reload or back-navigation shows a safe "already shown" message instead
+     * of re-running the POST (PRG pattern, Requirement 13 AC7).
+     *
+     * @param array<string, string> $params
+     */
+    public function created(array $params = []): void
+    {
+        $payload = $_SESSION['_employee_created'] ?? null;
+        unset($_SESSION['_employee_created']);
+
+        if ($payload === null) {
+            // Session data already consumed or user navigated here directly.
+            ViewRenderer::flashError('Employee credentials have already been displayed or the page was reloaded.');
+            $this->redirect('/hr/employees');
+            return;
+        }
+
+        ViewRenderer::render('hr/employees/created', [
+            'employeeName' => (string) $payload['employeeName'],
+            'accountEmail' => (string) $payload['accountEmail'],
+            'tempPassword' => (string) $payload['tempPassword'],
         ], 'Employee Created');
     }
 
@@ -709,7 +738,7 @@ final class EmployeeController
             $errors['email'] = 'This email address is already assigned to another employee.';
         }
 
-        if (!$isEdit && $data['email'] === '') {
+        if ($data['email'] === '') {
             $errors['email'] = 'Email address is required.';
         }
 
@@ -733,19 +762,21 @@ final class EmployeeController
             $errors['last_name'] = 'Last name may only contain letters, spaces, hyphens, apostrophes, and periods.';
         }
 
-        // Birthdate: optional, but must be a real calendar date when provided.
-        if ($data['birthdate'] !== '') {
+        // Birthdate: required, and must be a real calendar date.
+        if ($data['birthdate'] === '') {
+            $errors['birthdate'] = 'Birthdate is required.';
+        } else {
             $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['birthdate']);
             if ($parsed === false || $parsed->format('Y-m-d') !== $data['birthdate']) {
                 $errors['birthdate'] = 'Birthdate must be a valid date (YYYY-MM-DD).';
             }
         }
 
-        // Contact number: Philippine mobile 09XXXXXXXXX (11 digits), optional.
-        if ($data['contact_number'] !== '') {
-            if (!preg_match('/^09\d{9}$/', $data['contact_number'])) {
-                $errors['contact_number'] = 'Contact number must be a valid Philippine mobile number starting with 09 and exactly 11 digits (e.g. 09171234567).';
-            }
+        // Contact number: required; Philippine mobile 09XXXXXXXXX (11 digits).
+        if ($data['contact_number'] === '') {
+            $errors['contact_number'] = 'Contact number is required.';
+        } elseif (!preg_match('/^09\d{9}$/', $data['contact_number'])) {
+            $errors['contact_number'] = 'Contact number must be a valid Philippine mobile number starting with 09 and exactly 11 digits (e.g. 09171234567).';
         }
 
         // Government IDs: optional, but enforce format and length when provided.

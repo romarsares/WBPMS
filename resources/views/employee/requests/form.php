@@ -123,14 +123,23 @@ $selectedType = (string) ($_POST['request_type_id'] ?? '');
 
         <!-- ── Overtime fields ──────────────────────────────────────────── -->
         <div id="section-overtime" style="display:none">
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;margin-bottom:1rem">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
                 <div class="form-group">
-                    <label for="overtime_date" style="display:block;font-weight:500;margin-bottom:.3rem">OT date</label>
-                    <input type="date" id="overtime_date" name="overtime_date"
-                           value="<?= $fp('overtime_date') ?>"
-                           style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['overtime_date']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
-                    <?= $err('overtime_date') ?>
+                    <label for="date_from" style="display:block;font-weight:500;margin-bottom:.3rem">From date</label>
+                    <input type="date" id="date_from" name="date_from"
+                           value="<?= $fp('date_from') ?>"
+                           style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['date_from']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
+                    <?= $err('date_from') ?>
                 </div>
+                <div class="form-group">
+                    <label for="date_to" style="display:block;font-weight:500;margin-bottom:.3rem">To date</label>
+                    <input type="date" id="date_to" name="date_to"
+                           value="<?= $fp('date_to') ?>"
+                           style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['date_to']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
+                    <?= $err('date_to') ?>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem">
                 <div class="form-group">
                     <label for="start_time" style="display:block;font-weight:500;margin-bottom:.3rem">Start time</label>
                     <input type="text" id="start_time" name="start_time" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]"
@@ -146,7 +155,7 @@ $selectedType = (string) ($_POST['request_type_id'] ?? '');
                     <?= $err('end_time') ?>
                 </div>
             </div>
-            <p class="muted" style="margin:-.5rem 0 1rem;font-size:.8rem">Use 24-hour time (HH:MM), for example 13:30.</p>
+            <p class="muted" style="margin:-.5rem 0 1rem;font-size:.8rem">Use 24-hour time (HH:MM), for example 13:30. The same time window applies to every day in the range.</p>
         </div>
 
         <!-- ── Cash advance fields ──────────────────────────────────────── -->
@@ -157,8 +166,9 @@ $selectedType = (string) ($_POST['request_type_id'] ?? '');
                 </label>
                 <input type="number" id="amount_requested" name="amount_requested"
                        value="<?= $fp('amount_requested') ?>"
-                       min="1" step="0.01"
+                       min="1" max="2000" step="0.01"
                        style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['amount_requested']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
+                <small style="color:#6b7280;font-size:.78rem">Maximum: ₱2,000.00 per request.</small>
                 <?= $err('amount_requested') ?>
             </div>
         </div>

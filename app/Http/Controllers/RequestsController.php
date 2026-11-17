@@ -112,7 +112,8 @@ final class RequestsController
             'reason'           => trim((string) ($_POST['reason']           ?? '')),
             'start_date'       => trim((string) ($_POST['start_date']       ?? '')),
             'end_date'         => trim((string) ($_POST['end_date']         ?? '')),
-            'overtime_date'    => trim((string) ($_POST['overtime_date']    ?? '')),
+            'date_from'        => trim((string) ($_POST['date_from']        ?? '')),
+            'date_to'          => trim((string) ($_POST['date_to']          ?? '')),
             'start_time'       => trim((string) ($_POST['start_time']       ?? '')),
             'end_time'         => trim((string) ($_POST['end_time']         ?? '')),
             'amount_requested' => trim((string) ($_POST['amount_requested'] ?? '')),
@@ -129,7 +130,8 @@ final class RequestsController
         }
 
         try {
-            $service->submit($employeeId, $data);
+            $identity = AuthMiddleware::identity();
+            $service->submit($employeeId, $data, (int) ($identity['user_id'] ?? 0));
             ViewRenderer::flash('Request submitted successfully.');
             $this->redirect('/hr/requests');
         } catch (RuntimeException $e) {

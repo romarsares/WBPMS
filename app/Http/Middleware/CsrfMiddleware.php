@@ -67,14 +67,34 @@ final class CsrfMiddleware
             || empty($submittedToken)
             || !hash_equals((string) $sessionToken, (string) $submittedToken)
         ) {
-            http_response_code(419);
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode([
-                'error' => [
-                    'code'    => 'CSRF_TOKEN_INVALID',
-                    'message' => 'CSRF token validation failed. Please refresh the page and try again.',
-                ],
-            ]);
+            // Determine whether this is a browser or an API/AJAX request.
+            $acceptHeader = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+            $isApiRequest = str_contains($acceptHeader, 'application/json')
+                && !str_contains($acceptHeader, 'text/html');
+
+            if ($isApiRequest) {
+                http_response_code(419);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'error' => [
+                        'code'    => 'CSRF_TOKEN_INVALID',
+                        'message' => 'CSRF token validation failed. Please refresh the page and try again.',
+                    ],
+                ]);
+                exit;
+            }
+
+            // Browser request: redirect back to the referring page (or home)
+            // with a flash error so the user can retry without seeing raw JSON.
+            $_SESSION['_flash_error'] = 'Your session has expired or the page was open too long. Please try again.';
+            $base    = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+            $referer = (string) ($_SERVER['HTTP_REFERER'] ?? '');
+            // Only redirect to the referer if it is on the same host (prevent open redirect).
+            $appHost  = parse_url($base, PHP_URL_HOST) ?? '';
+            $refHost  = parse_url($referer, PHP_URL_HOST) ?? '';
+            $redirect = ($appHost !== '' && $refHost === $appHost) ? $referer : $base . '/';
+            http_response_code(302);
+            header('Location: ' . $redirect);
             exit;
         }
     }

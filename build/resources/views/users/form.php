@@ -49,7 +49,7 @@ $val = static function (string $key) use ($old, $user): string {
 <?php endif; ?>
 
 <div class="panel" style="max-width:680px">
-    <form method="POST" action="<?= Formatter::escape($formAction) ?>" novalidate>
+    <form method="POST" action="<?= Formatter::escape($formAction) ?>" novalidate data-validate>
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8') ?>">
         <?php if ($isEdit): ?>
             <input type="hidden" name="_method" value="PUT">
@@ -62,16 +62,21 @@ $val = static function (string $key) use ($old, $user): string {
                    class="form-control"
                    value="<?= Formatter::escape($val('username')) ?>"
                    maxlength="50" autocomplete="username"
+                   required
+                   data-msg-required="Username is required."
                    placeholder="e.g. jdelacruz">
         </div>
 
         <!-- EMAIL -->
         <div class="form-group">
             <label for="account_email">Account Email <span class="req">*</span></label>
-            <input id="account_email" name="account_email" type="text"
+            <input id="account_email" name="account_email" type="email"
                    class="form-control"
                    value="<?= Formatter::escape($val('account_email')) ?>"
                    maxlength="254" autocomplete="email"
+                   required
+                   data-msg-required="Account email is required."
+                   data-msg-type="Please enter a valid email address."
                    placeholder="e.g. juan@lightdiamond.com">
         </div>
 
@@ -82,6 +87,9 @@ $val = static function (string $key) use ($old, $user): string {
             <input id="password" name="password" type="password"
                    class="form-control"
                    minlength="8" autocomplete="new-password"
+                   required
+                   data-msg-required="Password is required."
+                   data-msg-min="Password must be at least 8 characters."
                    placeholder="Minimum 8 characters">
         </div>
         <?php endif; ?>
@@ -90,7 +98,8 @@ $val = static function (string $key) use ($old, $user): string {
         <?php if (($roleName ?? '') !== 'HRHead'): ?>
         <div class="form-group">
             <label for="role_id">Role <span class="req">*</span></label>
-            <select id="role_id" name="role_id" class="form-control">
+            <select id="role_id" name="role_id" class="form-control"
+                    required data-msg-required="Role is required.">
                 <option value="">— Select role —</option>
                 <?php foreach ($roles as $role): ?>
                     <option value="<?= (int)$role['role_id'] ?>"
@@ -130,10 +139,10 @@ $val = static function (string $key) use ($old, $user): string {
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="btn-primary">
+            <button type="submit" class="btn btn-primary">
                 <?= $isEdit ? '✓ Save Changes' : '＋ Create User' ?>
             </button>
-            <a class="btn-secondary" href="<?= $base ?>/users">Cancel</a>
+            <a class="btn btn-secondary" href="<?= $base ?>/users">Cancel</a>
         </div>
     </form>
 </div>
@@ -159,3 +168,5 @@ $val = static function (string $key) use ($old, $user): string {
 </script>
 
 
+
+<script src="<?= $base ?>/assets/inline-validate.js"></script>

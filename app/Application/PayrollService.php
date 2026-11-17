@@ -288,9 +288,11 @@ final class PayrollService
                     p.daily_rate_snapshot,
                     p.gross_pay,
                     p.total_deductions,
-                    p.net_pay
+                    p.net_pay,
+                    ps.payslip_id
                FROM payroll p
-               JOIN employee e ON e.employee_id = p.employee_id
+               JOIN employee e   ON e.employee_id = p.employee_id
+               LEFT JOIN payslip ps ON ps.payroll_id = p.payroll_id
               WHERE p.payroll_run_id = :id
               ORDER BY e.last_name, e.first_name"
         );
@@ -1211,6 +1213,7 @@ final class PayrollService
             'payslip_id'        => (int) $header['payslip_id'],
             'issue_date'        => $header['issue_date'],
             'employee_id'       => (int) $header['employee_id'],
+            'payroll_id'        => (int) $header['payroll_id'],
             'employee_name'     => $header['employee_name'],
             'employee_number'   => $header['employee_number'],
             'position'          => $header['position'] ?? '',
@@ -1390,25 +1393,38 @@ final class PayrollService
      */
     private function approvedOvertimeRequestsByDate(PDO $pdo, int $employeeId, string $periodStart, string $periodEnd): array
     {
+        // Fetch all approved OT requests whose date range overlaps the payroll period.
         $stmt = $pdo->prepare(
-            "SELECT ord.overtime_date, ord.start_time, ord.end_time
+            "SELECT ord.date_from, ord.date_to, ord.start_time, ord.end_time
                FROM request r
                JOIN request_type rt ON rt.request_type_id = r.request_type_id
                JOIN overtime_request_detail ord ON ord.request_id = r.request_id
               WHERE r.employee_id = :emp_id
                 AND rt.type_name = 'Overtime'
                 AND r.status = 'Approved'
-                AND ord.overtime_date BETWEEN :start AND :end
-              ORDER BY ord.overtime_date, ord.start_time"
+                AND ord.date_from <= :end
+                AND ord.date_to   >= :start
+              ORDER BY ord.date_from, ord.start_time"
         );
         $stmt->execute([':emp_id' => $employeeId, ':start' => $periodStart, ':end' => $periodEnd]);
 
+        // Expand each range row into individual per-date entries so payableOvertimeByDate()
+        // can look up approved windows by a single attendance date key.
         $approved = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $approved[(string) $row['overtime_date']][] = [
-                'start_time' => (string) $row['start_time'],
-                'end_time' => (string) $row['end_time'],
-            ];
+            $current = new \DateTimeImmutable((string) $row['date_from']);
+            $last    = new \DateTimeImmutable((string) $row['date_to']);
+            while ($current <= $last) {
+                $date = $current->format('Y-m-d');
+                // Only include dates that fall within the payroll period.
+                if ($date >= $periodStart && $date <= $periodEnd) {
+                    $approved[$date][] = [
+                        'start_time' => (string) $row['start_time'],
+                        'end_time'   => (string) $row['end_time'],
+                    ];
+                }
+                $current = $current->modify('+1 day');
+            }
         }
         return $approved;
     }

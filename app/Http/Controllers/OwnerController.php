@@ -123,9 +123,11 @@ final class OwnerController
                     e.employee_number,
                     p.gross_pay,
                     p.total_deductions,
-                    p.net_pay
+                    p.net_pay,
+                    ps.payslip_id
              FROM payroll p
              JOIN employee e ON e.employee_id = p.employee_id
+             LEFT JOIN payslip ps ON ps.payroll_id = p.payroll_id
              WHERE p.payroll_run_id = :id
              ORDER BY e.last_name, e.first_name"
         );

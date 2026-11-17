@@ -82,7 +82,6 @@ $router->add('PUT',  '/users/{id}',         [UserController::class, 'update'],  
 $router->add('POST', '/users/{id}/toggle',    [UserController::class, 'toggle'],    ['BusinessOwner', 'HRHead']);
 $router->add('POST', '/users/{id}/archive',   [UserController::class, 'archive'],   ['BusinessOwner', 'HRHead']);
 $router->add('POST', '/users/{id}/unarchive', [UserController::class, 'unarchive'], ['BusinessOwner', 'HRHead']);
-$router->add('POST', '/users/{id}/archive', [UserController::class, 'archive'],       ['BusinessOwner', 'HRHead']);
 $router->add('POST', '/users/{id}/reset-password', [UserController::class, 'resetPassword'], ['BusinessOwner', 'HRHead']);
 
 // ---------------------------------------------------------------------------
@@ -119,6 +118,7 @@ $router->add('GET', '/hr/dashboard', [DashboardController::class, 'hrDashboard']
 
 $router->add('GET',  '/hr/employees',                [EmployeeController::class, 'index'],        ['HRHead']);
 $router->add('GET',  '/hr/employees/new',             [EmployeeController::class, 'create'],       ['HRHead']);
+$router->add('GET',  '/hr/employees/created',         [EmployeeController::class, 'created'],      ['HRHead']);
 $router->add('POST', '/hr/employees',                [EmployeeController::class, 'store'],         ['HRHead']);
 $router->add('GET',  '/hr/employees/{id}/transfer',  [EmployeeController::class, 'transferForm'],  ['HRHead']);
 $router->add('POST', '/hr/employees/{id}/transfer',  [EmployeeController::class, 'transfer'],      ['HRHead']);
@@ -226,6 +226,9 @@ $router->add('POST', '/hr/payroll/{id}/employees/{payrollId}/adjust', [PayrollCo
 $router->add('POST', '/hr/payroll/{id}/compute',     [PayrollController::class, 'compute'],  ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/submit',      [PayrollController::class, 'submit'],   ['HRHead']);
 $router->add('POST', '/hr/payroll/{id}/cancel',      [PayrollController::class, 'cancel'],   ['HRHead']);
+// Individual payslip printing — HR Head and Business Owner (REQ074)
+$router->add('GET',  '/hr/payroll/{id}/payslips/{payslipId}/print',    [PayrollController::class, 'payslipPrint'],       ['HRHead', 'BusinessOwner']);
+$router->add('GET',  '/hr/payroll/{id}/payslips/{payslipId}/download', [PayrollController::class, 'payslipPdfDownload'], ['HRHead', 'BusinessOwner']);
 
 // Printable payroll documents. These use a neutral path because both HR and
 // the Business Owner may review the same source records.

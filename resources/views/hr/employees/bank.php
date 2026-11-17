@@ -73,7 +73,7 @@ $BANK_NAMES = ['BDO', 'BPI', 'Metrobank', 'UnionBank', 'Landbank', 'PNB', 'RCBC'
 <div class="card" style="max-width:600px">
     <form method="POST"
           action="<?= Formatter::escape($base . '/hr/employees/' . $empId . '/bank') ?>"
-          novalidate>
+          novalidate data-validate>
         <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
 
         <h2 style="margin-top:0">Bank Account Details</h2>
@@ -111,6 +111,8 @@ $BANK_NAMES = ['BDO', 'BPI', 'Metrobank', 'UnionBank', 'Landbank', 'PNB', 'RCBC'
                        value="<?= $pv('account_name') ?>"
                        placeholder="Full name as on the bank account"
                        maxlength="100"
+                       required
+                       data-msg-required="Account name is required."
                        class="<?= isset($errors['account_name']) ? 'is-invalid' : '' ?>">
                 <?= $err('account_name') ?>
             </div>
@@ -123,6 +125,8 @@ $BANK_NAMES = ['BDO', 'BPI', 'Metrobank', 'UnionBank', 'Landbank', 'PNB', 'RCBC'
                        value="<?= $pv('account_number') ?>"
                        placeholder="e.g. 1234-5678-90"
                        inputmode="numeric"
+                       required
+                       data-msg-required="Account number is required."
                        class="<?= isset($errors['account_number']) ? 'is-invalid' : '' ?>">
                 <?= $err('account_number') ?>
             </div>
@@ -145,6 +149,8 @@ $BANK_NAMES = ['BDO', 'BPI', 'Metrobank', 'UnionBank', 'Landbank', 'PNB', 'RCBC'
                        value="<?= isset($_POST['effective_from'])
                            ? Formatter::escape((string) $_POST['effective_from'])
                            : Formatter::escape($defaultEffective) ?>"
+                       required
+                       data-msg-required="Effective date is required."
                        class="<?= isset($errors['effective_from']) ? 'is-invalid' : '' ?>">
                 <small class="muted">Date this account becomes active for payroll disbursement.</small>
                 <?= $err('effective_from') ?>
@@ -190,3 +196,5 @@ function syncBankName(sel) {
 .flash-warning { background: #fef3c7; border: 1px solid #fbbf24; color: #92400e; border-radius: .375rem; padding: .75rem 1rem; }
 .flash-error   { background: #fee2e2; border: 1px solid #f87171; color: #991b1b; border-radius: .375rem; padding: .75rem 1rem; }
 </style>
+
+<script src="<?= $base ?>/assets/inline-validate.js"></script>

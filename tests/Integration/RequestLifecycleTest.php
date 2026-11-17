@@ -109,7 +109,8 @@ final class RequestLifecycleTest extends IntegrationTestCase
         $requestId = $this->service->submit($this->employeeId, [
             'request_type_id' => $this->overtimeTypeId,
             'reason'          => 'Extra work needed',
-            'overtime_date'   => '2026-11-03',
+            'date_from'       => '2026-11-03',
+            'date_to'         => '2026-11-03',
             'start_time'      => '17:00',
             'end_time'        => '19:00',
         ]);
@@ -201,7 +202,8 @@ final class RequestLifecycleTest extends IntegrationTestCase
         $requestId = $this->service->submit($this->employeeId, [
             'request_type_id' => $this->overtimeTypeId,
             'reason'          => 'Extended project',
-            'overtime_date'   => '2026-11-05',
+            'date_from'       => '2026-11-05',
+            'date_to'         => '2026-11-07',
             'start_time'      => '18:00',
             'end_time'        => '20:00',
         ]);
@@ -219,7 +221,8 @@ final class RequestLifecycleTest extends IntegrationTestCase
         $requestId = $this->service->submit($this->employeeId, [
             'request_type_id' => $this->overtimeTypeId,
             'reason'          => 'Overtime',
-            'overtime_date'   => '2026-11-06',
+            'date_from'       => '2026-11-06',
+            'date_to'         => '2026-11-06',
             'start_time'      => '17:00',
             'end_time'        => '19:00',
         ]);
