@@ -1,0 +1,63 @@
+# ============================================================
+# WBPMS — Docker Compose stack
+#   Connects to the shared MySQL 8.4 on shared-mysql_net.
+#   No separate DB container — follows host convention.
+#
+# Usage:
+#   cp .env.docker .env         # fill in real values first
+#   docker compose -p wbpms up -d --build
+# ============================================================
+services:
+
+  # ── PHP / Apache application ────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wbpms_app
+    restart: unless-stopped
+    ports:
+      - "8085:80"
+    environment:
+      APP_ENV:        "${APP_ENV:-production}"
+      APP_BASE_URL:   "${APP_BASE_URL}"
+      APP_KEY:        "${APP_KEY}"
+      APP_FORCE_SECURE_COOKIE: "${APP_FORCE_SECURE_COOKIE:-false}"
+      DB_HOST:        "${DB_HOST:-shared-mysql}"
+      DB_PORT:        "${DB_PORT:-3306}"
+      DB_NAME:        "${DB_NAME:-wbpms}"
+      DB_USER:        "${DB_USER:-wbpms}"
+      DB_PASSWORD:    "${DB_PASSWORD}"
+      MAIL_DRIVER:    "${MAIL_DRIVER:-log}"
+      MAIL_HOST:      "${MAIL_HOST:-}"
+      MAIL_PORT:      "${MAIL_PORT:-587}"
+      MAIL_USERNAME:  "${MAIL_USERNAME:-}"
+      MAIL_PASSWORD:  "${MAIL_PASSWORD:-}"
+      MAIL_ENCRYPTION: "${MAIL_ENCRYPTION:-tls}"
+      MAIL_FROM_ADDRESS: "${MAIL_FROM_ADDRESS:-no-reply@example.com}"
+      MAIL_FROM_NAME:    "${MAIL_FROM_NAME:-WBPMS}"
+    volumes:
+      # Persist uploaded files and generated artifacts across deployments
+      - wbpms_storage:/var/www/html/storage/private
+    networks:
+      - wbpms_net
+      - shared-mysql_net     # join shared MySQL network
+      - proxy                # shared reverse proxy for public HTTPS ingress
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.wbpms.rule=Host(`wbpms.coreflow.business`)"
+      - "traefik.http.routers.wbpms.entrypoints=web"
+      - "traefik.http.services.wbpms.loadbalancer.server.port=80"
+
+volumes:
+  wbpms_storage:
+
+networks:
+  wbpms_net:
+    driver: bridge
+  shared-mysql_net:
+    external: true           # already managed by /srv/app/mysql
+  proxy:
+    external: true           # managed by /srv/app/proxy
+    name: proxy

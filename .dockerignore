@@ -1,0 +1,54 @@
+# ── Secrets / environment ────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── PHP vendor (rebuilt in container) ────────────────────────
+/vendor/
+
+# ── Dev/test artifacts ───────────────────────────────────────
+/tests/
+/.phpunit.cache/
+/.phpunit.result.cache
+/coverage/
+/.phpstan.cache/
+phpstan.neon
+phpunit.xml
+phpstan-bootstrap.php
+
+# ── Storage (mounted as volume) ──────────────────────────────
+/storage/private/*
+!/storage/private/.gitkeep
+
+# ── IDE / OS ─────────────────────────────────────────────────
+/.idea/
+/.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Git ───────────────────────────────────────────────────────
+/.git/
+/.gitignore
+
+# ── Documentation / scripts not needed at runtime ────────────
+/docs/
+/issues/
+/regression/
+/scripts/
+/setup/
+/tools/
+/backup/
+*.docx
+*.md
+*.bat
+*.sql
+*.zip
+*.py
+router.php
+check_db.php
+diag_payroll.php
+read_xls.php
+read_xls_all.php
