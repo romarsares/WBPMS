@@ -21,16 +21,18 @@ its historical bracket rows intact.  It must never be combined with
 `clear_transactional_data.sql` or any broad delete operation.
 
 The normal `deploy.sh` is **not sufficient for this change by itself**.  It
-packages the current working tree (including uncommitted files), rebuilds
-containers, and does not create a database backup or run Phinx migrations.  A
-release operator must follow the controlled runbook in this document.
+packages the current working tree (including uncommitted files) and does not
+create a database backup.  More importantly, its container rebuild starts
+`docker/entrypoint.sh`, which automatically runs **every pending** Phinx
+migration.  Therefore an application restart is also a database-change step;
+a release operator must confirm the exact pending set before deploying.
 
 ## Risk register
 
 | ID | Risk and affected area | Likelihood | Impact | Required control and release evidence | Owner | Stop / rollback trigger |
 |---|---|---:|---:|---|---|---|
 | R1 | A production database is cleared, reseeded, or pointed at the clean database.  This would corrupt payroll, attendance, audit, and employee history. | Low | Critical | Separate database names and credentials; record `DB_NAME` without exposing secrets; prohibit cleanup and seed commands; confirm backup and row counts before release. | DBA / release manager | Any cleanup/seed command proposed for the live database: stop. Restore the verified backup if a write occurred. |
-| R2 | The normal deploy archive carries unreviewed/uncommitted files, or overwrites server-only configuration. | Medium | High | Commit only reviewed release files on `WBPMS-dev`; use a clean `git status`; preserve remote `.env`; compare release manifest and commit SHA before extraction. | Release manager | Dirty source tree, unexpected file in manifest, or unexpected remote diff: stop before upload. |
+| R2 | The normal deploy archive carries unreviewed/uncommitted files, overwrites server-only configuration, or starts an automatic migration. | Medium | High | Commit only reviewed release files on `WBPMS-dev`; use a clean `git status`; preserve remote `.env`; compare release manifest and commit SHA; confirm the exact pending Phinx set before rebuilding containers. | Release manager | Dirty source tree, unexpected file in manifest, unexpected remote diff, or any unapproved pending migration: stop before upload. |
 | R3 | Incorrect contribution brackets change employee deductions or employer liabilities. | Medium | Critical | Verify the exact four checkpoint brackets after migration: MSC 5,000 (250 / 510), 14,250 (725 / 1,460), 14,750 (750 / 1,530), and 34,750 (1,750 / 3,530), employee / employer. Have payroll owner sign off. | Payroll owner | Any checkpoint differs, policy dates are wrong, or more than one policy remains approved: stop and restore before payroll processing. |
 | R4 | The migration changes the policy used by an in-progress or already calculated payroll run. | Medium | Critical | Schedule a maintenance window outside payroll calculation/approval; identify active runs and contribution records using the affected policy; do not proceed until payroll owner confirms the change window. | Payroll owner | Any payroll run is calculating, pending approval, or requires recalculation without written payroll decision. |
 | R5 | Migration is applied against the wrong database or environment. | Medium | Critical | From the application container, record hostname, Compose project/service, `DB_NAME`, and `phinx status`; require the production target to be explicitly shown in the command. | DBA / release manager | Database identity does not match the approved production record. |
@@ -48,7 +50,7 @@ All gates must be checked by name/date in the release record.
 1. **Source gate** — The reviewed change is committed on `WBPMS-dev`; `git status --short` is clean; the release commit SHA is recorded.  No direct commit to `main`, production, staging, or test branches.
 2. **Environment gate** — Read-only core-server preflight identifies the application directory, running Compose services, database name, current application SHA, and Phinx status.  No password or secret is copied into the release record.
 3. **Database safety gate** — A restorable, off-host backup exists and its checksum and restore-test result are recorded.  The production database is not reset, seeded, cleaned, or otherwise bulk-deleted.
-4. **Migration-scope gate** — The policy data pre-query is reviewed by payroll.  Migration `20261118000027` is the only pending schema/data change approved for this window.
+4. **Migration-scope gate** — The policy data pre-query is reviewed by payroll.  Migration `20261118000027` is the only pending schema/data change approved for this window, because the container entrypoint will run all pending migrations at startup.
 5. **Business-window gate** — No payroll run is calculating or awaiting a decision affected by the policy.  Payroll owner approves the maintenance window and communication.
 6. **Verification gate** — The four ECP checkpoints and one-approved-version invariant pass on a clean test database and an isolated core-server staging clone.
 7. **Go/no-go gate** — Release manager, DBA, payroll owner, and QA explicitly approve proceeding.  Absence of any approver is a no-go.
@@ -81,12 +83,13 @@ All gates must be checked by name/date in the release record.
 ### 3. Deployment and migration
 
 - Build and deploy the reviewed, committed source only.  Do not run the current
-  `deploy.sh` from a dirty tree.
-- Recheck container health after the application release.
-- From the verified application container, run the one approved Phinx migration
-  using the production environment/configuration.  Do **not** use `seed:run`,
-  `migrate:fresh`, `clear_transactional_data.sql`, or generic batch migration
-  commands that include unreviewed pending files.
+  `deploy.sh` from a dirty tree.  Immediately before the rebuild, record Phinx
+  status and confirm the approved migration is the only pending item.
+- Treat the application restart as the migration execution step: its entrypoint
+  runs Phinx automatically.  Do **not** use `seed:run`, `migrate:fresh`,
+  `clear_transactional_data.sql`, or deploy while any unreviewed migration is
+  pending.
+- Recheck container health and Phinx history after the application release.
 - Capture the migration output in the restricted release record.
 
 ### 4. Post-migration validation
