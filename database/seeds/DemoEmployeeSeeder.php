@@ -88,9 +88,10 @@ class DemoEmployeeSeeder extends AbstractSeed
         // work_schedule  — Mon-Fri, 07:00-16:00, 60 min break, 480 standard mins
         // Default documented shift per ADR-0001: 07:00–16:00
         // -------------------------------------------------------------------
+        $scheduleName = 'Demo Regular Shift (07:00-16:00)';
         $schedExists = $this->fetchRow(
             "SELECT schedule_id FROM work_schedule
-             WHERE employee_id = {$employeeId} AND effective_from = '{$effectiveFrom}'"
+             WHERE schedule_name = '{$scheduleName}'"
         );
 
         if ($schedExists === false) {
@@ -99,16 +100,33 @@ class DemoEmployeeSeeder extends AbstractSeed
 
             $this->execute("
                 INSERT INTO work_schedule
-                    (employee_id, working_days, rest_days, break_minutes,
+                    (schedule_name, working_days, rest_days, break_minutes,
                      work_start_time, work_end_time, standard_minutes,
                      effective_from, effective_to, status, created_at, updated_at)
                 VALUES
-                    ({$employeeId},
+                    ('{$scheduleName}',
                      '{$workingDaysJson}',
                      '{$restDaysJson}',
                      60,
                      '07:00:00', '16:00:00', 480,
                      '{$effectiveFrom}', NULL, 'Active', '{$now}', '{$now}')
+            ");
+        }
+
+        $scheduleId = $this->fetchScheduleId($scheduleName);
+        $scheduleAssignmentExists = $this->fetchRow(
+            "SELECT assignment_id FROM employee_schedule_assignment
+             WHERE employee_id = {$employeeId} AND effective_from = '{$effectiveFrom}'"
+        );
+
+        if ($scheduleAssignmentExists === false) {
+            $this->execute("
+                INSERT INTO employee_schedule_assignment
+                    (employee_id, schedule_id, effective_from, effective_to,
+                     status, notes, created_at, updated_at)
+                VALUES
+                    ({$employeeId}, {$scheduleId}, '{$effectiveFrom}', NULL,
+                     'Active', 'Initial demo assignment', '{$now}', '{$now}')
             ");
         }
 
@@ -191,5 +209,15 @@ class DemoEmployeeSeeder extends AbstractSeed
         }
 
         return (int) $row['employee_id'];
+    }
+
+    private function fetchScheduleId(string $scheduleName): int
+    {
+        $row = $this->fetchRow("SELECT schedule_id FROM work_schedule WHERE schedule_name = '{$scheduleName}'");
+        if ($row === false || !isset($row['schedule_id'])) {
+            throw new \RuntimeException("Work schedule '{$scheduleName}' not found.");
+        }
+
+        return (int) $row['schedule_id'];
     }
 }

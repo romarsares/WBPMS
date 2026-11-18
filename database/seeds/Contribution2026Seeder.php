@@ -10,7 +10,8 @@ use Phinx\Seed\AbstractSeed;
  * Creates an Approved, production-grade contribution_policy_version
  * (PH-STATUTORY-2026 / V1, demo_only = FALSE, effective 2026-01-01) with:
  *
- *   SSS        — full MSC bracket table, 5% employee / 10% employer,
+ *   SSS        — full MSC bracket table, 5% employee / 10% employer SS share
+ *                plus the employer-only Employees' Compensation Program (ECP),
  *                MSC ₱5,000–₱35,000 in ₱500 steps (61 brackets).
  *                RA 11199 final tranche (Jan 2025), carried through 2026.
  *   PhilHealth — 5.0% total, 2.5% employee share,
@@ -83,7 +84,7 @@ class Contribution2026Seeder extends AbstractSeed
                 '(%d, 0.00, 5249.99, %s, %s, %s, NULL, %s, %s)',
                 $policyId,
                 $this->money($mscFloor * $sssRateEmployee),  // 250.00
-                $this->money($mscFloor * $sssRateEmployer),  // 500.00
+                $this->money(($mscFloor * $sssRateEmployer) + 10), // 500.00 + ECP
                 $this->sqlDate($effectiveFrom),
                 $this->sqlDate($now),
                 $this->sqlDate($now)
@@ -103,7 +104,7 @@ class Contribution2026Seeder extends AbstractSeed
                     $this->money((float) $salaryFrom),
                     $salaryTo,
                     $this->money($msc * $sssRateEmployee),
-                    $this->money($msc * $sssRateEmployer),
+                    $this->money(($msc * $sssRateEmployer) + ($msc <= 14500 ? 10 : 30)),
                     $this->sqlDate($effectiveFrom),
                     $this->sqlDate($now),
                     $this->sqlDate($now)

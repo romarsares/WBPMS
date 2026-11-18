@@ -59,16 +59,16 @@ class HolidayCalendar2026Seeder extends AbstractSeed
             // ---------------------------------------------------------------
             // SPECIAL NON-WORKING HOLIDAYS (Proclamation 727 s.2025 + fixed)
             // ---------------------------------------------------------------
-            ['2026-01-02', 'Special Non-Working Day (New Year bridge)', 'Special', 1.30],
-            ['2026-02-05', 'Chinese New Year (Year of the Horse)',       'Special', 1.30],
-            ['2026-04-04', 'Black Saturday',                             'Special', 1.30],
-            ['2026-08-21', 'Ninoy Aquino Day',                          'Special', 1.30],
-            ['2026-10-31', "All Hallows' Eve (Halloween)",               'Special', 1.30],
-            ['2026-11-01', "All Saints' Day",                            'Special', 1.30],
-            ['2026-11-02', "All Souls' Day",                             'Special', 1.30],
-            ['2026-12-08', 'Feast of the Immaculate Conception',        'Special', 1.30],
-            ['2026-12-24', 'Christmas Eve',                              'Special', 1.30],
-            ['2026-12-31', "New Year's Eve",                             'Special', 1.30],
+            ['2026-01-02', 'Special Non-Working Day (New Year bridge)', 'SpecialNonWorking', 1.30],
+            ['2026-02-05', 'Chinese New Year (Year of the Horse)',       'SpecialNonWorking', 1.30],
+            ['2026-04-04', 'Black Saturday',                             'SpecialNonWorking', 1.30],
+            ['2026-08-21', 'Ninoy Aquino Day',                           'SpecialNonWorking', 1.30],
+            ['2026-10-31', "All Hallows' Eve (Halloween)",               'SpecialNonWorking', 1.30],
+            ['2026-11-01', "All Saints' Day",                            'SpecialNonWorking', 1.30],
+            ['2026-11-02', "All Souls' Day",                             'SpecialNonWorking', 1.30],
+            ['2026-12-08', 'Feast of the Immaculate Conception',        'SpecialNonWorking', 1.30],
+            ['2026-12-24', 'Christmas Eve',                              'SpecialNonWorking', 1.30],
+            ['2026-12-31', "New Year's Eve",                             'SpecialNonWorking', 1.30],
         ];
     }
 
