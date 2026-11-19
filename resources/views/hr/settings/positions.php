@@ -49,6 +49,8 @@ $e = static fn(string $key): string => isset($errors[$key])
             <tr>
                 <th>Position Title</th>
                 <th>Department / Group</th>
+                <th style="text-align:right">Default Rate</th>
+                <th style="text-align:center">Contractual</th>
                 <th style="text-align:center">Sort Order</th>
                 <th style="text-align:center">Status</th>
                 <th>Actions</th>
@@ -56,7 +58,7 @@ $e = static fn(string $key): string => isset($errors[$key])
         </thead>
         <tbody>
         <?php if (empty($positions)): ?>
-            <tr><td colspan="5" class="muted" style="text-align:center;padding:2rem">
+            <tr><td colspan="7" class="muted" style="text-align:center;padding:2rem">
                 No positions defined yet. Click <strong>+ Add Position</strong> to create one.
             </td></tr>
         <?php else: foreach ($positions as $p):
@@ -66,6 +68,18 @@ $e = static fn(string $key): string => isset($errors[$key])
             <tr>
                 <td><strong><?= Formatter::escape($p['position_title']) ?></strong></td>
                 <td class="muted"><?= $p['department'] ? Formatter::escape($p['department']) : '—' ?></td>
+                <td style="text-align:right">
+                    <?= isset($p['default_daily_rate']) && $p['default_daily_rate'] !== null
+                        ? '₱' . number_format((float) $p['default_daily_rate'], 2)
+                        : '<span class="muted">—</span>' ?>
+                </td>
+                <td style="text-align:center">
+                    <?php if ((int) ($p['contractual_allowed'] ?? 1)): ?>
+                        <span class="badge ok" title="Contractual employees may hold this position">Yes</span>
+                    <?php else: ?>
+                        <span class="badge off" title="Contractual employees cannot hold this position">No</span>
+                    <?php endif; ?>
+                </td>
                 <td style="text-align:center"><?= (int) $p['sort_order'] ?></td>
                 <td style="text-align:center">
                     <span class="badge <?= $badge ?>"><?= $p['status'] ?></span>
@@ -76,6 +90,8 @@ $e = static fn(string $key): string => isset($errors[$key])
                             onclick="openEditModal(<?= (int)$p['position_id'] ?>,
                                 '<?= Formatter::escape(addslashes($p['position_title'])) ?>',
                                 '<?= Formatter::escape(addslashes((string)$p['department'])) ?>',
+                                '<?= Formatter::escape((string)($p['default_daily_rate'] ?? '')) ?>',
+                                '<?= (int)($p['contractual_allowed'] ?? 1) ?>',
                                 <?= (int)$p['sort_order'] ?>)">
                         Edit
                     </button>
@@ -127,6 +143,26 @@ $e = static fn(string $key): string => isset($errors[$key])
                 <small class="muted">Used for grouping in reports only.</small>
             </div>
 
+            <div class="form-group" style="margin-bottom:.85rem">
+                <label for="add_default_daily_rate">Default Daily Rate (₱) <span class="muted">(optional)</span></label>
+                <input type="number" id="add_default_daily_rate" name="default_daily_rate"
+                       value="<?= ($editRow === null) ? $v('default_daily_rate') : '' ?>"
+                       min="0.01" max="999999.99" step="0.01"
+                       placeholder="e.g. 500.00"
+                       class="<?= (isset($errors['default_daily_rate']) && $editRow === null) ? 'is-invalid' : '' ?>">
+                <small class="muted">Pre-fills the Daily Rate field when this position is selected on the employee form.</small>
+                <?= ($editRow === null) ? $e('default_daily_rate') : '' ?>
+            </div>
+
+            <div class="form-group" style="margin-bottom:.85rem">
+                <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+                    <input type="checkbox" id="add_contractual_allowed" name="contractual_allowed"
+                           value="1" checked>
+                    Allow Contractual employees
+                </label>
+                <small class="muted">Uncheck to prevent Contractual employees from being assigned this position.</small>
+            </div>
+
             <div class="form-group" style="margin-bottom:1.25rem">
                 <label for="add_sort_order">Sort Order</label>
                 <input type="number" id="add_sort_order" name="sort_order"
@@ -172,6 +208,26 @@ $e = static fn(string $key): string => isset($errors[$key])
                        maxlength="100">
             </div>
 
+            <div class="form-group" style="margin-bottom:.85rem">
+                <label for="edit_default_daily_rate">Default Daily Rate (₱) <span class="muted">(optional)</span></label>
+                <input type="number" id="edit_default_daily_rate" name="default_daily_rate"
+                       value="<?= ($editRow !== null) ? $v('default_daily_rate') : '' ?>"
+                       min="0.01" max="999999.99" step="0.01"
+                       placeholder="e.g. 500.00"
+                       class="<?= (isset($errors['default_daily_rate']) && $editRow !== null) ? 'is-invalid' : '' ?>">
+                <small class="muted">Pre-fills the Daily Rate field when this position is selected on the employee form.</small>
+                <?= ($editRow !== null) ? $e('default_daily_rate') : '' ?>
+            </div>
+
+            <div class="form-group" style="margin-bottom:.85rem">
+                <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+                    <input type="checkbox" id="edit_contractual_allowed" name="contractual_allowed"
+                           value="1">
+                    Allow Contractual employees
+                </label>
+                <small class="muted">Uncheck to prevent Contractual employees from being assigned this position.</small>
+            </div>
+
             <div class="form-group" style="margin-bottom:1.25rem">
                 <label for="edit_sort_order">Sort Order</label>
                 <input type="number" id="edit_sort_order" name="sort_order"
@@ -188,12 +244,14 @@ $e = static fn(string $key): string => isset($errors[$key])
 </div>
 
 <script>
-function openEditModal(id, title, dept, sort) {
+function openEditModal(id, title, dept, rate, contractual, sort) {
     var form = document.getElementById('editPositionForm');
     form.action = '<?= rtrim($base, '/') ?>/hr/settings/positions/' + id;
-    document.getElementById('edit_position_title').value = title;
-    document.getElementById('edit_department').value     = dept;
-    document.getElementById('edit_sort_order').value     = sort;
+    document.getElementById('edit_position_title').value       = title;
+    document.getElementById('edit_department').value           = dept;
+    document.getElementById('edit_default_daily_rate').value   = rate;
+    document.getElementById('edit_contractual_allowed').checked = (contractual === '1' || contractual === true);
+    document.getElementById('edit_sort_order').value           = sort;
     openModal('modalEditPosition');
 }
 
@@ -201,8 +259,10 @@ function openEditModal(id, title, dept, sort) {
 // Re-open edit modal on server-side validation failure
 openEditModal(
     <?= (int) $editRow ?>,
-    <?= json_encode($input['position_title'] ?? '') ?>,
-    <?= json_encode($input['department']     ?? '') ?>,
+    <?= json_encode($input['position_title']     ?? '') ?>,
+    <?= json_encode($input['department']         ?? '') ?>,
+    <?= json_encode($input['default_daily_rate'] ?? '') ?>,
+    <?= json_encode(isset($input['contractual_allowed']) ? '1' : '0') ?>,
     <?= (int) ($input['sort_order'] ?? 0) ?>
 );
 <?php endif; ?>

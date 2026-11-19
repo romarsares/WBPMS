@@ -72,7 +72,7 @@ final class SettingsController
     /** POST /hr/settings/positions */
     public function storePosition(array $params = []): void
     {
-        ['title' => $title, 'department' => $dept, 'sort_order' => $sort, 'errors' => $errors]
+        ['title' => $title, 'department' => $dept, 'sort_order' => $sort, 'default_daily_rate' => $rate, 'contractual_allowed' => $contractual, 'errors' => $errors]
             = $this->extractPosition();
 
         if ($errors !== []) {
@@ -81,7 +81,7 @@ final class SettingsController
         }
 
         try {
-            $this->posRepo()->create($title, $dept, $sort);
+            $this->posRepo()->create($title, $dept, $sort, $rate, $contractual);
             ViewRenderer::flash("Position \"{$title}\" created.");
         } catch (RuntimeException $e) {
             ViewRenderer::flashError($e->getMessage());
@@ -102,7 +102,7 @@ final class SettingsController
             return;
         }
 
-        ['title' => $title, 'department' => $dept, 'sort_order' => $sort, 'errors' => $errors]
+        ['title' => $title, 'department' => $dept, 'sort_order' => $sort, 'default_daily_rate' => $rate, 'contractual_allowed' => $contractual, 'errors' => $errors]
             = $this->extractPosition();
 
         if ($errors !== []) {
@@ -111,7 +111,7 @@ final class SettingsController
         }
 
         try {
-            $repo->update($id, $title, $dept, $sort);
+            $repo->update($id, $title, $dept, $sort, $rate, $contractual);
             ViewRenderer::flash("Position \"{$title}\" updated.");
         } catch (RuntimeException $e) {
             ViewRenderer::flashError($e->getMessage());
@@ -303,14 +303,17 @@ final class SettingsController
     // =========================================================================
 
     /**
-     * @return array{title:string,department:string|null,sort_order:int,errors:array<string,string>}
+     * @return array{title:string,department:string|null,sort_order:int,default_daily_rate:?float,contractual_allowed:bool,errors:array<string,string>}
      */
     private function extractPosition(): array
     {
-        $title  = trim((string) ($_POST['position_title'] ?? ''));
-        $dept   = trim((string) ($_POST['department']     ?? ''));
-        $sort   = (int) ($_POST['sort_order'] ?? 0);
-        $errors = [];
+        $title       = trim((string) ($_POST['position_title']       ?? ''));
+        $dept        = trim((string) ($_POST['department']           ?? ''));
+        $sort        = (int) ($_POST['sort_order']                   ?? 0);
+        $rateRaw     = trim((string) ($_POST['default_daily_rate']   ?? ''));
+        // Checkbox: present in POST means allowed, absent means not allowed.
+        $contractual = isset($_POST['contractual_allowed']);
+        $errors      = [];
 
         if ($title === '') {
             $errors['position_title'] = 'Position title is required.';
@@ -318,11 +321,27 @@ final class SettingsController
             $errors['position_title'] = 'Position title must be 100 characters or fewer.';
         }
 
+        // Default daily rate is optional. When provided it must be a positive
+        // amount; it pre-fills the Daily Rate field on the Add Employee form
+        // when this position is selected (HR may still override it).
+        $rate = null;
+        if ($rateRaw !== '') {
+            if (!is_numeric($rateRaw) || (float) $rateRaw <= 0) {
+                $errors['default_daily_rate'] = 'Default daily rate must be a positive amount.';
+            } elseif ((float) $rateRaw > 999999.99) {
+                $errors['default_daily_rate'] = 'Default daily rate cannot exceed ₱999,999.99.';
+            } else {
+                $rate = (float) $rateRaw;
+            }
+        }
+
         return [
-            'title'      => $title,
-            'department' => $dept !== '' ? $dept : null,
-            'sort_order' => max(0, $sort),
-            'errors'     => $errors,
+            'title'               => $title,
+            'department'          => $dept !== '' ? $dept : null,
+            'sort_order'          => max(0, $sort),
+            'default_daily_rate'  => $rate,
+            'contractual_allowed' => $contractual,
+            'errors'              => $errors,
         ];
     }
 

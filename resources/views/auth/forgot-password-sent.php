@@ -32,10 +32,10 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
          src="<?= $base ?>/assets/light-diamond-logo.png"
          alt="Light Diamond Enterprises">
 
-    <h1>Check Your Email</h1>
+    <h1>Reset Link Sent</h1>
     <p class="login-sub">
-        If that email address is registered in the system, you will receive a
-        password reset link within a few minutes.
+        Your email has been verified. A password reset link has been sent to your
+        registered email address.
     </p>
 
     <p style="font-size:.875rem;color:#4b5563;margin:0 0 .5rem">

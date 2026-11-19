@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wbpms\Http\Controllers;
 
 use Wbpms\Application\AuthService;
+use Wbpms\Application\EmailVerificationService;
 use Wbpms\Application\PasswordResetService;
 use Wbpms\Application\UnlinkedEmployeeAccountException;
 use Wbpms\Http\Middleware\AuthMiddleware;
@@ -199,7 +200,13 @@ final class AuthController
     /**
      * POST /change-password — persist new password and clear the flag.
      *
+     * Rejects the submission if the new password matches the current one.
+     * After successfully saving the new password, a 6-digit OTP is sent to
+     * the employee's registered email address.  The employee is then redirected
+     * to /verify-email to complete one-time email ownership confirmation.
+     *
      * Requirement 13, AC5–AC6.
+     * Email OTP feature: step 1 — trigger OTP after first password change.
      *
      * @param array<string, string> $params
      */
@@ -233,8 +240,22 @@ final class AuthController
             return;
         }
 
-        $connection  = $this->makeConnection();
-        $userService = new \Wbpms\Application\UserService($connection);
+        $connection = $this->makeConnection();
+
+        // Reject if the new password is the same as the current (temporary) one.
+        $hashRow = $connection->pdo()->prepare(
+            "SELECT password_hash FROM users WHERE user_id = :id LIMIT 1"
+        );
+        $hashRow->execute([':id' => $identity['user_id']]);
+        $currentHash = (string) ($hashRow->fetchColumn() ?: '');
+
+        if ($currentHash !== '' && password_verify($password, $currentHash)) {
+            $_SESSION['_change_pwd_error'] =
+                'Your new password cannot be the same as your temporary password. '
+                . 'Please choose a different password.';
+            $this->redirect('/change-password');
+            return;
+        }
 
         // Hash and persist the new password; also clear the flag.
         $hash = password_hash($password, PASSWORD_DEFAULT);
@@ -246,10 +267,230 @@ final class AuthController
               WHERE user_id = :id"
         )->execute([':hash' => $hash, ':id' => $identity['user_id']]);
 
-        // Remove the flag from the live session so the user can access the app.
+        // Remove the flag from the live session.
         $_SESSION['_auth']['requires_password_change'] = false;
 
+        // Email OTP gate: for Employee accounts, send a one-time OTP so the
+        // employee confirms ownership of their registered email address before
+        // accessing the system.  Non-employee roles skip the OTP step.
+        if ($identity['role_name'] === 'Employee') {
+            $mailer  = new Mailer();
+            $service = new EmailVerificationService($connection, $mailer);
+
+            try {
+                $service->initiateEmailConfirmation((int) $identity['user_id']);
+            } catch (\RuntimeException $e) {
+                $this->logMailError('Email confirmation OTP delivery failed', $e->getMessage());
+
+                $appEnv = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'production')));
+                if ($appEnv === 'development') {
+                    $_SESSION['_verify_email_error'] =
+                        'SMTP delivery failed: ' . $e->getMessage()
+                        . ' — check storage/private/mail.log for the code.';
+                } else {
+                    $_SESSION['_verify_email_error'] =
+                        'We could not send the verification email. '
+                        . 'Please use the "Resend code" link on the next screen, '
+                        . 'or contact your HR administrator if the problem persists.';
+                }
+            }
+
+            $this->redirect('/verify-email');
+            return;
+        }
+
         $this->redirectToDashboard($identity['role_name']);
+    }
+
+    // -----------------------------------------------------------------------
+    // Email OTP verification  (first-login email confirmation)
+    // -----------------------------------------------------------------------
+
+    /**
+     * GET /verify-email — OTP entry screen for first-login email confirmation.
+     *
+     * Only reachable by authenticated Employee accounts whose email has not
+     * yet been verified (is_email_verified = 0).  The middleware gate in
+     * AuthMiddleware::requireRoles() enforces this; direct navigation here by
+     * an already-verified employee is redirected to their dashboard.
+     *
+     * @param array<string, string> $params
+     */
+    public function showVerifyNewEmail(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+        $identity = AuthMiddleware::identity();
+
+        if ($identity === null) {
+            $this->redirect('/login');
+            return;
+        }
+
+        // If already verified, go straight to the dashboard.
+        if ($identity['is_email_verified'] ?? false) {
+            $this->redirectToDashboard($identity['role_name']);
+            return;
+        }
+
+        $error   = $_SESSION['_verify_email_error'] ?? null;
+        unset($_SESSION['_verify_email_error']);
+
+        $success = $_SESSION['_verify_email_success'] ?? null;
+        unset($_SESSION['_verify_email_success']);
+
+        // Remaining attempts hint (non-critical — page renders even if this fails).
+        $remaining = null;
+        try {
+            $connection = $this->makeConnection();
+            $mailer     = new Mailer();
+            $service    = new EmailVerificationService($connection, $mailer);
+            $remaining  = $service->remainingConfirmationAttempts((int) $identity['user_id']);
+        } catch (\Throwable) {
+            // Non-critical.
+        }
+
+        $csrfField = CsrfMiddleware::field();
+
+        // Mask the email for display.
+        $maskedEmail = $this->maskEmail($this->fetchAccountEmail((int) $identity['user_id']));
+
+        http_response_code(200);
+        header('Content-Type: text/html; charset=utf-8');
+        require APP_ROOT . '/resources/views/auth/verify-new-email.php';
+    }
+
+    /**
+     * POST /verify-email — validate the OTP and mark the email as verified.
+     *
+     * On success: set is_email_verified = 1 and redirect to the dashboard.
+     * On failure: flash an error and redirect back to /verify-email.
+     *
+     * @param array<string, string> $params
+     */
+    public function verifyNewEmail(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+        $identity = AuthMiddleware::identity();
+
+        if ($identity === null) {
+            $this->redirect('/login');
+            return;
+        }
+
+        if ($identity['is_email_verified'] ?? false) {
+            $this->redirectToDashboard($identity['role_name']);
+            return;
+        }
+
+        $rawCode = trim((string) ($_POST['code'] ?? ''));
+
+        if ($rawCode === '') {
+            $_SESSION['_verify_email_error'] = 'Please enter the 6-digit code sent to your email.';
+            $this->redirect('/verify-email');
+            return;
+        }
+
+        $connection = $this->makeConnection();
+        $mailer     = new Mailer();
+        $service    = new EmailVerificationService($connection, $mailer);
+        $userId     = (int) $identity['user_id'];
+
+        $verified = $service->verifyConfirmationCode($userId, $rawCode);
+
+        if (!$verified) {
+            $remaining = $service->remainingConfirmationAttempts($userId);
+
+            if ($remaining !== null && $remaining === 0) {
+                $_SESSION['_verify_email_error'] =
+                    'Too many incorrect attempts. Please request a new verification code.';
+                $this->redirect('/verify-email');
+                return;
+            }
+
+            if ($remaining === null) {
+                $_SESSION['_verify_email_error'] =
+                    'Your verification code has expired. Please request a new one.';
+                $this->redirect('/verify-email');
+                return;
+            }
+
+            $_SESSION['_verify_email_error'] = sprintf(
+                'Incorrect code. %d attempt%s remaining.',
+                $remaining,
+                $remaining === 1 ? '' : 's'
+            );
+            $this->redirect('/verify-email');
+            return;
+        }
+
+        // OTP is valid — mark the email as verified.
+        $service->markEmailVerified($userId);
+
+        // Update the live session so the gate does not fire on the next request.
+        $_SESSION['_auth']['is_email_verified'] = true;
+
+        $this->redirectToDashboard($identity['role_name']);
+    }
+
+    /**
+     * POST /verify-email/resend — issue a fresh OTP to the authenticated employee.
+     *
+     * Rate-limited to MAX_RESENDS per session to prevent abuse.  On success
+     * (or on delivery failure, to avoid enumeration), redirects back to the
+     * verify-email screen with a neutral flash message.
+     *
+     * @param array<string, string> $params
+     */
+    public function resendVerificationCode(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+        $identity = AuthMiddleware::identity();
+
+        if ($identity === null) {
+            $this->redirect('/login');
+            return;
+        }
+
+        if ($identity['is_email_verified'] ?? false) {
+            $this->redirectToDashboard($identity['role_name']);
+            return;
+        }
+
+        // Session-level resend cap (3 per session).
+        $maxResends  = 3;
+        $resendCount = (int) ($_SESSION['_otp_resend_count'] ?? 0);
+
+        if ($resendCount >= $maxResends) {
+            $_SESSION['_verify_email_error'] =
+                'You have reached the maximum number of resend requests. '
+                . 'Please contact your HR administrator if you cannot receive emails.';
+            $this->redirect('/verify-email');
+            return;
+        }
+
+        $connection = $this->makeConnection();
+        $mailer     = new Mailer();
+        $service    = new EmailVerificationService($connection, $mailer);
+
+        try {
+            $service->initiateEmailConfirmation((int) $identity['user_id']);
+            $_SESSION['_otp_resend_count'] = $resendCount + 1;
+            $_SESSION['_verify_email_success'] =
+                'A new verification code has been sent to your registered email address.';
+        } catch (\RuntimeException $e) {
+            $this->logMailError('OTP resend delivery failed', $e->getMessage());
+            $appEnv = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'production')));
+            if ($appEnv === 'development') {
+                $_SESSION['_verify_email_error'] =
+                    'SMTP delivery failed: ' . $e->getMessage()
+                    . ' — check storage/private/mail.log for the code.';
+            } else {
+                $_SESSION['_verify_email_error'] =
+                    'We could not send a new code. Please try again in a few minutes.';
+            }
+        }
+
+        $this->redirect('/verify-email');
     }
 
     // -----------------------------------------------------------------------
@@ -283,10 +524,15 @@ final class AuthController
     }
 
     /**
-     * POST /forgot-password — validate the email and dispatch the reset link.
+     * POST /forgot-password — validate the email and send an OTP verification code.
      *
-     * Always redirects to the "sent" confirmation page regardless of whether
-     * the address exists, to prevent account-existence enumeration.
+     * Phase 2 (panel revision): Instead of issuing a reset link immediately,
+     * the system now sends a 6-digit OTP to the submitted address. Only after
+     * the user enters the correct code (POST /forgot-password/verify) is a
+     * password-reset token issued.
+     *
+     * Always redirects to the OTP-entry page regardless of whether the address
+     * is registered, to prevent account-existence enumeration.
      *
      * @param array<string, string> $params
      */
@@ -302,51 +548,20 @@ final class AuthController
             return;
         }
 
-        // Basic format sanity check — not exhaustive; we just need something plausible.
+        // Basic format sanity check.
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $_SESSION['_forgot_error'] = 'Please enter a valid email address.';
             $this->redirect('/forgot-password');
             return;
         }
 
-        $connection = $this->makeConnection();
-        $mailer     = new Mailer();
-        $service    = new PasswordResetService($connection, $mailer);
-
-        // Resolve the base URL used inside the password-reset link.
-        //
-        // Priority:
-        //   1. APP_BASE_URL from environment — the canonical value for production.
-        //   2. Derived from the current HTTP request — fallback when APP_BASE_URL
-        //      is missing or still set to a localhost value (common misconfiguration
-        //      when the Railway variable was never updated from the .env default).
-        //
-        // Using a localhost base URL would produce a reset link that only works
-        // on the server itself, not for the end user clicking the email.
-        $baseUrl = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
-
-        $isLocalhost = $baseUrl === ''
-            || str_contains($baseUrl, '://localhost')
-            || str_contains($baseUrl, '://127.0.0.1');
-
-        if ($isLocalhost && isset($_SERVER['HTTP_HOST'])) {
-            $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host    = (string) $_SERVER['HTTP_HOST'];
-            $baseUrl = $scheme . '://' . $host;
-        }
-
         $mailDriver = strtolower(trim((string) ($_ENV['MAIL_DRIVER'] ?? 'log')));
         $mailHost   = trim((string) ($_ENV['MAIL_HOST'] ?? ''));
+        $appEnv     = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'local')));
 
-        // In production, reject immediately if a usable delivery driver is not
-        // configured — prevents the user from waiting on a silent no-op.
-        //
-        // Accepted production driver: smtp (Gmail App Password or any SMTP server).
-        // MAIL_HOST must be set and MAIL_DRIVER must be 'smtp'.
-        $appEnv = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'local')));
+        // In production, reject early if the mail server is not configured.
         if ($appEnv === 'production') {
             $smtpReady = ($mailDriver === 'smtp' && $mailHost !== '');
-
             if (!$smtpReady) {
                 $_SESSION['_forgot_error'] =
                     'Password reset emails cannot be sent because the mail server is not '
@@ -356,44 +571,186 @@ final class AuthController
             }
         }
 
+        $connection = $this->makeConnection();
+        $mailer     = new Mailer();
+        $service    = new EmailVerificationService($connection, $mailer);
+
         try {
-            // initiateReset() returns false only when the address is unknown or
-            // the account is inactive. It re-throws RuntimeException on SMTP failure.
-            $service->initiateReset($email, $baseUrl);
+            // initiateVerification() returns false only when the address is
+            // unknown or inactive, but we do not reveal that to the caller.
+            $service->initiateVerification($email);
         } catch (\RuntimeException $e) {
-            // Write the specific SMTP error to mail.log so it is traceable
-            // without exposing details to the end user.
-            $logPath = defined('APP_ROOT')
-                ? APP_ROOT . '/storage/private/mail.log'
-                : sys_get_temp_dir() . '/wbpms-mail.log';
-            $entry = PHP_EOL
-                . str_repeat('-', 72) . PHP_EOL
-                . 'Date:    ' . date('Y-m-d H:i:s') . PHP_EOL
-                . 'Event:   SMTP delivery failed for password reset' . PHP_EOL
-                . 'Error:   ' . $e->getMessage() . PHP_EOL
-                . str_repeat('-', 72) . PHP_EOL;
-            @file_put_contents($logPath, $entry, FILE_APPEND | LOCK_EX);
+            $this->logMailError('OTP delivery failed for forgot-password', $e->getMessage());
 
             $appEnvNow = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'production')));
             if ($appEnvNow === 'development') {
-                $_SESSION['_forgot_error'] =
-                    'SMTP delivery failed: ' . $e->getMessage();
+                $_SESSION['_forgot_error'] = 'SMTP delivery failed: ' . $e->getMessage();
             } else {
                 $_SESSION['_forgot_error'] =
-                    'We could not send the reset email. Please try again in a few minutes '
-                    . 'or contact your system administrator if the problem persists.';
+                    'We could not send the verification email. Please try again in a few '
+                    . 'minutes or contact your system administrator if the problem persists.';
             }
             $this->redirect('/forgot-password');
             return;
         }
 
-        // Always redirect to the sent page (address unknown also lands here
-        // to prevent account-existence enumeration).
+        // Store the email in session so the verify page can use it without
+        // exposing it in the URL. It is cleared after successful verification.
+        $_SESSION['_verify_email'] = $email;
+
+        // Always redirect to the OTP-entry page.
+        $this->redirect('/forgot-password/verify');
+    }
+
+    /**
+     * GET /forgot-password/verify — OTP entry form.
+     *
+     * Requires a pending verification email stored in session. If the session
+     * key is missing the user is sent back to /forgot-password.
+     *
+     * @param array<string, string> $params
+     */
+    public function showVerifyEmail(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+
+        // Redirect authenticated users away.
+        if (AuthMiddleware::identity() !== null) {
+            $identity = AuthMiddleware::identity();
+            $this->redirectToDashboard((string) $identity['role_name']);
+            return;
+        }
+
+        // If there is no pending email in session, start over.
+        $pendingEmail = (string) ($_SESSION['_verify_email'] ?? '');
+        if ($pendingEmail === '') {
+            $this->redirect('/forgot-password');
+            return;
+        }
+
+        $error = $_SESSION['_verify_error'] ?? null;
+        unset($_SESSION['_verify_error']);
+
+        $remaining = null;
+        try {
+            $connection = $this->makeConnection();
+            $mailer     = new Mailer();
+            $service    = new EmailVerificationService($connection, $mailer);
+            $remaining  = $service->remainingAttempts($pendingEmail);
+        } catch (\Throwable) {
+            // Non-critical — the form can still be shown without this hint.
+        }
+
+        $csrfField = CsrfMiddleware::field();
+
+        http_response_code(200);
+        header('Content-Type: text/html; charset=utf-8');
+        require APP_ROOT . '/resources/views/auth/verify-email.php';
+    }
+
+    /**
+     * POST /forgot-password/verify — validate the OTP and issue the reset token.
+     *
+     * On success: generate a password-reset token (via PasswordResetService)
+     * and redirect to /reset-password?token=… exactly as before. This means
+     * the full existing reset flow is preserved; only the entry point changes.
+     *
+     * @param array<string, string> $params
+     */
+    public function verifyEmail(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+
+        $pendingEmail = (string) ($_SESSION['_verify_email'] ?? '');
+        if ($pendingEmail === '') {
+            $this->redirect('/forgot-password');
+            return;
+        }
+
+        $rawCode = trim((string) ($_POST['code'] ?? ''));
+
+        if ($rawCode === '') {
+            $_SESSION['_verify_error'] = 'Please enter the 6-digit code sent to your email.';
+            $this->redirect('/forgot-password/verify');
+            return;
+        }
+
+        $connection = $this->makeConnection();
+        $mailer     = new Mailer();
+        $verifyService = new EmailVerificationService($connection, $mailer);
+
+        $userId = $verifyService->verifyCode($pendingEmail, $rawCode);
+
+        if ($userId === null) {
+            // Check whether the OTP is now locked (too many attempts).
+            $remaining = $verifyService->remainingAttempts($pendingEmail);
+
+            if ($remaining !== null && $remaining === 0) {
+                // OTP locked — tell the user to start over.
+                unset($_SESSION['_verify_email']);
+                $_SESSION['_forgot_error'] =
+                    'Too many incorrect attempts. Please request a new verification code.';
+                $this->redirect('/forgot-password');
+                return;
+            }
+
+            if ($remaining === null) {
+                // The challenge has expired.
+                unset($_SESSION['_verify_email']);
+                $_SESSION['_forgot_error'] =
+                    'Your verification code has expired. Please request a new one.';
+                $this->redirect('/forgot-password');
+                return;
+            }
+
+            $_SESSION['_verify_error'] = sprintf(
+                'Incorrect code. %d attempt%s remaining.',
+                $remaining,
+                $remaining === 1 ? '' : 's'
+            );
+            $this->redirect('/forgot-password/verify');
+            return;
+        }
+
+        // Email ownership confirmed — clear the session key and issue the reset token.
+        unset($_SESSION['_verify_email']);
+
+        // Resolve the base URL for the reset link.
+        // Only fall back to a runtime-derived URL when APP_BASE_URL is completely
+        // absent.  A configured value like http://localhost/wbpms/public is
+        // already correct and must not be overwritten with just scheme://host,
+        // which would strip the sub-directory path and produce a broken link.
+        $baseUrl = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+        if ($baseUrl === '' && isset($_SERVER['HTTP_HOST'])) {
+            $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $host    = (string) $_SERVER['HTTP_HOST'];
+            $baseUrl = $scheme . '://' . $host;
+        }
+
+        $resetService = new PasswordResetService($connection, $mailer);
+
+        try {
+            $resetService->initiateReset($pendingEmail, $baseUrl);
+        } catch (\RuntimeException $e) {
+            $this->logMailError('Reset-link delivery failed after OTP verification', $e->getMessage());
+            $appEnvNow = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'production')));
+            if ($appEnvNow === 'development') {
+                $_SESSION['_forgot_error'] = 'SMTP delivery failed: ' . $e->getMessage();
+            } else {
+                $_SESSION['_forgot_error'] =
+                    'We could not send the password reset link. Please try again or '
+                    . 'contact your system administrator.';
+            }
+            $this->redirect('/forgot-password');
+            return;
+        }
+
+        // Redirect to the sent-confirmation page.
         $this->redirect('/forgot-password/sent');
     }
 
     /**
-     * GET /forgot-password/sent — confirmation page after submitting the form.
+     * GET /forgot-password/sent — confirmation page shown after the reset link is sent.
      *
      * @param array<string, string> $params
      */
@@ -562,5 +919,56 @@ final class AuthController
         }
 
         return (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    }
+
+    /**
+     * Write a mail-delivery failure entry to storage/private/mail.log.
+     */
+    private function logMailError(string $event, string $message): void
+    {
+        $logPath = defined('APP_ROOT')
+            ? APP_ROOT . '/storage/private/mail.log'
+            : sys_get_temp_dir() . '/wbpms-mail.log';
+        $entry = PHP_EOL
+            . str_repeat('-', 72) . PHP_EOL
+            . 'Date:    ' . date('Y-m-d H:i:s') . PHP_EOL
+            . 'Event:   ' . $event . PHP_EOL
+            . 'Error:   ' . $message . PHP_EOL
+            . str_repeat('-', 72) . PHP_EOL;
+        @file_put_contents($logPath, $entry, FILE_APPEND | LOCK_EX);
+    }
+
+    /**
+     * Fetch the account_email for a user by user_id.
+     * Returns an empty string when the user is not found.
+     */
+    private function fetchAccountEmail(int $userId): string
+    {
+        try {
+            $stmt = $this->makeConnection()->pdo()->prepare(
+                "SELECT account_email FROM users WHERE user_id = :id LIMIT 1"
+            );
+            $stmt->execute([':id' => $userId]);
+            $val = $stmt->fetchColumn();
+            return is_string($val) ? $val : '';
+        } catch (\Throwable) {
+            return '';
+        }
+    }
+
+    /**
+     * Mask an email address for display: show first 2 chars + *** + @domain.
+     * e.g. "juan.delacruz@example.com" → "ju***@example.com"
+     */
+    private function maskEmail(string $email): string
+    {
+        if ($email === '' || !str_contains($email, '@')) {
+            return $email;
+        }
+        [$local, $domain] = explode('@', $email, 2);
+        $visible = min(2, strlen($local));
+        return substr($local, 0, $visible)
+            . str_repeat('*', max(3, strlen($local) - $visible))
+            . '@' . $domain;
     }
 }

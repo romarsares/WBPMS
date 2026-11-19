@@ -48,9 +48,9 @@ $months = [
     <!-- ── Upload form ─────────────────────────────────────────── -->
     <div class="card">
         <?php if ($preview !== null): ?>
-        <h3 style="margin:0 0 1rem;font-size:16px">Review Parsed Workbook</h3>
+        <h3 style="margin:0 0 1rem;font-size:16px">Review Parsed Workbook <span class="muted" style="font-weight:400">(Step 2 of 2)</span></h3>
         <div class="alert info" style="font-size:13px;margin-bottom:1rem">
-            This is a preview only. No attendance, punches, or import batch has been saved yet.
+            <strong>Nothing is saved yet.</strong> Review the parsed punches below, then click <strong>Confirm &amp; Save Attendance</strong> to write them to the attendance records as a Draft import. Drafts appear in Recent Imports and must be Approved before payroll uses them.
         </div>
         <dl style="display:grid;grid-template-columns:auto 1fr;gap:7px 12px;font-size:13px;margin:0 0 1rem">
             <dt class="muted">File</dt><dd style="margin:0"><?= Formatter::escape((string) $preview['fileName']) ?></dd>
@@ -83,11 +83,11 @@ $months = [
         <form method="POST" action="<?= $base ?>/hr/attendance/import/confirm" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
             <input type="hidden" name="preview_token" value="<?= Formatter::escape((string) $preview['token']) ?>">
-            <button type="submit" class="btn btn-primary">Save as Draft</button>
+            <button type="submit" class="btn btn-primary">Confirm &amp; Save Attendance (Draft)</button>
             <a class="btn btn-secondary" href="<?= $base ?>/hr/attendance/import">Cancel / choose another file</a>
         </form>
         <?php else: ?>
-        <h3 style="margin:0 0 1.2rem;font-size:16px">Upload Workbook</h3>
+        <h3 style="margin:0 0 1.2rem;font-size:16px">Upload Workbook <span class="muted" style="font-weight:400">(Step 1 of 2)</span></h3>
 
         <form method="POST"
               action="<?= $base ?>/hr/attendance/import"
@@ -155,12 +155,12 @@ $months = [
             </div>
 
             <div class="alert info" style="font-size:13px;margin-bottom:1rem">
-                The system validates and parses the workbook first. You can inspect the
-                parsed punches before confirming the one atomic import transaction.
+                <strong>Step 1 — Upload &amp; Preview:</strong> the workbook is validated and parsed only; nothing is saved yet.
+                <strong>Step 2 — Confirm &amp; Save:</strong> review the parsed punches, then confirm to write them to attendance as a Draft import. Drafts appear in Recent Imports and must be Approved before payroll uses them.
             </div>
 
             <button type="submit" class="btn btn-primary">
-                ↑ Upload &amp; Import
+                ↑ Upload &amp; Preview
             </button>
         </form>
         <?php endif; ?>

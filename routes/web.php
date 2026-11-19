@@ -43,14 +43,15 @@ $router->add('GET', '/health', [HealthController::class, 'index'], []);
 $router->add('GET',  '/login',         [AuthController::class, 'showLogin'],    []);
 $router->add('POST', '/login',         [AuthController::class, 'login'],        []);
 
-// Forgot / reset password (REQ002)
-// Note: /forgot-password/sent must be registered before /forgot-password to
-// avoid any potential prefix collision in future router extensions.
-$router->add('GET',  '/forgot-password/sent', [AuthController::class, 'showResetLinkSent'], []);
-$router->add('GET',  '/forgot-password',      [AuthController::class, 'showForgotPassword'], []);
-$router->add('POST', '/forgot-password',      [AuthController::class, 'sendResetLink'],      []);
-$router->add('GET',  '/reset-password',       [AuthController::class, 'showResetPassword'],  []);
-$router->add('POST', '/reset-password',       [AuthController::class, 'resetPassword'],      []);
+// Forgot / reset password (REQ002 + Phase 2 panel revision: email ownership verification)
+// Route registration order matters: more-specific literal paths before parameter-capturing ones.
+$router->add('GET',  '/forgot-password/sent',   [AuthController::class, 'showResetLinkSent'], []);
+$router->add('GET',  '/forgot-password/verify', [AuthController::class, 'showVerifyEmail'],   []);
+$router->add('POST', '/forgot-password/verify', [AuthController::class, 'verifyEmail'],       []);
+$router->add('GET',  '/forgot-password',        [AuthController::class, 'showForgotPassword'], []);
+$router->add('POST', '/forgot-password',        [AuthController::class, 'sendResetLink'],      []);
+$router->add('GET',  '/reset-password',         [AuthController::class, 'showResetPassword'],  []);
+$router->add('POST', '/reset-password',         [AuthController::class, 'resetPassword'],      []);
 
 // ---------------------------------------------------------------------------
 // Shared authenticated routes
@@ -61,6 +62,14 @@ $router->add('POST', '/logout', [AuthController::class, 'logout'], ['BusinessOwn
 // Requirement 13: mandatory first-login password change (any authenticated role)
 $router->add('GET',  '/change-password', [AuthController::class, 'showChangePassword'], ['BusinessOwner', 'HRHead', 'Employee']);
 $router->add('POST', '/change-password', [AuthController::class, 'changePassword'],     ['BusinessOwner', 'HRHead', 'Employee']);
+
+// Email OTP verification — one-time email confirmation for Employee accounts
+// after their first password change.  Routes are Employee-only; the middleware
+// gate in AuthMiddleware::requireRoles() enforces that unverified employees
+// cannot reach any other protected page until they complete this step.
+$router->add('GET',  '/verify-email',        [AuthController::class, 'showVerifyNewEmail'],      ['Employee']);
+$router->add('POST', '/verify-email',        [AuthController::class, 'verifyNewEmail'],           ['Employee']);
+$router->add('POST', '/verify-email/resend', [AuthController::class, 'resendVerificationCode'],   ['Employee']);
 
 // ---------------------------------------------------------------------------
 // Business Owner — dashboard

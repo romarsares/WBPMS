@@ -35,6 +35,7 @@ $devices  ??= [];
 $positions ??= [];
 $errors   ??= [];
 $csrf     ??= '';
+$suggestedEmpNumber ??= '';
 
 $isEdit  = $employee !== null;
 $title   = $isEdit ? 'Edit Employee' : 'Add Employee';
@@ -107,6 +108,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="date" id="birthdate" name="birthdate"
                     value="<?= $v('birthdate') ?>"
                     required
+                    max="<?= date('Y-m-d') ?>"
                     data-msg-required="Birthdate is required."
                     class="<?= isset($errors['birthdate']) ? 'is-invalid' : '' ?>">
                 <?= $err('birthdate') ?>
@@ -143,7 +145,7 @@ $err = static fn(string $key): string => isset($errors[$key])
             <div class="form-group">
                 <label for="position">Position / Job title <span style="color:#dc2626">*</span></label>
                 <select id="position_select" name="position"
-                        onchange="syncPositionInput(this)"
+                        onchange="syncPositionInput(this); applyPositionRate(this, true)"
                         required
                         data-msg-required="Position / Job title is required."
                         class="<?= isset($errors['position']) ? 'is-invalid' : '' ?>">
@@ -156,6 +158,8 @@ $err = static fn(string $key): string => isset($errors[$key])
                         if ($selected) $matched = true;
                     ?>
                     <option value="<?= Formatter::escape($pos['name']) ?>"
+                            data-rate="<?= isset($pos['default_daily_rate']) && $pos['default_daily_rate'] !== null ? Formatter::escape((string) $pos['default_daily_rate']) : '' ?>"
+                            data-contractual="<?= isset($pos['contractual_allowed']) ? (((int) $pos['contractual_allowed']) ? '1' : '0') : '1' ?>"
                             <?= $selected ? 'selected' : '' ?>>
                         <?= Formatter::escape($pos['name']) ?>
                         <?php if ($pos['department']): ?>
@@ -176,18 +180,53 @@ $err = static fn(string $key): string => isset($errors[$key])
                     Can't find the title?
                     <a href="<?= $base ?>/hr/settings/positions" target="_blank">Add it in Settings →</a>
                 </small>
+                <span id="contractual_position_warn" class="field-error" style="display:none">
+                    This position is not available for Contractual employees.
+                </span>
                 <?= $err('position') ?>
             </div>
             <div class="form-group">
                 <label for="employee_type">Employee type <span style="color:#dc2626">*</span></label>
-                <select id="employee_type" name="employee_type">
+                <select id="employee_type" name="employee_type" onchange="toggleContractReview(this.value)">
                     <option value="Regular"      <?= $sel($employee['employee_type'] ?? 'Regular', 'Regular') ?>>Regular</option>
                     <option value="Contractual"  <?= $sel($employee['employee_type'] ?? '',        'Contractual') ?>>Contractual</option>
                 </select>
+                <?= $err('employee_type') ?>
+            </div>
+        </div>
+
+        <div class="form-row" id="contract_review_row" style="<?= (($employee['employee_type'] ?? '') === 'Contractual' || ($_POST['employee_type'] ?? '') === 'Contractual') ? '' : 'display:none' ?>">
+            <div class="form-group">
+                <label for="contract_review_date">Contract review date <span style="color:#dc2626">*</span></label>
+                <input type="date" id="contract_review_date" name="contract_review_date"
+                    value="<?= $v('contract_review_date') ?>"
+                    class="<?= isset($errors['contract_review_date']) ? 'is-invalid' : '' ?>">
+                <small class="muted">The date HR will review this employee's contract for renewal or regularisation.</small>
+                <?= $err('contract_review_date') ?>
             </div>
         </div>
 
         <script>
+        // On Add, the Daily Rate auto-populates from the selected position's
+        // configured default rate and may not fall below it. On Edit the rate
+        // (the employee's effective salary rate) is left untouched — changes
+        // go through Salary Management.
+        var rateManagedByPosition = <?= $isEdit ? 'false' : 'true' ?>;
+
+        function applyPositionRate(sel, populateValue) {
+            if (!rateManagedByPosition) return;
+            var rateInput = document.getElementById('daily_rate');
+            if (!rateInput || !sel) return;
+            var opt = sel.options[sel.selectedIndex];
+            var rate = opt ? opt.getAttribute('data-rate') : '';
+            if (rate && rate !== '' && !isNaN(parseFloat(rate))) {
+                rateInput.min = rate;
+                if (populateValue) rateInput.value = rate;
+            } else {
+                rateInput.min = '0.01';
+            }
+        }
+
         function syncPositionInput(sel) {
             var other = document.getElementById('position_other');
             if (sel.value === '__other__') {
@@ -205,20 +244,71 @@ $err = static fn(string $key): string => isset($errors[$key])
                 sel.name = 'position';
                 sel.required = true;
             }
+            checkContractualPosition(sel);
+        }
+
+        function toggleContractReview(type) {
+            var row = document.getElementById('contract_review_row');
+            var input = document.getElementById('contract_review_date');
+            if (!row) return;
+            if (type === 'Contractual') {
+                row.style.display = '';
+                if (input) input.required = true;
+            } else {
+                row.style.display = 'none';
+                if (input) { input.required = false; input.value = ''; }
+            }
+            var sel = document.getElementById('position_select');
+            if (sel) checkContractualPosition(sel);
+        }
+
+        // Warn in-browser when a non-contractual position is chosen while
+        // the employee type is Contractual. The backend is authoritative;
+        // this is a convenience indicator only.
+        function checkContractualPosition(sel) {
+            var warn = document.getElementById('contractual_position_warn');
+            if (!warn) return;
+            var empType = document.getElementById('employee_type');
+            if (!empType || empType.value !== 'Contractual') {
+                warn.style.display = 'none';
+                return;
+            }
+            var opt = sel ? sel.options[sel.selectedIndex] : null;
+            var allowed = opt ? opt.getAttribute('data-contractual') : '1';
+            warn.style.display = (allowed === '0') ? '' : 'none';
         }
         // Run on page load to handle the pre-selected "Other" state
-        (function(){ syncPositionInput(document.getElementById('position_select')); })();
+        (function(){
+            var sel = document.getElementById('position_select');
+            syncPositionInput(sel);
+            // Set the minimum to the selected position's rate; only populate
+            // the value when the field is empty (never clobber a repopulated
+            // POST value after a validation error).
+            applyPositionRate(sel, false);
+            if (rateManagedByPosition) {
+                var rateInput = document.getElementById('daily_rate');
+                if (rateInput && rateInput.value === '') {
+                    applyPositionRate(sel, true);
+                }
+            }
+            // Initialise the contract review row visibility.
+            var empType = document.getElementById('employee_type');
+            if (empType) toggleContractReview(empType.value);
+        })();
         </script>
 
         <div class="form-row">
             <div class="form-group">
                 <label for="employee_number">Employee number <span style="color:#dc2626">*</span></label>
                 <input type="text" id="employee_number" name="employee_number"
-                    value="<?= $v('employee_number') ?>"
+                    value="<?= $v('employee_number') ?: Formatter::escape($suggestedEmpNumber) ?>"
                     maxlength="30"
                     <?= !$isEdit ? 'required' : '' ?>
                     <?= $isEdit ? 'readonly style="background:#f3f4f6"' : '' ?>
                     class="<?= isset($errors['employee_number']) ? 'is-invalid' : '' ?>">
+                <?php if (!$isEdit && $suggestedEmpNumber !== ''): ?>
+                <small class="muted">Next available number (provisional — confirm before saving).</small>
+                <?php endif; ?>
                 <?= $err('employee_number') ?>
             </div>
             <div class="form-group">

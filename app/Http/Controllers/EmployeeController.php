@@ -12,6 +12,7 @@ use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
 use Wbpms\Infrastructure\Persistence\EmployeeRepository;
+use Wbpms\Infrastructure\Persistence\PositionRepository;
 use Wbpms\Infrastructure\Persistence\ScheduleRepository;
 
 /**
@@ -84,12 +85,13 @@ final class EmployeeController
         [$branches, $schedules, $devices, $positions] = $this->dropdownData();
 
         ViewRenderer::render('hr/employees/edit', [
-            'employee'  => null,
-            'branches'  => $branches,
-            'schedules' => $schedules,
-            'devices'   => $devices,
-            'positions' => $positions,
-            'errors'    => [],
+            'employee'           => null,
+            'branches'           => $branches,
+            'schedules'          => $schedules,
+            'devices'            => $devices,
+            'positions'          => $positions,
+            'errors'             => [],
+            'suggestedEmpNumber' => $this->makeRepo()->nextEmployeeNumber(),
         ], 'Add Employee');
     }
 
@@ -107,12 +109,13 @@ final class EmployeeController
         if ($errors !== []) {
             [$branches, $schedules, $devices, $positions] = $this->dropdownData();
             ViewRenderer::render('hr/employees/edit', [
-                'employee'  => null,
-                'branches'  => $branches,
-                'schedules' => $schedules,
-                'devices'   => $devices,
-                'positions' => $positions,
-                'errors'    => $errors,
+                'employee'           => null,
+                'branches'           => $branches,
+                'schedules'          => $schedules,
+                'devices'            => $devices,
+                'positions'          => $positions,
+                'errors'             => $errors,
+                'suggestedEmpNumber' => $repo->nextEmployeeNumber(),
             ], 'Add Employee');
             return;
         }
@@ -135,21 +138,23 @@ final class EmployeeController
                 &$provisionedUsername
             ): void {
                 $employeeId = $repo->createEmployee([
-                    'employee_number'   => $data['employee_number'],
-                    'employee_type'     => $data['employee_type'] ?: 'Regular',
-                    'first_name'        => $data['first_name'],
-                    'middle_initial'    => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
-                    'last_name'         => $data['last_name'],
-                    'email'             => $data['email']          !== '' ? $data['email']          : null,
-                    'contact_number'    => $data['contact_number'] !== '' ? $data['contact_number'] : null,
-                    'birthdate'         => $data['birthdate']      !== '' ? $data['birthdate']      : null,
-                    'hire_date'         => $data['effective_from'],
-                    'position'          => $data['position']       !== '' ? $data['position']       : 'Employee',
-                    'status'            => 'Active',
-                    'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
-                    'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
-                    'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
-                    'sss_number'        => $data['sss_number']        !== '' ? $data['sss_number']        : null,
+                    'employee_number'      => $data['employee_number'],
+                    'employee_type'        => $data['employee_type'] ?: 'Regular',
+                    'first_name'           => $data['first_name'],
+                    'middle_initial'       => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
+                    'last_name'            => $data['last_name'],
+                    'email'                => $data['email']          !== '' ? $data['email']          : null,
+                    'contact_number'       => $data['contact_number'] !== '' ? $data['contact_number'] : null,
+                    'birthdate'            => $data['birthdate']      !== '' ? $data['birthdate']      : null,
+                    'hire_date'            => $data['effective_from'],
+                    'position'             => $data['position']       !== '' ? $data['position']       : 'Employee',
+                    'status'               => 'Active',
+                    'philhealth_number'    => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
+                    'pagibig_number'       => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
+                    'tin_number'           => $data['tin_number']        !== '' ? $data['tin_number']        : null,
+                    'sss_number'           => $data['sss_number']        !== '' ? $data['sss_number']        : null,
+                    'contract_review_date' => ($data['employee_type'] === 'Contractual' && $data['contract_review_date'] !== '')
+                                                ? $data['contract_review_date'] : null,
                 ]);
 
                 $repo->assignInitialBranch(
@@ -198,12 +203,13 @@ final class EmployeeController
 
             [$branches, $schedules, $devices, $positions] = $this->dropdownData();
             ViewRenderer::render('hr/employees/edit', [
-                'employee'  => null,
-                'branches'  => $branches,
-                'schedules' => $schedules,
-                'devices'   => $devices,
-                'positions' => $positions,
-                'errors'    => $fieldErrors,
+                'employee'           => null,
+                'branches'           => $branches,
+                'schedules'          => $schedules,
+                'devices'            => $devices,
+                'positions'          => $positions,
+                'errors'             => $fieldErrors,
+                'suggestedEmpNumber' => $repo->nextEmployeeNumber(),
             ], 'Add Employee');
             return;
         }
@@ -512,8 +518,6 @@ final class EmployeeController
                 }
                 ViewRenderer::flash($message);
                 $this->redirect('/hr/employees/' . $id);
-            } catch (\RuntimeException $e) {
-                $errors['form'] = $e->getMessage();
             } catch (\PDOException $e) {
                 // Surface database constraint violations (e.g. duplicate branch/schedule
                 // assignment for the same effective date) as a friendly form error
@@ -526,6 +530,8 @@ final class EmployeeController
                 } else {
                     $errors['form'] = 'A database error occurred during rehire: ' . $e->getMessage();
                 }
+            } catch (\RuntimeException $e) {
+                $errors['form'] = $e->getMessage();
             }
         }
         [$branches, $schedules, $devices, $positions] = $this->dropdownData();
@@ -582,19 +588,21 @@ final class EmployeeController
                 $id, $data, $row, $repo, $connection, $actorId
             ): void {
                 $repo->updateEmployee($id, [
-                    'employee_type'     => $data['employee_type'] ?: 'Regular',
-                    'first_name'        => $data['first_name'],
-                    'middle_initial'    => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
-                    'last_name'         => $data['last_name'],
-                    'email'             => $data['email']          !== '' ? $data['email']          : null,
-                    'contact_number'    => $data['contact_number'] !== '' ? $data['contact_number'] : null,
-                    'birthdate'         => $data['birthdate']      !== '' ? $data['birthdate']      : null,
-                    'position'          => $data['position']       !== '' ? $data['position']       : null,
-                    'philhealth_number' => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
-                    'pagibig_number'    => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
-                    'tin_number'        => $data['tin_number']        !== '' ? $data['tin_number']        : null,
-                    'sss_number'        => $data['sss_number']        !== '' ? $data['sss_number']        : null,
-                    'status'            => ucfirst(strtolower($data['status'] ?? 'active')),
+                    'employee_type'        => $data['employee_type'] ?: 'Regular',
+                    'first_name'           => $data['first_name'],
+                    'middle_initial'       => $data['middle_name'] !== '' ? mb_substr($data['middle_name'], 0, 5) : null,
+                    'last_name'            => $data['last_name'],
+                    'email'                => $data['email']          !== '' ? $data['email']          : null,
+                    'contact_number'       => $data['contact_number'] !== '' ? $data['contact_number'] : null,
+                    'birthdate'            => $data['birthdate']      !== '' ? $data['birthdate']      : null,
+                    'position'             => $data['position']       !== '' ? $data['position']       : null,
+                    'philhealth_number'    => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
+                    'pagibig_number'       => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
+                    'tin_number'           => $data['tin_number']        !== '' ? $data['tin_number']        : null,
+                    'sss_number'           => $data['sss_number']        !== '' ? $data['sss_number']        : null,
+                    'contract_review_date' => ($data['employee_type'] === 'Contractual' && $data['contract_review_date'] !== '')
+                                                ? $data['contract_review_date'] : null,
+                    'status'               => ucfirst(strtolower($data['status'] ?? 'active')),
                 ]);
 
                 // Salary is effective-dated. Do not create a new row merely because an
@@ -678,6 +686,7 @@ final class EmployeeController
      *   pagibig_number: string,
      *   tin_number: string,
      *   sss_number: string,
+     *   contract_review_date: string,
      *   status: string
      * }
      */
@@ -704,6 +713,7 @@ final class EmployeeController
             'pagibig_number'       => trim((string) ($_POST['pagibig_number']       ?? '')),
             'tin_number'           => trim((string) ($_POST['tin_number']           ?? '')),
             'sss_number'           => trim((string) ($_POST['sss_number']           ?? '')),
+            'contract_review_date' => trim((string) ($_POST['contract_review_date'] ?? '')),
             'status'               => trim((string) ($_POST['status']               ?? 'active')),
         ];
     }
@@ -769,6 +779,8 @@ final class EmployeeController
             $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['birthdate']);
             if ($parsed === false || $parsed->format('Y-m-d') !== $data['birthdate']) {
                 $errors['birthdate'] = 'Birthdate must be a valid date (YYYY-MM-DD).';
+            } elseif ($parsed > new \DateTimeImmutable('today')) {
+                $errors['birthdate'] = 'Birthdate cannot be in the future.';
             }
         }
 
@@ -820,10 +832,57 @@ final class EmployeeController
             $errors['employee_type'] = 'Employee type must be Regular or Contractual.';
         }
 
+        // Contractual restriction: when the selected position is a managed
+        // position (found in job_position) and its contractual_allowed flag is
+        // false, a Contractual employee may not be assigned to it.
+        // Custom "Other" positions (not in the managed list) carry no
+        // restriction — only managed positions with an explicit flag of false
+        // are blocked.
+        if (!isset($errors['position']) && !isset($errors['employee_type'])
+            && $data['employee_type'] === 'Contractual' && $data['position'] !== '') {
+            $pos = (new PositionRepository($this->makeConnection()))->findActiveByTitle($data['position']);
+            if ($pos !== null && !(bool) $pos['contractual_allowed']) {
+                $errors['employee_type'] = 'The position "' . $data['position'] . '" cannot be assigned to a Contractual employee.';
+            }
+        }
+
+        // contract_review_date: required when employee type is Contractual,
+        // must be a valid future-or-present date, and must follow the hire date.
+        if ($data['employee_type'] === 'Contractual') {
+            if ($data['contract_review_date'] === '') {
+                $errors['contract_review_date'] = 'Contract review date is required for Contractual employees.';
+            } else {
+                $crd = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['contract_review_date']);
+                if ($crd === false || $crd->format('Y-m-d') !== $data['contract_review_date']) {
+                    $errors['contract_review_date'] = 'Contract review date must be a valid date (YYYY-MM-DD).';
+                } elseif (!$isEdit && $data['effective_from'] !== '') {
+                    $hd = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['effective_from']);
+                    if ($hd !== false && $crd <= $hd) {
+                        $errors['contract_review_date'] = 'Contract review date must be after the hire date.';
+                    }
+                }
+            }
+        }
+
         if ($data['daily_rate'] === '' || (float) $data['daily_rate'] <= 0) {
             $errors['daily_rate'] = 'Daily rate is required and must be greater than 0.';
         } elseif ((float) $data['daily_rate'] > 999999.99) {
             $errors['daily_rate'] = 'Daily rate cannot exceed ₱999,999.99.';
+        }
+
+        // Position-based minimum (Add only): when the selected position has a
+        // configured default daily rate, the entered rate may not fall below it.
+        // A custom "Other" position has no default, so only the >0 floor above
+        // applies. Enforced on Add only so that routine edits of existing
+        // employees (whose rate may predate a position default) are not blocked.
+        if (!$isEdit && !isset($errors['daily_rate']) && $data['position'] !== '') {
+            $pos = (new PositionRepository($this->makeConnection()))->findActiveByTitle($data['position']);
+            $defaultRate = $pos !== null ? $pos['default_daily_rate'] : null;
+            if ($defaultRate !== null && (float) $data['daily_rate'] < (float) $defaultRate) {
+                $errors['daily_rate'] = 'Daily rate cannot be below the required rate (₱'
+                    . number_format((float) $defaultRate, 2)
+                    . ') for the selected position.';
+            }
         }
 
         if (!$isEdit) {
@@ -841,6 +900,17 @@ final class EmployeeController
             }
             if ($data['schedule_id'] === '') {
                 $errors['schedule_id'] = 'Work schedule is required.';
+            }
+        }
+
+        // A person cannot be hired before they are born: when both dates are
+        // present and individually valid, the birthdate must precede the
+        // hire/effective date. Applies to both add and edit.
+        if ($data['birthdate'] !== '' && $data['effective_from'] !== '') {
+            $bd = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['birthdate']);
+            $hd = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['effective_from']);
+            if ($bd !== false && $hd !== false && $bd >= $hd) {
+                $errors['birthdate'] = 'Birthdate must be before the hire date.';
             }
         }
 
@@ -905,7 +975,7 @@ final class EmployeeController
      *   0: list<array{id: int, name: string}>,
      *   1: list<array{id: int, name: string}>,
      *   2: list<array{id: int, name: string}>,
-     *   3: list<array{id: int, name: string}>
+     *   3: list<array{id: int, name: string, department: string|null, default_daily_rate: string|null}>
      * }
      */
     private function dropdownData(): array
@@ -930,7 +1000,7 @@ final class EmployeeController
         )->fetchAll(PDO::FETCH_ASSOC);
 
         $positions = $pdo->query(
-            "SELECT position_id AS id, position_title AS name, department
+            "SELECT position_id AS id, position_title AS name, department, default_daily_rate
                FROM job_position
               WHERE status = 'Active'
               ORDER BY sort_order ASC, position_title ASC"

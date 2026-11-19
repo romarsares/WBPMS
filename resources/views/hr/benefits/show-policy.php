@@ -32,7 +32,7 @@ $policyRange = $dateRange((string) $policy['effective_from'], $policy['effective
         <button type="submit" class="btn btn-primary">View effective tables</button>
         <div style="font-size:.875rem;color:#6b7280">Policy period: <?= htmlspecialchars($policyRange) ?></div>
     </form>
-    <p style="margin:1rem 0 0;color:#6b7280;font-size:.8rem">“No declared end date” means no replacement policy has been entered in WBPMS. HR should review official agency issuances before relying on an open-ended policy for a new payroll period.</p>
+    <p style="margin:1rem 0 0;color:#6b7280;font-size:.8rem">"No declared end date" means no replacement policy has been entered in WBPMS. HR should review official agency issuances before relying on an open-ended policy for a new payroll period.</p>
 </div>
 
 <?php if (!$isPolicyEffective): ?>

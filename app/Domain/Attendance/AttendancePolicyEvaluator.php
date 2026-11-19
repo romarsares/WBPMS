@@ -103,9 +103,6 @@ final class AttendancePolicyEvaluator
         // review of a one-week suspension (REQ006 AC16).
         $memoIndex = 0;
         foreach ($proposals as $proposal) {
-            if ($proposal['flag_type'] !== 'ConsecutiveLate') {
-                continue;
-            }
             $memoIndex++;
             if ($existingMemoCount + $memoIndex === self::TARDINESS_MEMO_CAP) {
                 $date = (string) $proposal['triggering_date'];

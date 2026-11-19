@@ -33,7 +33,8 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
 
     <h1>Forgot Password</h1>
     <p class="login-sub">
-        Enter your registered email address and we'll send you a link to reset your password.
+        Enter your registered email address. We'll send you a verification code
+        to confirm your identity before resetting your password.
     </p>
 
     <?php if (!empty($error)): ?>
@@ -56,7 +57,7 @@ $base = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
                placeholder="Enter your registered email address">
 
         <button type="submit" class="btn btn-primary btn-full" style="margin-top:.25rem">
-            Send Reset Link
+            Send Verification Code
         </button>
     </form>
 

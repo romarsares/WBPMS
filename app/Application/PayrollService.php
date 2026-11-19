@@ -1871,9 +1871,9 @@ final class PayrollService
                 if ((int) $day->format('Y') !== (int) $row['source_year']
                     || (int) $day->format('n') !== (int) $row['source_month']
                     || (string) $row['assignment_from'] > $date
-                    || ($row['assignment_to'] !== null && (string) $row['assignment_to'] < $date)
+                    || ($row['assignment_to'] !== null && (string) $row['assignment_to'] <= $date)
                     || (string) $row['device_from'] > $date
-                    || ($row['device_to'] !== null && (string) $row['device_to'] < $date)) {
+                    || ($row['device_to'] !== null && (string) $row['device_to'] <= $date)) {
                     continue;
                 }
                 $covered[$date] = true;

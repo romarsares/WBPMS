@@ -61,7 +61,7 @@ final class AuthMiddleware
      *
      * Regenerates the session ID to prevent fixation attacks.
      *
-     * @param array{user_id: int, username: string, role_name: string, employee_id: int|null, requires_password_change: bool} $identity
+     * @param array{user_id: int, username: string, role_name: string, employee_id: int|null, requires_password_change: bool, is_email_verified?: bool} $identity
      */
     public static function setIdentity(array $identity): void
     {
@@ -74,6 +74,7 @@ final class AuthMiddleware
             'role_name'                => $identity['role_name'],
             'employee_id'              => $identity['employee_id'],
             'requires_password_change' => (bool) ($identity['requires_password_change'] ?? false),
+            'is_email_verified'        => (bool) ($identity['is_email_verified'] ?? false),
             'logged_in_at'             => $now,
             'last_active'              => $now,
         ];
@@ -84,7 +85,7 @@ final class AuthMiddleware
      *
      * Updates last_active on every call for idle-expiry tracking.
      *
-     * @return array{user_id: int, username: string, role_name: string, employee_id: int|null, requires_password_change: bool}|null
+     * @return array{user_id: int, username: string, role_name: string, employee_id: int|null, requires_password_change: bool, is_email_verified: bool}|null
      */
     public static function identity(): ?array
     {
@@ -144,11 +145,12 @@ final class AuthMiddleware
         }
 
         // Refresh the session from the authoritative row and update last_active.
-        $_SESSION[self::SESSION_KEY]['username'] = $current['username'];
-        $_SESSION[self::SESSION_KEY]['role_name'] = $current['role_name'];
-        $_SESSION[self::SESSION_KEY]['employee_id'] = $current['employee_id'];
+        $_SESSION[self::SESSION_KEY]['username']                 = $current['username'];
+        $_SESSION[self::SESSION_KEY]['role_name']                = $current['role_name'];
+        $_SESSION[self::SESSION_KEY]['employee_id']              = $current['employee_id'];
         $_SESSION[self::SESSION_KEY]['requires_password_change'] = $current['requires_password_change'];
-        $_SESSION[self::SESSION_KEY]['last_active'] = $now;
+        $_SESSION[self::SESSION_KEY]['is_email_verified']        = $current['is_email_verified'];
+        $_SESSION[self::SESSION_KEY]['last_active']              = $now;
 
         return [
             'user_id'                  => $current['user_id'],
@@ -156,6 +158,7 @@ final class AuthMiddleware
             'role_name'                => $current['role_name'],
             'employee_id'              => $current['employee_id'],
             'requires_password_change' => $current['requires_password_change'],
+            'is_email_verified'        => $current['is_email_verified'],
         ];
     }
 
@@ -237,6 +240,30 @@ final class AuthMiddleware
             }
         }
 
+        // Email OTP gate: Employee accounts that have not yet confirmed their
+        // email address are held at /verify-email until they enter the correct
+        // OTP.  This gate fires only after the password-change flag has been
+        // cleared, so it is always the second step, never the first.
+        // Allowed paths while the gate is active: /verify-email and /logout.
+        if ($identity['role_name'] === 'Employee'
+            && !$identity['requires_password_change']
+            && !($identity['is_email_verified'] ?? false)
+        ) {
+            $requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?? '';
+            $scriptName  = $_SERVER['SCRIPT_NAME'] ?? '';
+            $base        = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
+            if ($base !== '' && $base !== '/' && str_starts_with($requestPath, $base)) {
+                $requestPath = substr($requestPath, strlen($base));
+            }
+            $normalised   = rtrim($requestPath, '/') ?: '/';
+            $allowedPaths = ['/verify-email', '/logout'];
+            if (!in_array($normalised, $allowedPaths, true)) {
+                $appBase = rtrim((string) ($_ENV['APP_BASE_URL'] ?? ''), '/');
+                header('Location: ' . $appBase . '/verify-email', true, 302);
+                exit;
+            }
+        }
+
         if (!empty($allowedRoles) && !in_array($identity['role_name'], $allowedRoles, true)) {
             $acceptHeader = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
             $isApiRequest = str_contains($acceptHeader, 'application/json')
@@ -296,7 +323,7 @@ final class AuthMiddleware
                     'domain'   => $params['domain'],
                     'secure'   => $params['secure'],
                     'httponly' => $params['httponly'],
-                    'samesite' => $params['samesite'] ?? 'Lax',
+                    'samesite' => $params['samesite'],
                 ]
             );
         }
@@ -325,7 +352,7 @@ final class AuthMiddleware
                 'domain'   => $params['domain'],
                 'secure'   => $params['secure'],
                 'httponly' => $params['httponly'],
-                'samesite' => $params['samesite'] ?? 'Lax',
+                'samesite' => $params['samesite'],
             ]
         );
 
