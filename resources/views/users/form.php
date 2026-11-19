@@ -6,7 +6,6 @@ use Wbpms\Http\View\Formatter;
  * @var array<string,mixed>|null  $user       — populated for edit, null for create
  * @var array<string,mixed>       $old        — POST repopulation on validation failure
  * @var array[]                   $roles      — [role_id, role_name]
- * @var array[]                   $employees  — unlinked employees for the select
  * @var string[]                  $errors     — validation error messages
  * @var string                    $base
  * @var string                    $csrf
@@ -15,11 +14,11 @@ $user       = $user ?? null;
 $old        = $old  ?? [];
 $errors     = $errors ?? [];
 $roles      = $roles ?? [];
-$employees  = $employees ?? [];
 $isEdit     = isset($user) && !empty($user['user_id']);
 $userId     = $isEdit ? (int) $user['user_id'] : 0;
 $formAction = $isEdit ? $base . '/users/' . $userId : $base . '/users';
 $pageTitle  = $isEdit ? 'Edit User' : 'Create User';
+$isEmployeeAccount = $isEdit && (($user['role_name'] ?? '') === 'Employee');
 
 // Repopulate values: prefer $old (POST flash), then $user (existing record)
 $val = static function (string $key) use ($old, $user): string {
@@ -95,13 +94,21 @@ $val = static function (string $key) use ($old, $user): string {
         <?php endif; ?>
 
         <!-- ROLE -->
-        <?php if (($roleName ?? '') !== 'HRHead'): ?>
+        <?php if ($isEmployeeAccount): ?>
+        <div class="form-group">
+            <label>Role</label>
+            <input type="text" class="form-control" value="Employee" disabled>
+            <input type="hidden" name="role_id" value="<?= (int) $user['role_id'] ?>">
+            <small class="help">Employee accounts are created and linked automatically from Employee Management.</small>
+        </div>
+        <?php elseif (($roleName ?? '') !== 'HRHead'): ?>
         <div class="form-group">
             <label for="role_id">Role <span class="req">*</span></label>
             <select id="role_id" name="role_id" class="form-control"
                     required data-msg-required="Role is required.">
                 <option value="">— Select role —</option>
                 <?php foreach ($roles as $role): ?>
+                    <?php if ($role['role_name'] === 'Employee') continue; ?>
                     <option value="<?= (int)$role['role_id'] ?>"
                         <?= (int)($val('role_id') ?: ($user['role_id'] ?? 0)) === (int)$role['role_id'] ? 'selected' : '' ?>>
                         <?= Formatter::escape($role['role_name']) ?>
@@ -113,31 +120,6 @@ $val = static function (string $key) use ($old, $user): string {
         <input type="hidden" name="role_id" value="<?= (int)($val('role_id') ?: ($user['role_id'] ?? 0)) ?>">
         <?php endif; ?>
 
-        <!-- LINKED EMPLOYEE -->
-        <div class="form-group">
-            <label for="employee_id">Linked Employee <span id="employeeRequired" class="req" hidden>*</span></label>
-            <?php if (empty($employees) && !$isEdit): ?>
-                <div class="alert info" role="alert" style="margin-top:4px;margin-bottom:0">
-                    All active employees are already linked to a user account.
-                    To link an employee here, first ensure they do not have an existing active account,
-                    or archive their old account before creating a new one.
-                </div>
-                <input type="hidden" name="employee_id" value="">
-            <?php else: ?>
-            <select id="employee_id" name="employee_id" class="form-control">
-                <option value="">— None (e.g. Business Owner) —</option>
-                <?php foreach ($employees as $emp): ?>
-                    <option value="<?= (int)$emp['employee_id'] ?>"
-                        <?= (string)($val('employee_id') ?: ($user['employee_id'] ?? '')) === (string)$emp['employee_id'] ? 'selected' : '' ?>>
-                        <?= Formatter::escape($emp['employee_name']) ?>
-                        (<?= Formatter::escape($emp['employee_number']) ?>)
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <?php endif; ?>
-            <small class="help">Required for Employee accounts. Unlinking an existing Employee account deactivates it immediately.</small>
-        </div>
-
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">
                 <?= $isEdit ? '✓ Save Changes' : '＋ Create User' ?>
@@ -146,27 +128,5 @@ $val = static function (string $key) use ($old, $user): string {
         </div>
     </form>
 </div>
-
-<script>
-(function () {
-    var roleSelect = document.getElementById('role_id');
-    var employeeSelect = document.getElementById('employee_id');
-    var requiredMarker = document.getElementById('employeeRequired');
-    var isEdit = <?= $isEdit ? 'true' : 'false' ?>;
-
-    if (!roleSelect || !employeeSelect) return;
-
-    function updateEmployeeRequirement() {
-        var selected = roleSelect.options[roleSelect.selectedIndex];
-        var isEmployee = selected && selected.text.trim() === 'Employee';
-        if (requiredMarker) requiredMarker.hidden = !isEmployee;
-    }
-
-    roleSelect.addEventListener('change', updateEmployeeRequirement);
-    updateEmployeeRequirement();
-})();
-</script>
-
-
 
 <script src="<?= $base ?>/assets/inline-validate.js"></script>

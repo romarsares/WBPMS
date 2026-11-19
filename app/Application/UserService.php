@@ -23,8 +23,8 @@ use Wbpms\Infrastructure\Database\Connection;
  *   - Passwords are hashed with password_hash(PASSWORD_DEFAULT).
  *   - An Archived user cannot be re-activated; status transitions are
  *     Active → Inactive → Active (toggle) and any → Archived (one-way).
- *   - Employee-role accounts require employee_id. Unlinking an existing
- *     Employee account automatically deactivates it.
+ *   - Employee-role accounts are provisioned and linked only through
+ *     Employee Management; User Management cannot change that link.
  *   - All mutations are audited via audit_logs when an acting_user_id is supplied.
  *
  * No SQL belongs in controllers; all queries live here.
@@ -259,7 +259,6 @@ final class UserService
      *   account_email:  string,
      *   password:       string,
      *   role_id:        int,
-     *   employee_id?:   int|null,
      * } $data
      *
      * @throws RuntimeException on duplicate username/email or invalid role
@@ -277,11 +276,11 @@ final class UserService
         $this->assertUniqueUsername($username);
         $this->assertUniqueEmail($email);
         $roleName = $this->roleNameForId($roleId);
-        if (AuthenticationPolicy::isUnlinkedEmployee($roleName, $employeeId)) {
-            throw new RuntimeException('An Employee account must be linked to an employee profile.');
+        if ($roleName === 'Employee') {
+            throw new RuntimeException('Employee accounts are created automatically from Employee Management.');
         }
         if ($employeeId !== null) {
-            $this->assertEmployeeNotLinked($employeeId);
+            throw new RuntimeException('Only automatically provisioned Employee accounts can be linked to an employee profile.');
         }
 
         $hash = password_hash($password, PASSWORD_DEFAULT);
@@ -322,7 +321,6 @@ final class UserService
      *   username?:      string,
      *   account_email?: string,
      *   role_id?:       int,
-     *   employee_id?:   int|null,
      * } $data
      *
      * @throws RuntimeException when user not found, duplicate, or invalid role
@@ -334,10 +332,8 @@ final class UserService
         $username   = trim($data['username']      ?? $user['username']);
         $email      = trim($data['account_email'] ?? $user['account_email']);
         $roleId     = isset($data['role_id']) ? (int) $data['role_id'] : (int) $user['role_id'];
-        $employeeId = array_key_exists('employee_id', $data)
-                      ? ($data['employee_id'] !== '' && $data['employee_id'] !== null
-                         ? (int) $data['employee_id'] : null)
-                      : ($user['employee_id'] !== null ? (int) $user['employee_id'] : null);
+        $currentEmployeeId = $user['employee_id'] !== null ? (int) $user['employee_id'] : null;
+        $employeeId        = $currentEmployeeId;
 
         if ($username === '') {
             throw new RuntimeException('Username cannot be empty.');
@@ -354,14 +350,16 @@ final class UserService
         }
         $roleName = $this->roleNameForId($roleId);
         $status   = (string) $user['status'];
-        if (AuthenticationPolicy::isUnlinkedEmployee($roleName, $employeeId)) {
-            if ((string) $user['role_name'] !== 'Employee') {
-                throw new RuntimeException('An Employee account must be linked to an employee profile.');
-            }
-            $status = 'Inactive';
+        if ($roleName === 'Employee' && (string) $user['role_name'] !== 'Employee') {
+            throw new RuntimeException('Employee accounts are created automatically from Employee Management.');
         }
-        if ($employeeId !== null && $employeeId !== ($user['employee_id'] !== null ? (int) $user['employee_id'] : null)) {
-            $this->assertEmployeeNotLinked($employeeId, $userId);
+        if ((string) $user['role_name'] === 'Employee' && $roleName !== 'Employee') {
+            throw new RuntimeException('Employee account roles are managed automatically with the employee profile.');
+        }
+        if (array_key_exists('employee_id', $data)
+            && ($data['employee_id'] === '' || $data['employee_id'] === null
+                ? null : (int) $data['employee_id']) !== $currentEmployeeId) {
+            throw new RuntimeException('Employee account links are managed automatically from Employee Management.');
         }
 
         $this->connection->transaction(function (PDO $pdo) use (
@@ -655,21 +653,6 @@ final class UserService
         }
 
         return (string) $roleName;
-    }
-
-    private function assertEmployeeNotLinked(int $employeeId, ?int $excludeUserId = null): void
-    {
-        $sql  = "SELECT COUNT(*) FROM users WHERE employee_id = :emp AND status != 'Archived'";
-        $bind = [':emp' => $employeeId];
-        if ($excludeUserId !== null) {
-            $sql  .= " AND user_id != :uid";
-            $bind[':uid'] = $excludeUserId;
-        }
-        $stmt = $this->connection->pdo()->prepare($sql);
-        $stmt->execute($bind);
-        if ((int) $stmt->fetchColumn() > 0) {
-            throw new RuntimeException('This employee already has an active user account.');
-        }
     }
 
     // -----------------------------------------------------------------------

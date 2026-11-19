@@ -88,7 +88,7 @@ final class UserLifecycleTest extends IntegrationTestCase
      */
     public function testCreateInsertsActiveUser(): void
     {
-        $roleId  = $this->insertRole('Employee');
+        $roleId  = $this->insertRole('BusinessOwner');
         $uid     = uniqid('newuser_');
         $service = $this->buildService();
 
@@ -107,16 +107,20 @@ final class UserLifecycleTest extends IntegrationTestCase
     }
 
     /**
-     * REQ005: create() with a linked employee_id persists the link.
+     * Employee accounts are provisioned through Employee Management, even if
+     * a caller supplies an employee ID directly.
      */
-    public function testCreateWithEmployeeLink(): void
+    public function testCreateEmployeeAccountIsRejected(): void
     {
         $roleId     = $this->insertRole('Employee');
         $employeeId = $this->insertEmployee();
         $uid        = uniqid('empuser_');
         $service    = $this->buildService();
 
-        $userId = $service->create([
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/created automatically/i');
+
+        $service->create([
             'username'      => $uid,
             'account_email' => $uid . '@example.com',
             'password'      => 'Password1!',
@@ -124,8 +128,6 @@ final class UserLifecycleTest extends IntegrationTestCase
             'employee_id'   => $employeeId,
         ], $this->actorId);
 
-        $user = $service->findOrFail($userId);
-        $this->assertSame($employeeId, (int) $user['employee_id']);
     }
 
     /**
@@ -133,7 +135,7 @@ final class UserLifecycleTest extends IntegrationTestCase
      */
     public function testCreateDuplicateUsernameThrows(): void
     {
-        $roleId  = $this->insertRole('Employee');
+        $roleId  = $this->insertRole('BusinessOwner');
         $uid     = uniqid('dupuser_');
         $service = $this->buildService();
 
@@ -160,7 +162,7 @@ final class UserLifecycleTest extends IntegrationTestCase
      */
     public function testCreateDuplicateEmailThrows(): void
     {
-        $roleId  = $this->insertRole('Employee');
+        $roleId  = $this->insertRole('BusinessOwner');
         $email   = uniqid('dupemail_') . '@example.com';
         $service = $this->buildService();
 
@@ -187,7 +189,7 @@ final class UserLifecycleTest extends IntegrationTestCase
      */
     public function testCreateShortPasswordThrows(): void
     {
-        $roleId  = $this->insertRole('Employee');
+        $roleId  = $this->insertRole('BusinessOwner');
         $service = $this->buildService();
 
         $this->expectException(RuntimeException::class);
@@ -210,7 +212,7 @@ final class UserLifecycleTest extends IntegrationTestCase
      */
     public function testUpdateChangesUsernameEmailRole(): void
     {
-        $roleA   = $this->insertRole('Employee');
+        $roleA   = $this->insertRole('BusinessOwner');
         $roleB   = $this->insertRole('HRHead');
         $uid     = uniqid('upd_');
         $service = $this->buildService();
@@ -303,6 +305,29 @@ final class UserLifecycleTest extends IntegrationTestCase
         $this->assertSame('Archived', $service->findOrFail($userId)['status']);
     }
 
+    /** Employee links cannot be removed or reassigned through User Management. */
+    public function testUpdateRejectsEmployeeLinkChange(): void
+    {
+        $employeeId  = $this->insertEmployee();
+        $employeeId2 = $this->insertEmployee();
+        $username    = uniqid('provisioned_');
+        $service     = $this->buildService();
+
+        $userId = $service->provisionForEmployee(
+            $this->pdo,
+            $employeeId,
+            $username,
+            'Password1!',
+            $this->actorId,
+            $username . '@example.com'
+        );
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/links are managed automatically/i');
+
+        $service->update($userId, ['employee_id' => $employeeId2], $this->actorId);
+    }
+
     /** Administrative accounts must not be able to remove their own access. */
     public function testArchiveOwnAccountThrows(): void
     {
@@ -376,7 +401,7 @@ final class UserLifecycleTest extends IntegrationTestCase
      */
     public function testFullUserLifecycle(): void
     {
-        $roleA   = $this->insertRole('Employee');
+        $roleA   = $this->insertRole('BusinessOwner');
         $roleB   = $this->insertRole('HRHead');
         $uid     = uniqid('lifecycle_');
         $service = $this->buildService();
@@ -457,7 +482,7 @@ final class UserLifecycleTest extends IntegrationTestCase
     /** Create a fresh active user and return its user_id. */
     private function createActiveUser(): int
     {
-        $roleId  = $this->insertRole('Employee');
+        $roleId  = $this->insertRole('BusinessOwner');
         $uid     = uniqid('activeuser_');
         $service = $this->buildService();
 

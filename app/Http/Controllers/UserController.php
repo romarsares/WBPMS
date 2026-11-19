@@ -164,13 +164,11 @@ final class UserController
         [$service, $identity] = $this->setup();
 
         $roles     = $service->roles();
-        $employees = $service->unlinkedEmployees();
         $errors    = [];
         $old       = [];
 
         ViewRenderer::render('users/form', [
             'roles'      => $roles,
-            'employees'  => $employees,
             'errors'     => $errors,
             'old'        => $old,
             'roleName'   => $identity['role_name'] ?? '',
@@ -193,14 +191,12 @@ final class UserController
             $this->redirect('/users');
         } catch (RuntimeException $e) {
             $roles     = $service->roles();
-            $employees = $service->unlinkedEmployees();
             $errors    = [$e->getMessage()];
             $old       = $_POST;
 
             http_response_code(422);
             ViewRenderer::render('users/form', [
                 'roles'      => $roles,
-                'employees'  => $employees,
                 'errors'     => $errors,
                 'old'        => $old,
                 'roleName'   => $identity['role_name'] ?? '',
@@ -234,27 +230,11 @@ final class UserController
             return;
         }
 
-        $roles     = $service->roles();
-        $employees = $service->unlinkedEmployees();
-        // Include the user's current employee link so it appears in the list
-        if ($user['employee_id'] !== null) {
-            $stmt = $this->pdo()->prepare(
-                "SELECT e.employee_id,
-                        CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
-                        e.employee_number
-                   FROM employee e WHERE e.employee_id = :id"
-            );
-            $stmt->execute([':id' => $user['employee_id']]);
-            $current = $stmt->fetch();
-            if ($current !== false) {
-                array_unshift($employees, $current);
-            }
-        }
+        $roles = $service->roles();
 
         ViewRenderer::render('users/form', [
             'user'       => $user,
             'roles'      => $roles,
-            'employees'  => $employees,
             'errors'     => [],
             'old'        => $user,
             'roleName'   => $identity['role_name'] ?? '',
@@ -305,7 +285,6 @@ final class UserController
             }
 
             $roles     = $service->roles();
-            $employees = $service->unlinkedEmployees();
             $errors    = [$e->getMessage()];
             $old       = array_merge($user, $_POST);
 
@@ -313,7 +292,6 @@ final class UserController
             ViewRenderer::render('users/form', [
                 'user'       => $user,
                 'roles'      => $roles,
-                'employees'  => $employees,
                 'errors'     => $errors,
                 'old'        => $old,
                 'roleName'   => $actorRole,
