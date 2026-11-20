@@ -264,16 +264,16 @@ final class RequestLifecycleTest extends IntegrationTestCase
         $stmt = $this->pdo->prepare(
             "INSERT INTO request_type (type_name, status) VALUES (:n, 'Active')"
         );
-        $stmt->execute([':n' => $typeName . '_' . uniqid()]);
+        $stmt->execute([':n' => $typeName]);
         return (int) $this->pdo->lastInsertId();
     }
 
     private function insertLeaveEntitlement(int $employeeId, int $year, float $daysGranted): int
     {
         $stmt = $this->pdo->prepare(
-            "INSERT INTO leave_entitlement (employee_id, leave_type, year, days_granted)
+            "INSERT INTO leave_entitlement (employee_id, leave_type, leave_year, entitled_days)
              VALUES (:emp, 'Sick', :year, :days)
-             ON DUPLICATE KEY UPDATE days_granted = :days2"
+             ON DUPLICATE KEY UPDATE entitled_days = :days2"
         );
         $stmt->execute([
             ':emp'   => $employeeId,
@@ -285,7 +285,7 @@ final class RequestLifecycleTest extends IntegrationTestCase
         if ($id === 0) {
             // ON DUPLICATE KEY — fetch existing
             $stmt2 = $this->pdo->prepare(
-                "SELECT entitlement_id FROM leave_entitlement WHERE employee_id = :emp AND leave_type = 'Sick' AND year = :year"
+                "SELECT entitlement_id FROM leave_entitlement WHERE employee_id = :emp AND leave_type = 'Sick' AND leave_year = :year"
             );
             $stmt2->execute([':emp' => $employeeId, ':year' => $year]);
             $id = (int) $stmt2->fetchColumn();
@@ -294,9 +294,9 @@ final class RequestLifecycleTest extends IntegrationTestCase
         $this->pdo->prepare("DELETE FROM leave_ledger WHERE entitlement_id = :id")->execute([':id' => $id]);
         // Insert the Grant credit row
         $this->pdo->prepare(
-            "INSERT INTO leave_ledger (entitlement_id, employee_id, ledger_type, days_delta, description)
-             VALUES (:eid, :emp, 'Grant', :days, 'Test entitlement')"
-        )->execute([':eid' => $id, ':emp' => $employeeId, ':days' => $daysGranted]);
+            "INSERT INTO leave_ledger (entitlement_id, entry_type, days_delta, notes)
+             VALUES (:eid, 'Grant', :days, 'Test entitlement')"
+        )->execute([':eid' => $id, ':days' => $daysGranted]);
         return $id;
     }
 }

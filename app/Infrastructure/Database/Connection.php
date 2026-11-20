@@ -33,6 +33,11 @@ class Connection
      */
     public function __construct(array $config, ?PDO $existing = null)
     {
+        if ($existing === null && ($config['pdo'] ?? null) instanceof PDO) {
+            $existing = $config['pdo'];
+            unset($config['pdo']);
+        }
+
         $this->config = $config;
         $this->pdo    = $existing;
     }

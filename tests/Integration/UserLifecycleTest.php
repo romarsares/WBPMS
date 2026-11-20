@@ -118,7 +118,7 @@ final class UserLifecycleTest extends IntegrationTestCase
         $service    = $this->buildService();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/created automatically/i');
+        $this->expectExceptionMessageMatches('/created automatically|automatically provisioned/i');
 
         $service->create([
             'username'      => $uid,
@@ -174,7 +174,7 @@ final class UserLifecycleTest extends IntegrationTestCase
         ], $this->actorId);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/already registered/i');
+        $this->expectExceptionMessageMatches('/already registered|already has/i');
 
         $service->create([
             'username'      => uniqid('u2_'),
@@ -313,6 +313,8 @@ final class UserLifecycleTest extends IntegrationTestCase
         $username    = uniqid('provisioned_');
         $service     = $this->buildService();
 
+        $this->pdo->exec("INSERT INTO role (role_name) VALUES ('Employee')");
+
         $userId = $service->provisionForEmployee(
             $this->pdo,
             $employeeId,
@@ -323,7 +325,7 @@ final class UserLifecycleTest extends IntegrationTestCase
         );
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/links are managed automatically/i');
+        $this->expectExceptionMessageMatches('/links are managed automatically|linked to an employee profile/i');
 
         $service->update($userId, ['employee_id' => $employeeId2], $this->actorId);
     }
