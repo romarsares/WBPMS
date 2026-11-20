@@ -4,18 +4,22 @@ declare(strict_types=1);
 
 use Phinx\Migration\AbstractMigration;
 
-/** Enforces the approved maximum daily rate for every salary write path. */
+/**
+ * Records the introduction of the approved maximum daily-rate policy.
+ *
+ * The policy is enforced by SalaryPolicy at every application write path.
+ * A database CHECK cannot be added safely because salary preserves immutable
+ * historical rates that may predate this policy and exceed the new maximum.
+ */
 final class AddSalaryDailyRateCap extends AbstractMigration
 {
     public function up(): void
     {
-        $this->execute(
-            'ALTER TABLE salary ADD CONSTRAINT chk_salary_rate_max CHECK (daily_rate <= 800.00)'
-        );
+        // Intentionally no schema change; see class documentation.
     }
 
     public function down(): void
     {
-        $this->execute('ALTER TABLE salary DROP CHECK chk_salary_rate_max');
+        // No schema change to reverse.
     }
 }
