@@ -24,7 +24,9 @@ $csrf          ??= '';
 $empId   = (int) $employee['id'];
 $empName = Formatter::escape($employee['last_name'] . ', ' . $employee['first_name']);
 
-// Group: current docs first, then superseded, then archived
+// Current and archived documents are shown directly. Superseded files remain
+// available as audit history but start collapsed so a replacement does not
+// look like a duplicate document.
 $grouped = ['Current' => [], 'Superseded' => [], 'Archived' => []];
 foreach ($documents as $doc) {
     $s = (string) ($doc['status'] ?? 'Current');
@@ -57,6 +59,9 @@ $formatSize = static function (int $bytes): string {
 <div class="card" style="padding:.9rem 1rem;margin-bottom:1rem">
     <label for="document-search" style="display:block;font-size:.82rem;font-weight:600;margin-bottom:.35rem">Search documents</label>
     <input id="document-search" type="search" placeholder="Search type, label, filename, or status" style="max-width:420px;width:100%">
+    <p id="document-search-empty" class="muted" hidden aria-live="polite" style="margin:.5rem 0 0">
+        No documents match your search.
+    </p>
 </div>
 <?php endif; ?>
 
@@ -128,10 +133,23 @@ $formatSize = static function (int $bytes): string {
 <?php else: ?>
 
 <?php foreach (['Current', 'Superseded', 'Archived'] as $section):
-    if ($grouped[$section] === []) continue; ?>
+    if ($grouped[$section] === []) continue;
+    $isReplacementHistory = $section === 'Superseded';
+?>
+<?php if ($isReplacementHistory): ?>
+<details class="replacement-history" data-document-section style="margin-top:1.5rem">
+    <summary style="cursor:pointer;font-size:.95rem;font-weight:600;color:#374151">
+        Replacement History (<?= count($grouped[$section]) ?>)
+    </summary>
+    <p class="muted" style="margin:.45rem 0 .6rem;font-size:.82rem">
+        Previous files are retained for audit, but hidden by default to avoid duplicate documents.
+    </p>
+<?php else: ?>
+<section data-document-section>
 <h2 style="font-size:.95rem;font-weight:600;color:#374151;margin-bottom:.5rem;margin-top:1.5rem">
-    <?= $section === 'Superseded' ? 'Replacement History' : $section . ' Documents' ?>
+    <?= $section . ' Documents' ?>
 </h2>
+<?php endif; ?>
 <div class="card" style="padding:0;overflow:hidden;margin-bottom:1rem">
     <table class="data-table document-table" style="margin:0">
         <thead>
@@ -274,6 +292,11 @@ $formatSize = static function (int $bytes): string {
         </tbody>
     </table>
 </div>
+<?php if ($isReplacementHistory): ?>
+</details>
+<?php else: ?>
+</section>
+<?php endif; ?>
 <?php endforeach; ?>
 
 <?php endif; ?>
@@ -288,9 +311,28 @@ function toggleReplaceForm(docId) {
 
 document.getElementById('document-search')?.addEventListener('input', function () {
     var query = this.value.toLowerCase().trim();
-    document.querySelectorAll('[data-document-row]').forEach(function (row) {
-        row.style.display = !query || row.textContent.toLowerCase().includes(query) ? '' : 'none';
+    var anyMatches = false;
+
+    document.querySelectorAll('[data-document-section]').forEach(function (section) {
+        var matchesInSection = 0;
+        section.querySelectorAll('[data-document-row]').forEach(function (row) {
+            var matches = !query || row.textContent.toLowerCase().includes(query);
+            row.style.display = matches ? '' : 'none';
+            if (matches) matchesInSection++;
+        });
+
+        section.hidden = query !== '' && matchesInSection === 0;
+        if (matchesInSection > 0) anyMatches = true;
+
+        // Search results in audit history must be visible even though the
+        // history starts collapsed after a replacement.
+        if (section.classList.contains('replacement-history')) {
+            section.open = query !== '' && matchesInSection > 0;
+        }
     });
+
+    var empty = document.getElementById('document-search-empty');
+    if (empty) empty.hidden = query === '' || anyMatches;
 });
 </script>
 

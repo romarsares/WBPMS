@@ -202,7 +202,6 @@ $timeValue = static fn(string $key): string =>
     <div class="modal-card" style="max-width:620px">
         <div class="modal-header">
             <h3 style="margin:0">New Work Schedule</h3>
-            <button type="button" onclick="closeModal('modalCreateSchedule')" aria-label="Close">&times;</button>
         </div>
         <form method="POST" action="<?= $base ?>/hr/schedules">
             <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8') ?>">
