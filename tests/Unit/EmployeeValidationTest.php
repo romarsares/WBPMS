@@ -30,6 +30,14 @@ final class EmployeeValidationTest extends TestCase
         self::assertArrayNotHasKey('daily_rate', $errors);
     }
 
+    public function testEmployeeProfileUpdateDoesNotInvokeSalaryUpdates(): void
+    {
+        $controller = file_get_contents(dirname(__DIR__, 2) . '/app/Http/Controllers/EmployeeController.php');
+
+        self::assertIsString($controller);
+        self::assertStringNotContainsString('$repo->updateSalary($id,', $controller);
+    }
+
     public function testEmployeeEditRejectsApplicantUnderEighteenOnHireDate(): void
     {
         $errors = $this->validateEmployee([
