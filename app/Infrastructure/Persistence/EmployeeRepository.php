@@ -135,12 +135,7 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
      */
     public function enrollBiometricCode(int $employeeId, int $deviceId, string $enrollmentCode, string $effectiveFrom): void
     {
-        $this->assertBiometricEnrollmentAvailable(
-            $deviceId,
-            $enrollmentCode,
-            $effectiveFrom,
-            $employeeId
-        );
+        $this->assertBiometricEnrollmentAvailable($enrollmentCode, $employeeId);
 
         $stmt = $this->pdo()->prepare(
             'INSERT INTO employee_biometric_enrollment
@@ -163,12 +158,7 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
      */
     public function updateCurrentBiometricEnrollment(int $employeeId, int $deviceId, string $enrollmentCode, string $effectiveFrom): void
     {
-        $this->assertBiometricEnrollmentAvailable(
-            $deviceId,
-            $enrollmentCode,
-            $effectiveFrom,
-            $employeeId
-        );
+        $this->assertBiometricEnrollmentAvailable($enrollmentCode, $employeeId);
 
         $current = $this->pdo()->prepare(
             "SELECT enrollment_id
@@ -201,35 +191,38 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
     }
 
     /**
-     * An Enroll ID identifies a person only within one biometric device. It
-     * may be reused on a different device, or after its previous assignment
-     * has ended, but its active periods must never overlap.
+     * Return whether an Enroll ID is already assigned to another employee.
+     *
+     * An Enroll ID is unique across the workforce, including historical
+     * enrollment records. The current employee is excluded so a profile can
+     * retain its own Enroll ID while being edited.
      */
-    private function assertBiometricEnrollmentAvailable(
-        int $deviceId,
-        string $enrollmentCode,
-        string $effectiveFrom,
-        int $employeeId
-    ): void {
-        $conflict = $this->pdo()->prepare(
-            "SELECT 1
-               FROM employee_biometric_enrollment
-              WHERE device_id = :device_id
-                AND device_employee_code = :code
-                AND employee_id <> :employee_id
-                AND status = 'Active'
-                AND (effective_to IS NULL OR effective_to > :effective_from)
-              LIMIT 1"
-        );
-        $conflict->execute([
-            ':device_id' => $deviceId,
-            ':code' => $enrollmentCode,
-            ':employee_id' => $employeeId,
-            ':effective_from' => $effectiveFrom,
-        ]);
+    public function enrollmentCodeExistsForAnotherEmployee(string $enrollmentCode, ?int $employeeId = null): bool
+    {
+        $sql = 'SELECT 1
+                  FROM employee_biometric_enrollment
+                 WHERE device_employee_code = :code';
+        $params = [':code' => $enrollmentCode];
+        if ($employeeId !== null) {
+            $sql .= ' AND employee_id <> :employee_id';
+            $params[':employee_id'] = $employeeId;
+        }
+        $sql .= ' LIMIT 1';
 
-        if ($conflict->fetchColumn() !== false) {
-            throw new RuntimeException('This biometric enrollment ID is already assigned to another active employee on the selected device.');
+        $stmt = $this->pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
+    /**
+     * Enroll IDs are unique across employees, independent of biometric
+     * device and effective-date history.
+     */
+    private function assertBiometricEnrollmentAvailable(string $enrollmentCode, int $employeeId): void
+    {
+        if ($this->enrollmentCodeExistsForAnotherEmployee($enrollmentCode, $employeeId)) {
+            throw new RuntimeException('This Enroll ID has already been used. Enter a unique Enroll ID.');
         }
     }
 

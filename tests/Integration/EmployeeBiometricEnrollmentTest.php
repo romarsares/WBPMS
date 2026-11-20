@@ -18,7 +18,7 @@ final class EmployeeBiometricEnrollmentTest extends IntegrationTestCase
         $this->repo = new EmployeeRepository(new Connection([], static::$sharedPdo));
     }
 
-    public function testEnrollIdCannotBeAssignedToTwoActiveEmployeesOnOneDevice(): void
+    public function testEnrollIdCannotBeAssignedToAnotherEmployee(): void
     {
         $deviceId = $this->insertBiometricDevice();
         $firstEmployeeId = $this->insertEmployee();
@@ -27,12 +27,12 @@ final class EmployeeBiometricEnrollmentTest extends IntegrationTestCase
         $this->repo->enrollBiometricCode($firstEmployeeId, $deviceId, '00123', '2026-01-01');
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('already assigned to another active employee');
+        $this->expectExceptionMessage('This Enroll ID has already been used.');
 
         $this->repo->enrollBiometricCode($secondEmployeeId, $deviceId, '00123', '2026-02-01');
     }
 
-    public function testEnrollIdCanBeReusedOnAnotherDevice(): void
+    public function testEnrollIdCannotBeReusedOnAnotherDevice(): void
     {
         $firstDeviceId = $this->insertBiometricDevice();
         $secondDeviceId = $this->insertBiometricDevice();
@@ -40,11 +40,10 @@ final class EmployeeBiometricEnrollmentTest extends IntegrationTestCase
         $secondEmployeeId = $this->insertEmployee();
 
         $this->repo->enrollBiometricCode($firstEmployeeId, $firstDeviceId, '00123', '2026-01-01');
-        $this->repo->enrollBiometricCode($secondEmployeeId, $secondDeviceId, '00123', '2026-01-01');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('This Enroll ID has already been used.');
 
-        $this->assertSame(2, (int) $this->pdo->query(
-            "SELECT COUNT(*) FROM employee_biometric_enrollment WHERE device_employee_code = '00123'"
-        )->fetchColumn());
+        $this->repo->enrollBiometricCode($secondEmployeeId, $secondDeviceId, '00123', '2026-01-01');
     }
 
     private function insertBiometricDevice(): int

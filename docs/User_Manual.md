@@ -358,7 +358,7 @@ The list shows each employee's number, full name (Last, First), branch, current 
    - **Status** — Active or Inactive.
 7. Fill in the **Biometric Enrollment** section:
    - **Biometric device** (required) — select the device this employee uses to punch in/out.
-   - **Enroll ID** (required) — the numeric enrollment code assigned to this employee on the biometric device.
+   - **Enroll ID** (required) — the numeric enrollment code assigned to this employee. It must be unique and cannot be used by another employee.
 8. Click **Create Employee**.
 9. A confirmation page appears showing the new employee number. Note it for reference.
 

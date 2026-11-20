@@ -205,7 +205,7 @@ final class EmployeeController
             $fieldErrors = $e instanceof \PDOException ? $this->uniqueConstraintErrors($e) : [];
             if ($fieldErrors === []) {
                 if ($e instanceof \RuntimeException
-                    && str_starts_with($e->getMessage(), 'This biometric enrollment ID')) {
+                    && str_starts_with($e->getMessage(), 'This Enroll ID')) {
                     $fieldErrors = ['enrollment_code' => $e->getMessage()];
                 } else {
                 // Employee provisioning validates login-email uniqueness itself.
@@ -681,7 +681,7 @@ final class EmployeeController
                 'devices'   => $devices,
                 'positions' => $positions,
                 'errors'    => [
-                    (str_starts_with($e->getMessage(), 'This biometric enrollment ID')
+                    (str_starts_with($e->getMessage(), 'This Enroll ID')
                         ? 'enrollment_code'
                         : 'email') => $e->getMessage(),
                 ],
@@ -979,6 +979,11 @@ final class EmployeeController
         }
         if ($isEdit && $hasDevice !== $hasEnrollmentCode) {
             $errors[$hasDevice ? 'enrollment_code' : 'device_id'] = 'Provide both the biometric device and enrollment ID to update the current mapping.';
+        }
+
+        if ($hasEnrollmentCode && $repo !== null
+            && $repo->enrollmentCodeExistsForAnotherEmployee($data['enrollment_code'], $currentEmployeeId)) {
+            $errors['enrollment_code'] = 'This Enroll ID has already been used. Enter a unique Enroll ID.';
         }
 
         // Employees must be 18 or older on their hire/effective date. Applies
