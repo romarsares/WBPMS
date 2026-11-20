@@ -12,26 +12,28 @@ final class AddUserRoleMemberships extends AbstractMigration
 {
     public function up(): void
     {
-        $this->table('user_role', [
-            'id'          => false,
-            'primary_key' => ['user_id', 'role_id'],
-            'engine'      => 'InnoDB',
-            'encoding'    => 'utf8mb4',
-            'collation'   => 'utf8mb4_unicode_ci',
-            'comment'     => 'Role grants for each unique system account',
-        ])
-            ->addColumn('user_id', 'biginteger', ['signed' => false, 'null' => false])
-            ->addColumn('role_id', 'biginteger', ['signed' => false, 'null' => false])
-            ->addColumn('created_at', 'datetime', ['null' => false, 'default' => 'CURRENT_TIMESTAMP'])
-            ->addIndex(['role_id'], ['name' => 'idx_user_role_role'])
-            ->addForeignKey('user_id', 'users', 'user_id', ['delete' => 'CASCADE', 'update' => 'CASCADE'])
-            ->addForeignKey('role_id', 'role', 'role_id', ['delete' => 'RESTRICT', 'update' => 'CASCADE'])
-            ->create();
+        if (!$this->hasTable('user_role')) {
+            $this->table('user_role', [
+                'id'          => false,
+                'primary_key' => ['user_id', 'role_id'],
+                'engine'      => 'InnoDB',
+                'encoding'    => 'utf8mb4',
+                'collation'   => 'utf8mb4_unicode_ci',
+                'comment'     => 'Role grants for each unique system account',
+            ])
+                ->addColumn('user_id', 'biginteger', ['signed' => false, 'null' => false])
+                ->addColumn('role_id', 'biginteger', ['signed' => false, 'null' => false])
+                ->addColumn('created_at', 'datetime', ['null' => false, 'default' => 'CURRENT_TIMESTAMP'])
+                ->addIndex(['role_id'], ['name' => 'idx_user_role_role'])
+                ->addForeignKey('user_id', 'users', 'user_id', ['delete' => 'CASCADE', 'update' => 'CASCADE'])
+                ->addForeignKey('role_id', 'role', 'role_id', ['delete' => 'RESTRICT', 'update' => 'CASCADE'])
+                ->create();
+        }
 
         // Preserve every existing account's current role as its first grant.
         $this->execute(
-            'INSERT INTO user_role (user_id, role_id)\n'
-            . 'SELECT user_id, role_id FROM users\n'
+            'INSERT INTO user_role (user_id, role_id) '
+            . 'SELECT user_id, role_id FROM users '
             . 'ON DUPLICATE KEY UPDATE role_id = VALUES(role_id)'
         );
     }

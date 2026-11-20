@@ -7,6 +7,7 @@
 $old      = $old ?? ($salary ?? []);
 $history  = $history ?? [];
 $isEdit   = $salary !== null;
+$maximumDailyRate = \Wbpms\Domain\Payroll\SalaryPolicy::MAX_DAILY_RATE;
 ?>
 <div class="page-head">
     <div>
@@ -54,8 +55,9 @@ $isEdit   = $salary !== null;
                     Daily Rate (₱) <span style="color:#ef4444">*</span>
                 </label>
                 <input type="number" id="daily_rate" name="daily_rate" class="form-control"
-                       step="0.01" min="0.01" required
+                       step="0.01" min="0.01" max="<?= $maximumDailyRate ?>" required
                        value="<?= htmlspecialchars((string)($old['daily_rate'] ?? '')) ?>">
+                <small style="color:#6b7280">Company maximum: ₱<?= number_format($maximumDailyRate, 2) ?> per day.</small>
             </div>
 
             <div class="form-group" style="margin-bottom:1.25rem">

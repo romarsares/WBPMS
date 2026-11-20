@@ -46,3 +46,11 @@ foreach ($candidates as $envFile) {
         break;
     }
 }
+
+// Local test setups commonly use the same MySQL account for the application
+// and the isolated wbpms_test database. Reuse its password only when a
+// dedicated TEST_DB_PASSWORD was not supplied.
+if (($_ENV['TEST_DB_PASSWORD'] ?? '') === '' && ($_ENV['DB_PASSWORD'] ?? '') !== '') {
+    $_ENV['TEST_DB_PASSWORD'] = $_ENV['DB_PASSWORD'];
+    putenv('TEST_DB_PASSWORD=' . $_ENV['DB_PASSWORD']);
+}

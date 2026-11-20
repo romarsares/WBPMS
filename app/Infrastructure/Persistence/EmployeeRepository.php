@@ -7,6 +7,7 @@ namespace Wbpms\Infrastructure\Persistence;
 use PDO;
 use RuntimeException;
 use Wbpms\Application\EmployeeSetup\EmployeeSetupGateway;
+use Wbpms\Domain\Payroll\SalaryPolicy;
 use Wbpms\Infrastructure\Database\Connection;
 
 /**
@@ -487,6 +488,8 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
      */
     public function createSalary(int $employeeId, float $dailyRate, string $effectiveFrom): void
     {
+        SalaryPolicy::assertWithinDailyRateLimit($dailyRate);
+
         $this->pdo()->prepare(
             "INSERT INTO salary (employee_id, daily_rate, effective_from, effective_to, status, created_at, updated_at)
              VALUES (:emp_id, :rate, :from, NULL, 'Active', NOW(), NOW())"

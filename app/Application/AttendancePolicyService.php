@@ -200,19 +200,7 @@ final class AttendancePolicyService
                        n.notice_id, n.title AS notice_title, n.issued_at AS notice_issued_at,
                        n.acknowledged_at AS notice_acknowledged_at,
                        CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
-                       e.employee_number, e.position,
-                       CASE WHEN f.flag_type IN ('ConsecutiveLate', 'TardinessMemoCap') THEN (
-                           SELECT GROUP_CONCAT(
-                                      CONCAT(a.attendance_date, ' ', TIME_FORMAT(a.time_in, '%H:%i'),
-                                             ' (+', a.late_minutes, ' min)')
-                                      ORDER BY a.attendance_date SEPARATOR ', ')
-                             FROM attendance a
-                            WHERE a.employee_id = f.employee_id
-                              AND a.attendance_date BETWEEN DATE_SUB(f.triggering_date, INTERVAL 2 DAY)
-                                                        AND f.triggering_date
-                              AND a.late_minutes > 0
-                              AND a.status <> 'Cancelled'
-                       ) END AS late_dates
+                       e.employee_number, e.position
                   FROM attendance_policy_flag f
                   JOIN employee e ON e.employee_id = f.employee_id"
               . " LEFT JOIN employee_hr_notice n ON n.policy_flag_id = f.flag_id"
@@ -223,6 +211,7 @@ final class AttendancePolicyService
         $stmt = $this->connection->pdo()->prepare($sql);
         $stmt->execute($params);
         $flags = $this->withAbsenceEvidenceDates($stmt->fetchAll());
+        $flags = $this->withLateEvidenceDates($flags);
         return $this->withReviewHistory($flags);
     }
     public function counts(): array
@@ -256,19 +245,7 @@ final class AttendancePolicyService
                     n.notice_id, n.title AS notice_title, n.issued_at AS notice_issued_at,
                     n.acknowledged_at AS notice_acknowledged_at,
                     CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
-                    e.employee_number, e.position,
-                    CASE WHEN f.flag_type IN ('ConsecutiveLate', 'TardinessMemoCap') THEN (
-                        SELECT GROUP_CONCAT(
-                                   CONCAT(a.attendance_date, ' ', TIME_FORMAT(a.time_in, '%H:%i'),
-                                          ' (+', a.late_minutes, ' min)')
-                                   ORDER BY a.attendance_date SEPARATOR ', ')
-                          FROM attendance a
-                         WHERE a.employee_id = f.employee_id
-                           AND a.attendance_date BETWEEN DATE_SUB(f.triggering_date, INTERVAL 2 DAY)
-                                                     AND f.triggering_date
-                           AND a.late_minutes > 0
-                           AND a.status <> 'Cancelled'
-                    ) END AS late_dates
+                    e.employee_number, e.position
                FROM attendance_policy_flag f
                JOIN employee e ON e.employee_id = f.employee_id
                LEFT JOIN employee_hr_notice n ON n.policy_flag_id = f.flag_id
@@ -279,7 +256,7 @@ final class AttendancePolicyService
         if ($row === false || !$row) {
             throw new RuntimeException('Policy flag not found.');
         }
-        return $this->withAbsenceEvidenceDates([$row])[0];
+        return $this->withLateEvidenceDates($this->withAbsenceEvidenceDates([$row]))[0];
     }
 
     /**
@@ -507,6 +484,74 @@ final class AttendancePolicyService
         }
 
         return array_filter($byDate);
+    }
+
+    /**
+     * Attach late-arrival evidence to ConsecutiveLate and TardinessMemoCap flags.
+     *
+     * Reconstructs the exact consecutive late run that triggered the flag by
+     * walking backward through attended rows (time_in IS NOT NULL) from the
+     * triggering date and stopping at the first attended row that was on time.
+     * Rows where time_in IS NULL (absence rows that may carry a non-zero
+     * late_minutes from an import artefact) are excluded from both the run
+     * walk and the evidence string; they never affect flag creation either
+     * because AttendancePolicyEvaluator::buildSpan marks them as not attended.
+     *
+     * @param list<array<string,mixed>> $flags
+     * @return list<array<string,mixed>>
+     */
+    private function withLateEvidenceDates(array $flags): array
+    {
+        $lateTypes = ['ConsecutiveLate', 'TardinessMemoCap'];
+        foreach ($flags as &$flag) {
+            if (!in_array((string) ($flag['flag_type'] ?? ''), $lateTypes, true)) {
+                continue;
+            }
+            if (!isset($flag['employee_id'], $flag['triggering_date'])) {
+                continue;
+            }
+            // Fetch attended rows in reverse order. We walk back through them
+            // and stop at the first on-time row to isolate only the consecutive
+            // late run that triggered the flag. Fetching more rows than the
+            // threshold (×3) ensures we don't miss the run boundary.
+            $lookback = AttendancePolicyEvaluator::CONSECUTIVE_LATE_THRESHOLD * 3;
+            $stmt = $this->connection->pdo()->prepare(
+                "SELECT attendance_date, time_in, late_minutes
+                   FROM attendance
+                  WHERE employee_id = :emp
+                    AND attendance_date <= :date
+                    AND time_in IS NOT NULL
+                    AND status <> 'Cancelled'
+                  ORDER BY attendance_date DESC
+                  LIMIT {$lookback}"
+            );
+            $stmt->execute([
+                ':emp' => (int) $flag['employee_id'],
+                ':date' => (string) $flag['triggering_date'],
+            ]);
+            // Walk from most-recent backward; collect late rows until we hit
+            // an on-time row, which ends the consecutive run.
+            $runRows = [];
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                if ((int) $row['late_minutes'] <= 0) {
+                    break;
+                }
+                $runRows[] = $row;
+                if (count($runRows) === AttendancePolicyEvaluator::CONSECUTIVE_LATE_THRESHOLD) {
+                    break;
+                }
+            }
+            $runRows = array_reverse($runRows);
+            $parts = [];
+            foreach ($runRows as $row) {
+                $time = substr((string) $row['time_in'], 0, 5);
+                $parts[] = $row['attendance_date'] . ' ' . $time . ' (+' . $row['late_minutes'] . ' min)';
+            }
+            $flag['late_dates'] = $parts !== [] ? implode(', ', $parts) : null;
+        }
+        unset($flag);
+
+        return $flags;
     }
 
     /**

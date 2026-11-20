@@ -8,6 +8,7 @@ use PDO;
 use Wbpms\Application\EmployeeDocumentService;
 use Wbpms\Application\EmployeeLifecycleService;
 use Wbpms\Application\UserService;
+use Wbpms\Domain\Payroll\SalaryPolicy;
 use Wbpms\Http\Middleware\AuthMiddleware;
 use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
@@ -889,8 +890,8 @@ final class EmployeeController
 
         if ($data['daily_rate'] === '' || (float) $data['daily_rate'] <= 0) {
             $errors['daily_rate'] = 'Daily rate is required and must be greater than 0.';
-        } elseif ((float) $data['daily_rate'] > 999999.99) {
-            $errors['daily_rate'] = 'Daily rate cannot exceed ₱999,999.99.';
+        } elseif ((float) $data['daily_rate'] > SalaryPolicy::MAX_DAILY_RATE) {
+            $errors['daily_rate'] = 'Daily rate cannot exceed ₱' . number_format(SalaryPolicy::MAX_DAILY_RATE, 2) . '.';
         }
 
         // Position-based minimum (Add only): when the selected position has a
@@ -940,14 +941,14 @@ final class EmployeeController
             $errors[$hasDevice ? 'enrollment_code' : 'device_id'] = 'Provide both the biometric device and enrollment ID to update the current mapping.';
         }
 
-        // A person cannot be hired before they are born: when both dates are
-        // present and individually valid, the birthdate must precede the
-        // hire/effective date. Applies to both add and edit.
-        if ($data['birthdate'] !== '' && $data['effective_from'] !== '') {
+        // Employees must be 18 or older on their hire/effective date. Applies
+        // to both add and edit, using the date from which the employment takes
+        // effect rather than the current date.
+        if ($this->isIsoDate($data['birthdate']) && $this->isIsoDate($data['effective_from'])) {
             $bd = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['birthdate']);
             $hd = \DateTimeImmutable::createFromFormat('!Y-m-d', $data['effective_from']);
-            if ($bd !== false && $hd !== false && $bd >= $hd) {
-                $errors['birthdate'] = 'Birthdate must be before the hire date.';
+            if ($bd !== false && $hd !== false && $bd > $hd->modify('-18 years')) {
+                $errors['birthdate'] = 'Employee must be at least 18 years old on the hire date.';
             }
         }
 
@@ -963,7 +964,11 @@ final class EmployeeController
         if ((int) $data['schedule_id'] <= 0) $errors['schedule_id'] = 'Work schedule is required.';
         if ((int) $data['device_id'] <= 0) $errors['device_id'] = 'Biometric device is required.';
         if ((string) $data['enrollment_code'] === '') $errors['enrollment_code'] = 'Biometric enrollment ID is required.';
-        if ((float) $data['daily_rate'] <= 0) $errors['daily_rate'] = 'Daily rate must be greater than 0.';
+        if ((float) $data['daily_rate'] <= 0) {
+            $errors['daily_rate'] = 'Daily rate must be greater than 0.';
+        } elseif ((float) $data['daily_rate'] > SalaryPolicy::MAX_DAILY_RATE) {
+            $errors['daily_rate'] = 'Daily rate cannot exceed ₱' . number_format(SalaryPolicy::MAX_DAILY_RATE, 2) . '.';
+        }
         if ((string) $data['position'] === '') $errors['position'] = 'Position is required.';
         if (!in_array((string) $data['employee_type'], ['Regular', 'Contractual'], true)) $errors['employee_type'] = 'Choose a valid employee type.';
         if (mb_strlen((string) $data['notes']) > 1000) $errors['notes'] = 'HR note must be 1,000 characters or fewer.';

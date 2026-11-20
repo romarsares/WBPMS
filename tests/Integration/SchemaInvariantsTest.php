@@ -505,6 +505,20 @@ final class SchemaInvariantsTest extends IntegrationTestCase
         );
     }
 
+    /** Direct database writes must not bypass the approved daily-rate cap. */
+    public function testSalaryRateAboveMaximumRejected(): void
+    {
+        $emp = $this->insertEmployee();
+
+        $this->assertDbException(
+            fn () => $this->pdo->prepare(
+                "INSERT INTO salary (employee_id, daily_rate, effective_from, status)
+                 VALUES (:emp, 800.01, '2026-01-01', 'Active')"
+            )->execute([':emp' => $emp]),
+            'salary daily_rate above maximum'
+        );
+    }
+
     // ===================================================================
     // 7. AUDIT LOG: failed-login events with user_id = NULL are accepted
     // ===================================================================

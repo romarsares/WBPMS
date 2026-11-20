@@ -1,5 +1,6 @@
 <?php
 
+use Wbpms\Domain\Payroll\SalaryPolicy;
 use Wbpms\Http\View\Formatter;
 
 /** @var array<string,mixed> $employee */
@@ -9,6 +10,7 @@ use Wbpms\Http\View\Formatter;
 /** @var list<array{id:int,name:string}> $positions */
 /** @var array<string,string> $errors */
 $errors ??= [];
+$maximumDailyRate = SalaryPolicy::MAX_DAILY_RATE;
 $value = static fn(string $key, string $fallback = ''): string => Formatter::escape((string) ($_POST[$key] ?? $fallback));
 $fieldError = static fn(string $key): string => isset($errors[$key])
     ? '<span class="field-error">' . Formatter::escape($errors[$key]) . '</span>' : '';
@@ -61,7 +63,8 @@ $fieldError = static fn(string $key): string => isset($errors[$key])
             </div>
             <div class="form-group">
                 <label for="daily_rate">Daily rate (&#8369;) <span style="color:#dc2626">*</span></label>
-                <input type="number" id="daily_rate" name="daily_rate" min="0.01" step="0.01" required value="<?= $value('daily_rate', (string) $employee['daily_rate']) ?>" class="<?= isset($errors['daily_rate']) ? 'is-invalid' : '' ?>">
+                <input type="number" id="daily_rate" name="daily_rate" min="0.01" max="<?= $maximumDailyRate ?>" step="0.01" required value="<?= $value('daily_rate', (string) $employee['daily_rate']) ?>" class="<?= isset($errors['daily_rate']) ? 'is-invalid' : '' ?>">
+                <small style="color:#6b7280">Company maximum: ₱<?= number_format($maximumDailyRate, 2) ?> per day.</small>
                 <?= $fieldError('daily_rate') ?>
             </div>
         </div>

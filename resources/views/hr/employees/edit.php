@@ -1,6 +1,7 @@
 <?php
 
 
+use Wbpms\Domain\Payroll\SalaryPolicy;
 use Wbpms\Http\View\Formatter;
 
 /**
@@ -33,6 +34,7 @@ $branches ??= [];
 $schedules ??= [];
 $devices  ??= [];
 $positions ??= [];
+$maximumDailyRate = SalaryPolicy::MAX_DAILY_RATE;
 $errors   ??= [];
 $csrf     ??= '';
 $suggestedEmpNumber ??= '';
@@ -429,9 +431,10 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <label for="daily_rate">Daily rate (₱) <span style="color:#dc2626">*</span></label>
                 <input type="number" id="daily_rate" name="daily_rate"
                     value="<?= $v('daily_rate') ?>"
-                    min="0.01" step="0.01"
+                    min="0.01" max="<?= $maximumDailyRate ?>" step="0.01"
                     required
                     class="<?= isset($errors['daily_rate']) ? 'is-invalid' : '' ?>">
+                <small style="color:#6b7280">Company maximum: ₱<?= number_format($maximumDailyRate, 2) ?> per day.</small>
                 <?= $err('daily_rate') ?>
             </div>
             <div class="form-group">

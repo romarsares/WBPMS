@@ -17,6 +17,8 @@ if (file_exists(__DIR__ . '/.env')) {
     $dotenv->load();
 }
 
+$testDatabasePassword = getenv('TEST_DB_PASSWORD') ?: (getenv('DB_PASSWORD') ?: '');
+
 return [
     'paths' => [
         'migrations' => __DIR__ . '/database/migrations',
@@ -39,7 +41,7 @@ return [
             'host'    => getenv('TEST_DB_HOST')     ?: '127.0.0.1',
             'name'    => getenv('TEST_DB_NAME')     ?: 'wbpms_test',
             'user'    => getenv('TEST_DB_USER')     ?: 'root',
-            'pass'    => getenv('TEST_DB_PASSWORD') ?: '',
+            'pass'    => $testDatabasePassword,
             'port'    => (int) (getenv('TEST_DB_PORT') ?: 3306),
             'charset' => 'utf8mb4',
         ],

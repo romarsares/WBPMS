@@ -158,6 +158,18 @@ final class SalaryHistoryTest extends IntegrationTestCase
         self::assertSame('500.00', number_format((float) $current['daily_rate'], 2, '.', ''));
     }
 
+    public function testCreateRejectsRateAboveCompanyMaximum(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Daily rate cannot exceed ₱800.00.');
+
+        $this->service->create([
+            'employee_id'   => $this->employeeId,
+            'daily_rate'    => '800.01',
+            'effective_from' => '2026-01-01',
+        ], $this->actorUserId);
+    }
+
     // -----------------------------------------------------------------------
     // Helper
     // -----------------------------------------------------------------------

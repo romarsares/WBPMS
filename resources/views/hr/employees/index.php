@@ -126,7 +126,7 @@ $positions      ??= [];
             <td><code style="font-size:.8rem"><?= Formatter::escape($emp['employee_number']) ?></code></td>
             <td>
                 <a href="<?= $base ?>/hr/employees/<?= (int) $emp['id'] ?>">
-                    <?= Formatter::escape($emp['last_name']) ?>, <?= Formatter::escape($emp['first_name']) ?>
+                    <?= Formatter::escape($emp['last_name']) ?>, <?= Formatter::escape($emp['first_name']) ?><?= !empty($emp['middle_name']) ? ' ' . Formatter::escape($emp['middle_name']) : '' ?>
                 </a>
             </td>
             <td><?= Formatter::escape($emp['position'] ?? '—') ?></td>

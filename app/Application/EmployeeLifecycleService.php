@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Wbpms\Application;
 
+use Wbpms\Domain\Payroll\SalaryPolicy;
 use Wbpms\Infrastructure\Database\Connection;
 use Wbpms\Infrastructure\Persistence\EmployeeLifecycleRepository;
 
@@ -51,6 +52,8 @@ final class EmployeeLifecycleService
     /** @param array{rehire_date:string,branch_id:int,schedule_id:int,device_id:int,enrollment_code:string,daily_rate:float,position:string,employee_type:string,notes:?string,reactivate_account:bool} $data */
     public function rehire(int $employeeId, array $data, int $actorId): ?string
     {
+        SalaryPolicy::assertWithinDailyRateLimit($data['daily_rate']);
+
         return $this->connection->transaction(function () use ($employeeId, $data, $actorId): ?string {
             $employee = $this->repository->employeeForUpdate($employeeId);
             if ($employee === null) {

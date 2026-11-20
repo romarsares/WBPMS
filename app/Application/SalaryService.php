@@ -6,6 +6,7 @@ namespace Wbpms\Application;
 
 use PDO;
 use RuntimeException;
+use Wbpms\Domain\Payroll\SalaryPolicy;
 use Wbpms\Infrastructure\Database\Connection;
 
 /**
@@ -304,6 +305,7 @@ final class SalaryService
         if ($dailyRate === '' || !is_numeric($dailyRate) || (float) $dailyRate <= 0) {
             throw new RuntimeException('Daily rate must be a positive number.');
         }
+        SalaryPolicy::assertWithinDailyRateLimit((float) $dailyRate);
         if ($effectiveFrom === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $effectiveFrom)) {
             throw new RuntimeException('Effective date is required (YYYY-MM-DD).');
         }
