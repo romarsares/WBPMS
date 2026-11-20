@@ -643,6 +643,14 @@ final class EmployeeController
                     );
                 }
 
+                if ((int) $data['schedule_id'] !== (int) $row['schedule_id']) {
+                    $repo->updateCurrentSchedule(
+                        $id,
+                        (int) $data['schedule_id'],
+                        (string) $row['effective_from'],
+                    );
+                }
+
                 // Sync employee.email → users.account_email for the linked user account.
                 // When HR changes the employee's email address the linked login account must
                 // reflect that change so the employee can still log in with the new address.
@@ -683,7 +691,9 @@ final class EmployeeController
                 'errors'    => [
                     (str_starts_with($e->getMessage(), 'This Enroll ID')
                         ? 'enrollment_code'
-                        : 'email') => $e->getMessage(),
+                        : (str_starts_with($e->getMessage(), 'Selected work schedule')
+                            ? 'schedule_id'
+                            : 'email')) => $e->getMessage(),
                 ],
             ], 'Edit Employee');
             return;
@@ -961,8 +971,13 @@ final class EmployeeController
             if ($data['schedule_id'] === '') {
                 $errors['schedule_id'] = 'Work schedule is required.';
             }
-        } elseif ($data['effective_from'] === '' || !$this->isIsoDate($data['effective_from'])) {
-            $errors['effective_from'] = 'Hire date must be a valid calendar date (YYYY-MM-DD).';
+        } else {
+            if ($data['effective_from'] === '' || !$this->isIsoDate($data['effective_from'])) {
+                $errors['effective_from'] = 'Hire date must be a valid calendar date (YYYY-MM-DD).';
+            }
+            if ((int) $data['schedule_id'] <= 0) {
+                $errors['schedule_id'] = 'Work schedule is required.';
+            }
         }
 
         if ($data['hire_time'] !== '' && !$this->isIsoTime($data['hire_time'])) {

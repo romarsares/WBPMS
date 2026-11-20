@@ -152,6 +152,49 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
     }
 
     /**
+     * Replace an employee's current schedule assignment with the selected
+     * active schedule template. Profile editing has no separate effective-date
+     * control, so the existing current assignment is updated in place.
+     */
+    public function updateCurrentSchedule(int $employeeId, int $scheduleId, string $effectiveFrom): void
+    {
+        $schedule = $this->pdo()->prepare(
+            "SELECT 1 FROM work_schedule WHERE schedule_id = :schedule_id AND status = 'Active' LIMIT 1"
+        );
+        $schedule->execute([':schedule_id' => $scheduleId]);
+        if ($schedule->fetchColumn() === false) {
+            throw new RuntimeException('Selected work schedule is unavailable. Choose an active schedule.');
+        }
+
+        $current = $this->pdo()->prepare(
+            "SELECT assignment_id
+               FROM employee_schedule_assignment
+              WHERE employee_id = :employee_id
+                AND effective_to IS NULL
+                AND status = 'Active'
+              ORDER BY effective_from DESC, assignment_id DESC
+              LIMIT 1
+              FOR UPDATE"
+        );
+        $current->execute([':employee_id' => $employeeId]);
+        $assignmentId = $current->fetchColumn();
+
+        if ($assignmentId === false) {
+            $this->assignEffectiveSchedule($employeeId, $scheduleId, $effectiveFrom);
+            return;
+        }
+
+        $this->pdo()->prepare(
+            "UPDATE employee_schedule_assignment
+                SET schedule_id = :schedule_id, updated_at = NOW()
+              WHERE assignment_id = :assignment_id"
+        )->execute([
+            ':schedule_id' => $scheduleId,
+            ':assignment_id' => (int) $assignmentId,
+        ]);
+    }
+
+    /**
      * Correct the employee's current biometric mapping from the employee edit
      * form. This intentionally updates the current setup record in place;
      * effective-dated device migrations remain a separate workflow.
