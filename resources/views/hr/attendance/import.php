@@ -198,10 +198,11 @@ $months = [
                     'Rejected', 'Cancelled' => 'badge-red',
                     default      => 'badge-yellow',
                 };
-                $period = sprintf('%s %s',
-                    $months[(int)($b['source_month'] ?? 0)] ?? '?',
-                    (int)($b['source_year'] ?? 0)
-                );
+                $sourceMonth = (int) ($b['source_month'] ?? 0);
+                $sourceYear = (int) ($b['source_year'] ?? 0);
+                $period = isset($months[$sourceMonth]) && $sourceYear > 0
+                    ? sprintf('%s %d', $months[$sourceMonth], $sourceYear)
+                    : 'Period not recorded';
             ?>
             <tr>
                 <td style="padding:8px 10px;border-bottom:1px solid var(--line);

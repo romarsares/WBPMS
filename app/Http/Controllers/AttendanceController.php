@@ -299,9 +299,7 @@ final class AttendanceController
         $today = (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila')))->format('Y-m-d');
 
         // Branch list for filter dropdown
-        $branches = $pdo->query(
-            "SELECT branch_id, branch_name FROM branch WHERE status = 'Active' ORDER BY branch_name"
-        )->fetchAll();
+        $branches = $this->loadAttendanceBranches($pdo);
 
         ViewRenderer::render('hr/attendance/index', [
             'rows'        => $rows,
@@ -511,7 +509,7 @@ final class AttendanceController
             'summary' => $summary,
             'dateFrom' => $dateFrom,
             'dateTo' => $dateTo,
-            'branches' => $pdo->query("SELECT branch_id, branch_name FROM branch WHERE status = 'Active' ORDER BY branch_name")->fetchAll(),
+            'branches' => $this->loadAttendanceBranches($pdo),
             'branchId' => $branchId,
             'search' => $search,
             'activePage' => $isOwner ? 'reports' : 'attendance',
@@ -1203,6 +1201,23 @@ final class AttendanceController
     // Private helpers
     // -----------------------------------------------------------------------
 
+    /**
+     * Load active branches supported by the current attendance operation.
+     *
+     * Surallah is retained in the database for audit/history, but it is no
+     * longer an available attendance-management option.
+     */
+    private function loadAttendanceBranches(\PDO $pdo): array
+    {
+        return $pdo->query(
+            "SELECT branch_id, branch_name
+               FROM branch
+              WHERE status = 'Active'
+                AND branch_name NOT LIKE '%Surallah%'
+              ORDER BY branch_name"
+        )->fetchAll();
+    }
+
     /** Load active biometric devices for the upload form device selector. */
     private function loadDevices(\PDO $pdo): array
     {
@@ -1210,6 +1225,8 @@ final class AttendanceController
             "SELECT device_id, device_code, device_name
                FROM biometric_device
               WHERE status = 'Active'
+                AND device_code NOT LIKE '%SURALLAH%'
+                AND device_name NOT LIKE '%Surallah%'
               ORDER BY device_name"
         )->fetchAll();
     }
