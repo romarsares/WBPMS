@@ -75,36 +75,39 @@ final class EmployeePortalController
 
         // Build WHERE clause
         if ($dateFrom !== '' && $dateTo !== '') {
-            $rangeClause = 'AND attendance_date BETWEEN :date_from AND :date_to';
+            $rangeClause = 'AND a.attendance_date BETWEEN :date_from AND :date_to';
             $bind = [':emp_id' => $employeeId, ':date_from' => $dateFrom, ':date_to' => $dateTo];
         } elseif ($dateFrom !== '') {
-            $rangeClause = 'AND attendance_date >= :date_from';
+            $rangeClause = 'AND a.attendance_date >= :date_from';
             $bind = [':emp_id' => $employeeId, ':date_from' => $dateFrom];
         } elseif ($dateTo !== '') {
-            $rangeClause = 'AND attendance_date <= :date_to';
+            $rangeClause = 'AND a.attendance_date <= :date_to';
             $bind = [':emp_id' => $employeeId, ':date_to' => $dateTo];
         } else {
             // Default: last 90 days
-            $rangeClause = 'AND attendance_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 89 DAY) AND CURDATE()';
+            $rangeClause = 'AND a.attendance_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 89 DAY) AND CURDATE()';
             $bind = [':emp_id' => $employeeId];
         }
 
         $stmt = $pdo->prepare(
-            "SELECT attendance_date,
-                    time_in,
-                    time_out,
-                    COALESCE(hours_worked_minutes, 0) AS worked_minutes,
-                    COALESCE(late_minutes, 0)         AS late_minutes,
-                    COALESCE(undertime_minutes, 0)    AS undertime_minutes,
-                    COALESCE(overtime_minutes, 0)     AS overtime_minutes,
+            "SELECT a.attendance_date,
+                    a.time_in,
+                    a.time_out,
+                    COALESCE(a.hours_worked_minutes, 0) AS worked_minutes,
+                    COALESCE(a.late_minutes, 0)         AS late_minutes,
+                    COALESCE(a.undertime_minutes, 0)    AS undertime_minutes,
+                    COALESCE(a.overtime_minutes, 0)     AS overtime_minutes,
                     CASE
-                        WHEN status IN ('Incomplete', 'ReviewRequired') OR time_in IS NULL OR time_out IS NULL THEN 1
+                        WHEN a.status IN ('Incomplete', 'ReviewRequired') OR a.time_in IS NULL OR a.time_out IS NULL THEN 1
                         ELSE 0
                     END AS is_incomplete
-             FROM attendance
-             WHERE employee_id = :emp_id
+             FROM attendance a
+             LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
+             WHERE a.employee_id = :emp_id
+               AND a.status <> 'Cancelled'
+               AND (aib.status IS NULL OR aib.status <> 'Cancelled')
                {$rangeClause}
-             ORDER BY attendance_date DESC"
+             ORDER BY a.attendance_date DESC"
         );
         $stmt->execute($bind);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);

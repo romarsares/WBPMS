@@ -136,10 +136,13 @@ final class AttendanceController
         $countStmt = $pdo->prepare(
             "SELECT
                 COUNT(*)                                                           AS total,
-                SUM(CASE WHEN status IN ('Complete','Approved')     THEN 1 ELSE 0 END) AS complete,
-                SUM(CASE WHEN status IN ('Incomplete','ReviewRequired') THEN 1 ELSE 0 END) AS incomplete
-               FROM attendance
-              WHERE attendance_date BETWEEN :from AND :to"
+                SUM(CASE WHEN a.status IN ('Complete','Approved') THEN 1 ELSE 0 END) AS complete,
+                SUM(CASE WHEN a.status IN ('Incomplete','ReviewRequired') THEN 1 ELSE 0 END) AS incomplete
+               FROM attendance a
+               LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
+              WHERE a.attendance_date BETWEEN :from AND :to
+                AND a.status <> 'Cancelled'
+                AND (aib.status IS NULL OR aib.status <> 'Cancelled')"
         );
         $countStmt->execute([':from' => $dateFrom, ':to' => $dateTo]);
         $counts     = $countStmt->fetch();
@@ -163,7 +166,11 @@ final class AttendanceController
         $branchId = isset($_GET['branch_id']) && $_GET['branch_id'] !== ''
                     ? (int) $_GET['branch_id'] : null;
 
-        $where  = ['a.attendance_date BETWEEN :from AND :to'];
+        $where  = [
+            'a.attendance_date BETWEEN :from AND :to',
+            "a.status <> 'Cancelled'",
+            "(aib.status IS NULL OR aib.status <> 'Cancelled')",
+        ];
         $bind   = [':from' => $dateFrom, ':to' => $dateTo];
         $searchPattern = '';
 
@@ -196,11 +203,7 @@ final class AttendanceController
                     a.late_minutes,
                     a.undertime_minutes,
                     a.overtime_minutes,
-                    CASE
-                        WHEN aib.status = 'Draft' THEN 'Draft'
-                        WHEN aib.status = 'Cancelled' THEN 'Cancelled'
-                        ELSE a.status
-                    END AS status,
+                    CASE WHEN aib.status = 'Draft' THEN 'Draft' ELSE a.status END AS status,
                     CASE WHEN a.status IN ('Incomplete','ReviewRequired') THEN 1 ELSE 0 END AS is_incomplete
                FROM attendance a
                JOIN employee e ON e.employee_id = a.employee_id

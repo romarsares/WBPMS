@@ -8,6 +8,8 @@ use DateTimeImmutable;
 use DateTimeZone;
 use PDO;
 use RuntimeException;
+use Wbpms\Domain\Attendance\AttendanceMinutesCalculator;
+use Wbpms\Domain\Attendance\WorkSchedule;
 use Wbpms\Domain\Payroll\ApprovedOvertimeCalculator;
 use Wbpms\Infrastructure\Database\Connection;
 
@@ -237,12 +239,16 @@ final class AttendanceAdjustmentService
             throw new RuntimeException('Time out must be later than time in.');
         }
 
-        $elapsed = intdiv($actualOut->getTimestamp() - $actualIn->getTimestamp(), 60);
-        $worked = max(0, $elapsed - (int) $attendance['break_minutes']);
-        $grace = (int) $attendance['grace_minutes'];
-        $late = max(0, intdiv($actualIn->getTimestamp() - $scheduledStart->getTimestamp(), 60) - $grace);
-        $undertime = max(0, intdiv($scheduledEnd->getTimestamp() - $actualOut->getTimestamp(), 60));
-        return [$worked, $late, $undertime];
+        $schedule = new WorkSchedule(
+            0,
+            substr((string) $attendance['work_start_time'], 0, 5),
+            substr((string) $attendance['work_end_time'], 0, 5),
+            (int) $attendance['break_minutes'],
+            (int) $attendance['standard_minutes'],
+            (int) $attendance['grace_minutes'],
+        );
+
+        return AttendanceMinutesCalculator::calculate($actualIn, $actualOut, $schedule);
     }
 
     private function normaliseTime(string $value, string $label): ?string

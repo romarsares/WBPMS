@@ -77,6 +77,23 @@ final class AttendanceAdjustmentServiceTest extends IntegrationTestCase
         ], $userId);
     }
 
+    public function testAdjustmentUsesRequiredPaidMinutesForUndertime(): void
+    {
+        [$attendanceId, $userId] = $this->createAttendanceFixture('2026-09-07');
+
+        $this->service->adjust($attendanceId, [
+            'time_in' => '07:12',
+            'time_out' => '16:30',
+            'reason' => 'Gate log verified.',
+        ], $userId);
+
+        $attendance = $this->pdo->query(
+            "SELECT hours_worked_minutes, undertime_minutes FROM attendance WHERE attendance_id = {$attendanceId}"
+        )->fetch();
+        $this->assertSame(498, (int) $attendance['hours_worked_minutes']);
+        $this->assertSame(0, (int) $attendance['undertime_minutes']);
+    }
+
     /** @return array{int, int, int, int, int, int} */
     private function createAttendanceFixture(string $date): array
     {

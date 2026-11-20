@@ -1161,6 +1161,8 @@ body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;backgro
         }
 
         if ($type === 'attendance') {
+            $where[] = "a.status <> 'Cancelled'";
+            $where[] = "(aib.status IS NULL OR aib.status <> 'Cancelled')";
             if ($filters['date_from'] !== '') { $where[] = 'a.attendance_date >= :date_from'; $bind[':date_from'] = $filters['date_from']; }
             if ($filters['date_to'] !== '') { $where[] = 'a.attendance_date <= :date_to'; $bind[':date_to'] = $filters['date_to']; }
             if ($filters['branch_id'] > 0) { $where[] = 'eba.branch_id = :branch_id'; $bind[':branch_id'] = $filters['branch_id']; }
@@ -1171,6 +1173,7 @@ body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;backgro
                         a.hours_worked_minutes, a.late_minutes, a.undertime_minutes, a.overtime_minutes, a.status
                    FROM attendance a JOIN employee e ON e.employee_id = a.employee_id
                    JOIN employee_branch_assignment eba ON eba.branch_assignment_id = a.branch_assignment_id
+                   LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
                   " . ($where === [] ? '' : 'WHERE ' . implode(' AND ', $where)) . "
                   ORDER BY a.attendance_date DESC, e.last_name LIMIT 500"
             );

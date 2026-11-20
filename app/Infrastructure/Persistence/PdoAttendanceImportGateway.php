@@ -10,6 +10,7 @@ use PDO;
 use Wbpms\Application\Attendance\AttendanceImportGateway;
 use Wbpms\Application\Attendance\AttendanceImportSummary;
 use Wbpms\Application\Attendance\AttendancePunchMatch;
+use Wbpms\Domain\Attendance\AttendanceMinutesCalculator;
 use Wbpms\Domain\Attendance\GeneratedAttendance;
 use Wbpms\Domain\Attendance\WorkSchedule;
 use Wbpms\Domain\Attendance\Parsing\ParsedPunch;
@@ -671,19 +672,7 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
     /** @return array{int,int,int} worked, late, undertime */
     private function calculateAttendanceMinutes(DateTimeImmutable $timeIn, DateTimeImmutable $timeOut, WorkSchedule $schedule): array
     {
-        $scheduledStart = $schedule->startOn($timeIn, $timeIn->getTimezone());
-        $scheduledEnd = $schedule->endOn($timeIn, $timeIn->getTimezone());
-        if ($scheduledEnd <= $scheduledStart) {
-            $scheduledEnd = $scheduledEnd->modify('+1 day');
-            if ($timeOut <= $timeIn) {
-                $timeOut = $timeOut->modify('+1 day');
-            }
-        }
-        $elapsed = max(0, intdiv($timeOut->getTimestamp() - $timeIn->getTimestamp(), 60));
-        $worked = max(0, $elapsed - $schedule->unpaidBreakMinutes);
-        $late = max(0, intdiv($timeIn->getTimestamp() - $scheduledStart->getTimestamp(), 60) - $schedule->graceMinutes);
-        $undertime = max(0, intdiv($scheduledEnd->getTimestamp() - $timeOut->getTimestamp(), 60));
-        return [$worked, $late, $undertime];
+        return AttendanceMinutesCalculator::calculate($timeIn, $timeOut, $schedule);
     }
 
     private function utcNow(): string
