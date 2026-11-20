@@ -38,6 +38,7 @@ $maximumDailyRate = SalaryPolicy::MAX_DAILY_RATE;
 $errors   ??= [];
 $csrf     ??= '';
 $suggestedEmpNumber ??= '';
+$hireTimeValue = substr((string) ($employee['hire_time'] ?? ($_POST['hire_time'] ?? '')), 0, 5);
 
 $isEdit  = $employee !== null;
 $title   = $isEdit ? 'Edit Employee' : 'Add Employee';
@@ -323,6 +324,15 @@ $err = static fn(string $key): string => isset($errors[$key])
                     class="<?= isset($errors['effective_from']) ? 'is-invalid' : '' ?>"
                     required>
                 <?= $err('effective_from') ?>
+            </div>
+            <div class="form-group">
+                <label for="hire_time">Hire time</label>
+                <input type="time" id="hire_time" name="hire_time"
+                    value="<?= Formatter::escape($hireTimeValue) ?>"
+                    step="60"
+                    class="<?= isset($errors['hire_time']) ? 'is-invalid' : '' ?>">
+                <small class="muted">Displayed as AM/PM on the employee profile.</small>
+                <?= $err('hire_time') ?>
             </div>
         </div>
 

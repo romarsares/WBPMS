@@ -152,6 +152,7 @@ final class EmployeeController
                     'contact_number'       => $data['contact_number'] !== '' ? $data['contact_number'] : null,
                     'birthdate'            => $data['birthdate']      !== '' ? $data['birthdate']      : null,
                     'hire_date'            => $data['effective_from'],
+                    'hire_time'            => $data['hire_time']      !== '' ? $data['hire_time']      : null,
                     'position'             => $data['position']       !== '' ? $data['position']       : 'Employee',
                     'status'               => 'Active',
                     'philhealth_number'    => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
@@ -613,6 +614,7 @@ final class EmployeeController
                     'contact_number'       => $data['contact_number'] !== '' ? $data['contact_number'] : null,
                     'birthdate'            => $data['birthdate']      !== '' ? $data['birthdate']      : null,
                     'hire_date'            => $data['effective_from'],
+                    'hire_time'            => $data['hire_time']      !== '' ? $data['hire_time']      : null,
                     'position'             => $data['position']       !== '' ? $data['position']       : null,
                     'philhealth_number'    => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
                     'pagibig_number'       => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
@@ -707,6 +709,7 @@ final class EmployeeController
      *   birthdate: string,
      *   position: string,
      *   hire_date: string,
+     *   hire_time: string,
      *   effective_from: string,
      *   branch_id: string,
      *   schedule_id: string,
@@ -734,6 +737,7 @@ final class EmployeeController
             'birthdate'            => trim((string) ($_POST['birthdate']            ?? '')),
             'position'             => trim((string) ($_POST['position']             ?? '')),
             'hire_date'            => trim((string) ($_POST['hire_date']            ?? '')),
+            'hire_time'            => trim((string) ($_POST['hire_time']            ?? '')),
             'effective_from'       => trim((string) ($_POST['effective_from']       ?? '')),
             'branch_id'            => trim((string) ($_POST['branch_id']            ?? '')),
             'schedule_id'          => trim((string) ($_POST['schedule_id']          ?? '')),
@@ -961,6 +965,10 @@ final class EmployeeController
             $errors['effective_from'] = 'Hire date must be a valid calendar date (YYYY-MM-DD).';
         }
 
+        if ($data['hire_time'] !== '' && !$this->isIsoTime($data['hire_time'])) {
+            $errors['hire_time'] = 'Hire time must use the HH:MM format.';
+        }
+
         $hasDevice = $data['device_id'] !== '';
         $hasEnrollmentCode = $data['enrollment_code'] !== '';
         if (!$isEdit && !$hasDevice) {
@@ -1011,6 +1019,12 @@ final class EmployeeController
     {
         $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
         return $parsed !== false && $parsed->format('Y-m-d') === $date;
+    }
+
+    private function isIsoTime(string $time): bool
+    {
+        $parsed = \DateTimeImmutable::createFromFormat('!H:i', $time);
+        return $parsed !== false && $parsed->format('H:i') === $time;
     }
 
     private function renderNotFound(): void

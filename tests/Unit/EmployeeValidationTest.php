@@ -40,6 +40,20 @@ final class EmployeeValidationTest extends TestCase
         self::assertSame('Employee must be at least 18 years old on the hire date.', $errors['birthdate']);
     }
 
+    public function testEmployeeEditRejectsInvalidHireTime(): void
+    {
+        $errors = $this->validateEmployee(['hire_time' => '25:00']);
+
+        self::assertSame('Hire time must use the HH:MM format.', $errors['hire_time']);
+    }
+
+    public function testEmployeeEditAcceptsValidHireTime(): void
+    {
+        $errors = $this->validateEmployee(['hire_time' => '14:30']);
+
+        self::assertArrayNotHasKey('hire_time', $errors);
+    }
+
     public function testRehireRejectsDailyRateAboveMaximum(): void
     {
         $controller = new EmployeeController();
@@ -75,6 +89,7 @@ final class EmployeeValidationTest extends TestCase
             'birthdate' => '1990-01-01',
             'position' => 'Staff',
             'hire_date' => '2020-01-01',
+            'hire_time' => '',
             'effective_from' => '2026-07-01',
             'branch_id' => '',
             'schedule_id' => '',

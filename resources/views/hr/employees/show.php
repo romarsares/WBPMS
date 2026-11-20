@@ -46,6 +46,9 @@ $field = static function (string $label, ?string $value, bool $mono = false) use
 $formatDate = static fn(?string $d): ?string =>
     ($d && $d !== '—') ? date('m/d/Y', strtotime($d)) : null;
 
+$formatTime = static fn(?string $t): ?string =>
+    ($t && $t !== '') ? date('g:i A', strtotime($t)) : null;
+
 $formatMoney = static fn(mixed $v): string =>
     '₱' . number_format((float) $v, 2);
 ?>
@@ -106,6 +109,7 @@ $formatMoney = static fn(mixed $v): string =>
         <?= $field('Type',         $employee['employee_type']) ?>
         <?= $field('Position',     $employee['position']) ?>
         <?= $field('Hire date',    $formatDate($employee['hire_date'])) ?>
+        <?= $field('Hire time',    $formatTime($employee['hire_time'] ?? null)) ?>
         <div class="detail-field detail-field--status">
             <span class="detail-label">Status</span>
             <span class="detail-value detail-value--status"><?= $statusBadge ?></span>

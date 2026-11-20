@@ -47,14 +47,14 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
             INSERT INTO employee (
                 employee_number, employee_type,
                 first_name, middle_initial, last_name,
-                email, contact_number, birthdate, hire_date,
+                email, contact_number, birthdate, hire_date, hire_time,
                 position, status,
                 sss_number, philhealth_number, pagibig_number, tin_number,
                 contract_review_date
             ) VALUES (
                 :employee_number, :employee_type,
                 :first_name, :middle_initial, :last_name,
-                :email, :contact_number, :birthdate, :hire_date,
+                :email, :contact_number, :birthdate, :hire_date, :hire_time,
                 :position, :status,
                 :sss_number, :philhealth_number, :pagibig_number, :tin_number,
                 :contract_review_date
@@ -72,6 +72,7 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
             ':contact_number'      => $attributes['contact_number']   ?? null,
             ':birthdate'           => $attributes['birthdate']        ?? null,
             ':hire_date'           => $attributes['hire_date'],
+            ':hire_time'           => $attributes['hire_time']        ?? null,
             ':position'            => $attributes['position'],
             ':status'              => $attributes['status']           ?? 'Active',
             ':sss_number'          => $attributes['sss_number']        ?? null,
@@ -410,6 +411,7 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                 e.contact_number,
                 e.birthdate,
                 e.hire_date,
+                e.hire_time,
                 e.hire_date                AS effective_from,
                 e.position,
                 LOWER(e.status)            AS status,
@@ -459,7 +461,7 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
     {
         $allowed = [
             'employee_type', 'first_name', 'middle_initial', 'last_name',
-            'email', 'contact_number', 'birthdate', 'hire_date', 'position',
+            'email', 'contact_number', 'birthdate', 'hire_date', 'hire_time', 'position',
             'status', 'sss_number', 'philhealth_number', 'pagibig_number',
             'tin_number', 'contract_review_date',
         ];
