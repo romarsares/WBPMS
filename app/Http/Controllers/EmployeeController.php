@@ -105,7 +105,11 @@ final class EmployeeController
     {
         $repo   = $this->makeRepo();
         $data   = $this->extractPostFields();
+        $rateError = $this->applyConfiguredPositionRate($data);
         $errors = $this->validate($data, false, $repo);
+        if ($rateError !== null) {
+            $errors['daily_rate'] = $rateError;
+        }
 
         if ($errors !== []) {
             [$branches, $schedules, $devices, $positions] = $this->dropdownData();
@@ -566,6 +570,9 @@ final class EmployeeController
         }
 
         $data   = $this->extractPostFields();
+        // Employee profile edits must not alter salary history. The active
+        // rate remains display-only here; later changes use Salary Management.
+        $data['daily_rate'] = (string) ($row['daily_rate'] ?? '');
         $errors = $this->validate($data, true, $repo, $id);
 
         if (in_array(strtolower($data['status']), ['archived', 'separated'], true)) {
@@ -743,6 +750,34 @@ final class EmployeeController
     }
 
     /**
+     * Ignore the rate posted by the browser and derive the new employee's
+     * starting salary from the selected Position / Job title configuration.
+     *
+     * @param array<string,string> $data
+     */
+    private function applyConfiguredPositionRate(array &$data): ?string
+    {
+        $data['daily_rate'] = '';
+        $position = trim($data['position'] ?? '');
+        if ($position === '') {
+            return null;
+        }
+
+        $configured = (new PositionRepository($this->makeConnection()))->findActiveByTitle($position);
+        if ($configured === null) {
+            return 'Choose a configured Position / Job title with a daily rate.';
+        }
+
+        $rate = $configured['default_daily_rate'];
+        if ($rate === null || !is_numeric($rate) || (float) $rate <= 0) {
+            return 'Set a daily rate for the selected position in Settings before adding an employee.';
+        }
+
+        $data['daily_rate'] = number_format((float) $rate, 2, '.', '');
+        return null;
+    }
+
+    /**
      * @param  array<string, string> $data
      * @param  bool                  $isEdit  Skip immutable fields on update
      * @return array<string, string> Validation errors keyed by field name
@@ -888,24 +923,21 @@ final class EmployeeController
             }
         }
 
-        if ($data['daily_rate'] === '' || (float) $data['daily_rate'] <= 0) {
-            $errors['daily_rate'] = 'Daily rate is required and must be greater than 0.';
-        } elseif ((float) $data['daily_rate'] > SalaryPolicy::MAX_DAILY_RATE) {
+        // A new employee's rate is derived from the selected position. The
+        // profile edit form never changes an existing salary record.
+        if (!$isEdit && ($data['daily_rate'] === '' || !is_numeric($data['daily_rate']) || (float) $data['daily_rate'] <= 0)) {
+            $errors['daily_rate'] = 'The selected position must have a configured daily rate.';
+        } elseif (!$isEdit && (float) $data['daily_rate'] > SalaryPolicy::MAX_DAILY_RATE) {
             $errors['daily_rate'] = 'Daily rate cannot exceed ₱' . number_format(SalaryPolicy::MAX_DAILY_RATE, 2) . '.';
         }
 
-        // Position-based minimum (Add only): when the selected position has a
-        // configured default daily rate, the entered rate may not fall below it.
-        // A custom "Other" position has no default, so only the >0 floor above
-        // applies. Enforced on Add only so that routine edits of existing
-        // employees (whose rate may predate a position default) are not blocked.
         if (!$isEdit && !isset($errors['daily_rate']) && $data['position'] !== '') {
             $pos = (new PositionRepository($this->makeConnection()))->findActiveByTitle($data['position']);
             $defaultRate = $pos !== null ? $pos['default_daily_rate'] : null;
-            if ($defaultRate !== null && (float) $data['daily_rate'] < (float) $defaultRate) {
-                $errors['daily_rate'] = 'Daily rate cannot be below the required rate (₱'
-                    . number_format((float) $defaultRate, 2)
-                    . ') for the selected position.';
+            if ($defaultRate === null || (float) $defaultRate <= 0) {
+                $errors['daily_rate'] = 'Set a daily rate for the selected position in Settings before adding an employee.';
+            } elseif (abs((float) $data['daily_rate'] - (float) $defaultRate) > 0.00001) {
+                $errors['daily_rate'] = 'Daily rate must match the configured rate for the selected position.';
             }
         }
 

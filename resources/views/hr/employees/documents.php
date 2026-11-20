@@ -140,7 +140,6 @@ $formatSize = static function (int $bytes): string {
                 <th>Label / Filename</th>
                 <th>Size</th>
                 <th>Uploaded</th>
-                <th style="display:none">Verification</th>
                 <th>Status</th>
                 <th style="width:1%">Actions</th>
             </tr>
@@ -156,7 +155,6 @@ $formatSize = static function (int $bytes): string {
             $uploadedAt  = (string) $doc['uploaded_at'];
             $uploadedBy  = (string) ($doc['uploaded_by_name'] ?? '—');
             $verifiedAt  = $doc['verified_at'] ? (string) $doc['verified_at'] : null;
-            $verifiedBy  = (string) ($doc['verified_by_name'] ?? '');
             $byteSize    = (int) $doc['byte_size'];
         ?>
         <tr data-document-row>
@@ -171,14 +169,6 @@ $formatSize = static function (int $bytes): string {
             <td style="white-space:nowrap">
                 <?= Formatter::escape(date('m/d/Y', strtotime($uploadedAt))) ?><br>
                 <span class="muted" style="font-size:.8rem"><?= Formatter::escape($uploadedBy) ?></span>
-            </td>
-            <td style="white-space:nowrap">
-                <?php if ($verifiedAt): ?>
-                    <?= Formatter::escape(date('m/d/Y', strtotime($verifiedAt))) ?><br>
-                    <span class="muted" style="font-size:.8rem"><?= Formatter::escape($verifiedBy) ?></span>
-                <?php else: ?>
-                    <span class="muted">—</span>
-                <?php endif; ?>
             </td>
             <td>
                 <?= ($docStatus === 'Current' && $verifiedAt)
@@ -305,8 +295,6 @@ document.getElementById('document-search')?.addEventListener('input', function (
 </script>
 
 <style>
-.document-table th:nth-child(5),
-.document-table td:nth-child(5) { display:none; }
 .badge {
     display: inline-block;
     padding: .15rem .5rem;

@@ -44,6 +44,10 @@ $title   = $isEdit ? 'Edit Employee' : 'Add Employee';
 $action  = $isEdit
     ? $base . '/hr/employees/' . (int) $employee['id']
     : $base . '/hr/employees';
+$dailyRateRaw = (string) ($employee['daily_rate'] ?? ($_POST['daily_rate'] ?? ''));
+$dailyRateDisplay = is_numeric($dailyRateRaw) && (float) $dailyRateRaw > 0
+    ? '₱' . number_format((float) $dailyRateRaw, 2)
+    : ($isEdit ? '—' : 'Select a position');
 
 // Populate with existing values (edit) or empty/posted defaults (create)
 $v = static fn(string $key, string $fallback = ''): string =>
@@ -60,7 +64,7 @@ $err = static fn(string $key): string => isset($errors[$key])
 </div>
 
 <div class="card" style="max-width:720px">
-    <form method="POST" action="<?= Formatter::escape($action) ?>" novalidate data-validate>
+    <form id="employee-form" method="POST" action="<?= Formatter::escape($action) ?>" novalidate data-validate>
         <input type="hidden" name="_csrf" value="<?= Formatter::escape($csrf) ?>">
         <?php if ($isEdit): ?>
         <input type="hidden" name="_method" value="PUT">
@@ -147,7 +151,7 @@ $err = static fn(string $key): string => isset($errors[$key])
             <div class="form-group">
                 <label for="position">Position / Job title <span style="color:#dc2626">*</span></label>
                 <select id="position_select" name="position"
-                        onchange="syncPositionInput(this); applyPositionRate(this, true)"
+                        onchange="syncPositionInput(this); applyPositionRate(this)"
                         required
                         data-msg-required="Position / Job title is required."
                         class="<?= isset($errors['position']) ? 'is-invalid' : '' ?>">
@@ -209,23 +213,25 @@ $err = static fn(string $key): string => isset($errors[$key])
         </div>
 
         <script>
-        // On Add, the Daily Rate auto-populates from the selected position's
-        // configured default rate and may not fall below it. On Edit the rate
-        // (the employee's effective salary rate) is left untouched — changes
+        // On Add, the Daily Rate is derived from the selected Position / Job
+        // title. On Edit the effective salary rate is display-only; changes
         // go through Salary Management.
         var rateManagedByPosition = <?= $isEdit ? 'false' : 'true' ?>;
 
-        function applyPositionRate(sel, populateValue) {
+        function applyPositionRate(sel) {
             if (!rateManagedByPosition) return;
             var rateInput = document.getElementById('daily_rate');
-            if (!rateInput || !sel) return;
+            var rateDisplay = document.getElementById('daily_rate_display');
+            if (!rateInput || !rateDisplay || !sel) return;
             var opt = sel.options[sel.selectedIndex];
             var rate = opt ? opt.getAttribute('data-rate') : '';
             if (rate && rate !== '' && !isNaN(parseFloat(rate))) {
-                rateInput.min = rate;
-                if (populateValue) rateInput.value = rate;
+                var normalizedRate = parseFloat(rate).toFixed(2);
+                rateInput.value = normalizedRate;
+                rateDisplay.textContent = '₱' + normalizedRate;
             } else {
-                rateInput.min = '0.01';
+                rateInput.value = '';
+                rateDisplay.textContent = 'No rate configured';
             }
         }
 
@@ -279,24 +285,21 @@ $err = static fn(string $key): string => isset($errors[$key])
             var allowed = opt ? opt.getAttribute('data-contractual') : '1';
             warn.style.display = (allowed === '0') ? '' : 'none';
         }
-        // Run on page load to handle the pre-selected "Other" state
-        (function(){
+        // Run after the complete form exists so the rate display can be set
+        // for a pre-selected Position / Job title.
+        function initialiseEmployeeForm() {
             var sel = document.getElementById('position_select');
             syncPositionInput(sel);
-            // Set the minimum to the selected position's rate; only populate
-            // the value when the field is empty (never clobber a repopulated
-            // POST value after a validation error).
-            applyPositionRate(sel, false);
-            if (rateManagedByPosition) {
-                var rateInput = document.getElementById('daily_rate');
-                if (rateInput && rateInput.value === '') {
-                    applyPositionRate(sel, true);
-                }
-            }
+            applyPositionRate(sel);
             // Initialise the contract review row visibility.
             var empType = document.getElementById('employee_type');
             if (empType) toggleContractReview(empType.value);
-        })();
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initialiseEmployeeForm);
+        } else {
+            initialiseEmployeeForm();
+        }
         </script>
 
         <div class="form-row">
@@ -406,7 +409,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 </select>
                 <?= $err('branch_id') ?>
                 <?php if ($isEdit): ?>
-                <small class="muted">To change branches, use <strong>Transfer Branch</strong> below so the effective date and history are recorded safely.</small>
+                <small class="muted">Branch assignment history is retained for payroll and attendance records.</small>
                 <?php endif; ?>
             </div>
             <div class="form-group">
@@ -428,13 +431,19 @@ $err = static fn(string $key): string => isset($errors[$key])
 
         <div class="form-row">
             <div class="form-group">
-                <label for="daily_rate">Daily rate (₱) <span style="color:#dc2626">*</span></label>
-                <input type="number" id="daily_rate" name="daily_rate"
-                    value="<?= $v('daily_rate') ?>"
-                    min="0.01" max="<?= $maximumDailyRate ?>" step="0.01"
-                    required
-                    class="<?= isset($errors['daily_rate']) ? 'is-invalid' : '' ?>">
-                <small style="color:#6b7280">Company maximum: ₱<?= number_format($maximumDailyRate, 2) ?> per day.</small>
+                <label for="daily_rate_display">Daily rate (₱)</label>
+                <input type="hidden" id="daily_rate" name="daily_rate"
+                    value="<?= Formatter::escape($dailyRateRaw) ?>">
+                <output id="daily_rate_display" aria-live="polite"
+                    class="form-control <?= isset($errors['daily_rate']) ? 'is-invalid' : '' ?>"
+                    style="display:block;min-height:38px;padding:.5rem .75rem;background:#f3f4f6;color:#374151">
+                    <?= Formatter::escape($dailyRateDisplay) ?>
+                </output>
+                <?php if ($isEdit): ?>
+                <small style="color:#6b7280">Current rate. Update it through Salary Management.</small>
+                <?php else: ?>
+                <small style="color:#6b7280">Set automatically from the selected Position / Job title. Configure position rates in Settings (maximum ₱<?= number_format($maximumDailyRate, 2) ?> per day).</small>
+                <?php endif; ?>
                 <?= $err('daily_rate') ?>
             </div>
             <div class="form-group">
@@ -496,10 +505,6 @@ $err = static fn(string $key): string => isset($errors[$key])
                    class="btn btn-secondary">Documents</a>
                 <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/bank"
                    class="btn btn-secondary">Bank Account</a>
-                <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/transfer"
-                   class="btn btn-warning">
-                    Transfer Branch
-                </a>
                 <?php if (strtolower((string) $employee['status']) !== 'archived'): ?>
                 <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/archive"
                    class="btn btn-secondary">Archive</a>
@@ -510,3 +515,45 @@ $err = static fn(string $key): string => isset($errors[$key])
 </div>
 
 <script src="<?= $base ?>/assets/inline-validate.js"></script>
+<?php if (!$isEdit): ?>
+<script>
+/*
+ * The employee email is also the initial login credential. Ask HR to verify
+ * it immediately before a valid creation form is submitted. This is only a
+ * confirmation aid; EmployeeController remains the authoritative duplicate
+ * email check and rolls back the complete creation transaction on failure.
+ */
+(function () {
+    function attachEmailConfirmation() {
+        var form = document.getElementById('employee-form');
+        if (!form) return;
+
+        form.addEventListener('submit', function (event) {
+            // inline-validate.js runs first and has already blocked incomplete
+            // or invalid forms. Do not show a confirmation until it is valid.
+            if (event.defaultPrevented) return;
+
+            var emailField = form.elements.email;
+            var email = emailField ? emailField.value.trim() : '';
+            if (email === '') return;
+
+            var message = 'Please confirm that this email address is correct:\n\n'
+                + email
+                + '\n\nThis email will be used as the employee\'s login credential.';
+
+            if (!window.confirm(message)) {
+                event.preventDefault();
+            }
+        });
+    }
+
+    // inline-validate.js registers its DOMContentLoaded handler first, so its
+    // submit handler is attached before this confirmation handler.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attachEmailConfirmation);
+    } else {
+        attachEmailConfirmation();
+    }
+}());
+</script>
+<?php endif; ?>

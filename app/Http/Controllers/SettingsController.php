@@ -6,6 +6,7 @@ namespace Wbpms\Http\Controllers;
 
 use RuntimeException;
 use Wbpms\Application\PayrollService;
+use Wbpms\Domain\Payroll\SalaryPolicy;
 use Wbpms\Http\View\ViewRenderer;
 use Wbpms\Infrastructure\Database\Connection;
 use Wbpms\Infrastructure\Persistence\PositionRepository;
@@ -329,15 +330,15 @@ final class SettingsController
             $errors['position_title'] = 'Position title must be 100 characters or fewer.';
         }
 
-        // Default daily rate is optional. When provided it must be a positive
-        // amount; it pre-fills the Daily Rate field on the Add Employee form
-        // when this position is selected (HR may still override it).
+        // A configured position rate becomes the starting Daily Rate for new
+        // employees, so it must obey the company-wide salary cap as well.
         $rate = null;
         if ($rateRaw !== '') {
             if (!is_numeric($rateRaw) || (float) $rateRaw <= 0) {
                 $errors['default_daily_rate'] = 'Default daily rate must be a positive amount.';
-            } elseif ((float) $rateRaw > 999999.99) {
-                $errors['default_daily_rate'] = 'Default daily rate cannot exceed ₱999,999.99.';
+            } elseif ((float) $rateRaw > SalaryPolicy::MAX_DAILY_RATE) {
+                $errors['default_daily_rate'] = 'Default daily rate cannot exceed ₱'
+                    . number_format(SalaryPolicy::MAX_DAILY_RATE, 2) . '.';
             } else {
                 $rate = (float) $rateRaw;
             }

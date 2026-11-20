@@ -106,10 +106,9 @@ $formatMoney = static fn(mixed $v): string =>
         <?= $field('Type',         $employee['employee_type']) ?>
         <?= $field('Position',     $employee['position']) ?>
         <?= $field('Hire date',    $formatDate($employee['hire_date'])) ?>
-        <?= $field('Status',       null) ?>
-        <div class="detail-field" style="margin-top:-.5rem">
-            <span class="detail-label"></span>
-            <span class="detail-value"><?= $statusBadge ?></span>
+        <div class="detail-field detail-field--status">
+            <span class="detail-label">Status</span>
+            <span class="detail-value detail-value--status"><?= $statusBadge ?></span>
         </div>
         <?php if ($employee['contract_review_date']): ?>
         <?= $field('Contract review due', $formatDate($employee['contract_review_date'])) ?>
@@ -285,6 +284,8 @@ $formatMoney = static fn(mixed $v): string =>
     color: #111827;
     word-break: break-word;
 }
+.detail-field--status { align-items: center; }
+.detail-value--status { display: inline-flex; align-items: center; min-height: 1.4rem; }
 .section-heading {
     font-size: .9rem;
     font-weight: 700;

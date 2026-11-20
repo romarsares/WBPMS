@@ -65,10 +65,9 @@ final class PositionRepository extends AbstractRepository
     /**
      * Find an active position by its (unique) title, including its default
      * daily rate and contractual_allowed flag. Used by EmployeeController to
-     * enforce the position-based minimum daily rate and the Contractual
-     * restriction on the Add/Edit Employee form. Returns null when no active
-     * position matches the title (e.g. a custom "Other" position typed on the
-     * employee form — custom positions carry no restrictions).
+     * derive the new employee salary from Position / Job title configuration
+     * and enforce the Contractual restriction. Returns null when no active
+     * position matches the title (including a custom "Other" position).
      *
      * @return array{position_id:int,position_title:string,default_daily_rate:string|null,contractual_allowed:string}|null
      */
@@ -89,9 +88,10 @@ final class PositionRepository extends AbstractRepository
     /**
      * Create a new position. Returns the new position_id.
      *
-     * @param float|null $defaultDailyRate Advisory daily rate shown on the Add
-     *                                     Employee form when this position is
-     *                                     selected; null leaves it unset.
+     * @param float|null $defaultDailyRate Daily rate used for new employees
+     *                                     assigned to this position; null
+     *                                     leaves the position unavailable for
+     *                                     new employee creation.
      * @param bool       $contractualAllowed Whether Contractual employees may
      *                                       hold this position (default true).
      *

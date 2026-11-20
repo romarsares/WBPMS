@@ -23,11 +23,11 @@ final class EmployeeValidationTest extends TestCase
         self::assertSame('Daily rate cannot exceed ₱800.00.', $errors['daily_rate']);
     }
 
-    public function testEmployeeEditRejectsDailyRateAboveMaximum(): void
+    public function testEmployeeEditDoesNotChangeSalaryThroughProfileForm(): void
     {
         $errors = $this->validateEmployee(['daily_rate' => '800.01']);
 
-        self::assertSame('Daily rate cannot exceed ₱800.00.', $errors['daily_rate']);
+        self::assertArrayNotHasKey('daily_rate', $errors);
     }
 
     public function testEmployeeEditRejectsApplicantUnderEighteenOnHireDate(): void

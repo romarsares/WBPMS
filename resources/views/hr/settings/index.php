@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use Wbpms\Http\View\Formatter;
+use Wbpms\Domain\Payroll\SalaryPolicy;
 
 /**
  * HR Settings hub — tabbed view.
@@ -38,6 +39,7 @@ $periods      ??= [];
 $payroll_month ??= date('Y-m');
 $period_filter_month ??= null;
 $holidays     ??= [];
+$maximumDailyRate = SalaryPolicy::MAX_DAILY_RATE;
 
 $e = static fn(string $key): string => isset($errors[$key])
     ? '<p class="field-error" style="color:#dc2626;font-size:.8rem;margin:.2rem 0 0">'
@@ -186,10 +188,10 @@ $v = static fn(string $key, string $fallback = ''): string =>
                 <label for="add_default_daily_rate">Default Daily Rate (₱) <span class="muted">(optional)</span></label>
                 <input type="number" id="add_default_daily_rate" name="default_daily_rate"
                        value="<?= ($editRow === null) ? $v('default_daily_rate') : '' ?>"
-                       min="0.01" max="999999.99" step="0.01"
+                       min="0.01" max="<?= $maximumDailyRate ?>" step="0.01"
                        placeholder="e.g. 500.00"
                        class="<?= (isset($errors['default_daily_rate']) && $editRow === null) ? 'is-invalid' : '' ?>">
-                <small class="muted">Pre-fills the Daily Rate when this position is selected on the Add Employee form. HR may still override it.</small>
+                <small class="muted">Sets the display-only Daily Rate for new employees assigned to this Position / Job title.</small>
                 <?= ($editRow === null) ? $e('default_daily_rate') : '' ?>
             </div>
             <div class="form-group" style="margin-bottom:1.25rem">
@@ -232,7 +234,7 @@ $v = static fn(string $key, string $fallback = ''): string =>
                 <label for="edit_default_daily_rate">Default Daily Rate (₱) <span class="muted">(optional)</span></label>
                 <input type="number" id="edit_default_daily_rate" name="default_daily_rate"
                        value="<?= ($editRow !== null) ? $v('default_daily_rate') : '' ?>"
-                       min="0.01" max="999999.99" step="0.01"
+                       min="0.01" max="<?= $maximumDailyRate ?>" step="0.01"
                        placeholder="e.g. 500.00"
                        class="<?= (isset($errors['default_daily_rate']) && $editRow !== null) ? 'is-invalid' : '' ?>">
                 <small class="muted">Pre-fills the Daily Rate when this position is selected on the Add Employee form. Leave blank to clear it.</small>
