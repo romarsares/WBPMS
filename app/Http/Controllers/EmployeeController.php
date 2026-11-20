@@ -212,6 +212,22 @@ final class EmployeeController
                 'suggestedEmpNumber' => $repo->nextEmployeeNumber(),
             ], 'Add Employee');
             return;
+        } catch (\RuntimeException $e) {
+            if (!str_starts_with($e->getMessage(), 'This biometric enrollment ID')) {
+                throw $e;
+            }
+
+            [$branches, $schedules, $devices, $positions] = $this->dropdownData();
+            ViewRenderer::render('hr/employees/edit', [
+                'employee'           => null,
+                'branches'           => $branches,
+                'schedules'          => $schedules,
+                'devices'            => $devices,
+                'positions'          => $positions,
+                'errors'             => ['enrollment_code' => $e->getMessage()],
+                'suggestedEmpNumber' => $repo->nextEmployeeNumber(),
+            ], 'Add Employee');
+            return;
         }
 
         // Store credentials in session and redirect (PRG pattern) so a browser

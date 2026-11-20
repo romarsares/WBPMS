@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wbpms\Infrastructure\Persistence;
 
 use PDO;
+use RuntimeException;
 use Wbpms\Application\EmployeeSetup\EmployeeSetupGateway;
 use Wbpms\Infrastructure\Database\Connection;
 
@@ -132,6 +133,13 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
      */
     public function enrollBiometricCode(int $employeeId, int $deviceId, string $enrollmentCode, string $effectiveFrom): void
     {
+        $this->assertBiometricEnrollmentAvailable(
+            $deviceId,
+            $enrollmentCode,
+            $effectiveFrom,
+            $employeeId
+        );
+
         $stmt = $this->pdo()->prepare(
             'INSERT INTO employee_biometric_enrollment
                 (employee_id, device_id, device_employee_code, effective_from, effective_to, status)
@@ -144,6 +152,39 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
             ':from'   => $effectiveFrom,
             ':status' => 'Active',
         ]);
+    }
+
+    /**
+     * An Enroll ID identifies a person only within one biometric device. It
+     * may be reused on a different device, or after its previous assignment
+     * has ended, but its active periods must never overlap.
+     */
+    private function assertBiometricEnrollmentAvailable(
+        int $deviceId,
+        string $enrollmentCode,
+        string $effectiveFrom,
+        int $employeeId
+    ): void {
+        $conflict = $this->pdo()->prepare(
+            "SELECT 1
+               FROM employee_biometric_enrollment
+              WHERE device_id = :device_id
+                AND device_employee_code = :code
+                AND employee_id <> :employee_id
+                AND status = 'Active'
+                AND (effective_to IS NULL OR effective_to > :effective_from)
+              LIMIT 1"
+        );
+        $conflict->execute([
+            ':device_id' => $deviceId,
+            ':code' => $enrollmentCode,
+            ':employee_id' => $employeeId,
+            ':effective_from' => $effectiveFrom,
+        ]);
+
+        if ($conflict->fetchColumn() !== false) {
+            throw new RuntimeException('This biometric enrollment ID is already assigned to another active employee on the selected device.');
+        }
     }
 
     /**
