@@ -114,6 +114,10 @@ $statusLabel = $statusLabels[$status] ?? $status;
             <?php if ($typeName === 'CashAdvance' && isset($request['amount_requested'])): ?>
             <tr><td colspan="2"><hr style="border:0;border-top:1px solid #f3f4f6;margin:.4rem 0"></td></tr>
             <tr>
+                <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Date needed</th>
+                <td style="padding:.4rem 0"><?= Formatter::date($request['request_date'] ?? null) ?></td>
+            </tr>
+            <tr>
                 <th style="text-align:left;padding:.4rem 0;color:#6b7280;font-weight:500">Amount</th>
                 <td style="padding:.4rem 0;font-weight:600;font-size:1rem">
                     ₱<?= number_format((float) $request['amount_requested'], 2) ?>

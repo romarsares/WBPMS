@@ -146,6 +146,16 @@ final class RequestService
             if ((float) $amount > 2000.00) {
                 throw new RuntimeException('Cash advance amount cannot exceed ₱2,000.00.');
             }
+
+            $requestDate = trim($data['request_date'] ?? '');
+            if ($requestDate === '' || !$this->isValidDate($requestDate)) {
+                throw new RuntimeException('Cash advance date is required (YYYY-MM-DD).');
+            }
+
+            // Check weekly limit: prevent multiple cash advances in the same week
+            // Repayment is ₱500/week, so only one active advance per week is allowed
+            $pdo = $this->connection->pdo();
+            $this->assertCashAdvanceWeeklyLimit($pdo, $employeeId, $requestDate, (float) $amount);
         }
 
         // --- Persist (header + detail in one transaction) --------------------
@@ -208,12 +218,13 @@ final class RequestService
             if ($typeName === 'CashAdvance') {
                 $pdo->prepare(
                     "INSERT INTO cash_advance_request_detail
-                        (request_id, amount)
+                        (request_id, amount, request_date)
                      VALUES
-                        (:rid, :amt)"
+                        (:rid, :amt, :rdate)"
                 )->execute([
-                    ':rid' => $requestId,
-                    ':amt' => $data['amount_requested'],
+                    ':rid'   => $requestId,
+                    ':amt'   => $data['amount_requested'],
+                    ':rdate' => $data['request_date'],
                 ]);
             }
 
@@ -362,7 +373,8 @@ final class RequestService
                     ord2.end_time     AS overtime_end_time,
                     ord2.requested_minutes,
                     -- Cash advance detail
-                    card.amount       AS amount_requested
+                    card.amount       AS amount_requested,
+                    card.request_date AS request_date
                FROM request r
                JOIN employee e      ON e.employee_id      = r.employee_id
                JOIN request_type rt ON rt.request_type_id = r.request_type_id
@@ -1141,6 +1153,54 @@ final class RequestService
             throw new RuntimeException(
                 "Insufficient sick-leave balance. You have {$balFmt} day(s) remaining "
                 . "but requested {$reqFmt} day(s)."
+            );
+        }
+    }
+
+    /**
+     * Validate weekly cash advance limit.
+     *
+     * Business rule: only one active cash advance per week is allowed since
+     * repayment is fixed at ₱500/week (ADR-0001). This prevents an employee
+     * from accumulating multiple advances that would exceed the weekly
+     * repayment capacity.
+     *
+     * @throws RuntimeException if there is already an approved/pending cash advance in the same week
+     */
+    private function assertCashAdvanceWeeklyLimit(PDO $pdo, int $employeeId, string $requestDate, float $amount): void
+    {
+        // Determine the week boundaries (Monday-Sunday) for the requested date
+        $date = new \DateTimeImmutable($requestDate);
+        $weekStart = $date->modify('Monday this week')->format('Y-m-d');
+        $weekEnd   = $date->modify('Sunday this week')->format('Y-m-d');
+
+        // Check for existing cash advance requests (Pending, HRApproved, or Approved)
+        // in the same week for this employee
+        $stmt = $pdo->prepare(
+            "SELECT card.amount, card.request_date, r.status
+               FROM cash_advance_request_detail card
+               JOIN request r ON r.request_id = card.request_id
+              WHERE r.employee_id = :emp_id
+                AND r.status IN ('Pending', 'HRApproved', 'Approved')
+                AND card.request_date BETWEEN :week_start AND :week_end
+              LIMIT 1"
+        );
+        $stmt->execute([
+            ':emp_id'     => $employeeId,
+            ':week_start' => $weekStart,
+            ':week_end'   => $weekEnd,
+        ]);
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($existing !== false) {
+            $existingAmount = (float) $existing['amount'];
+            $existingDate   = $existing['request_date'];
+            $status         = $existing['status'];
+            throw new RuntimeException(
+                "A cash advance of ₱" . number_format($existingAmount, 2)
+                . " was already requested for " . date('F j, Y', strtotime($existingDate))
+                . " (status: {$status}). Only one cash advance per week is allowed "
+                . "since repayments are ₱500.00 per week."
             );
         }
     }

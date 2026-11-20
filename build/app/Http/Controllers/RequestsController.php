@@ -116,6 +116,7 @@ final class RequestsController
             'start_time'       => trim((string) ($_POST['start_time']       ?? '')),
             'end_time'         => trim((string) ($_POST['end_time']         ?? '')),
             'amount_requested' => trim((string) ($_POST['amount_requested'] ?? '')),
+            'request_date'     => trim((string) ($_POST['request_date']     ?? '')),
         ];
 
         if ($employeeId === 0) {

@@ -160,16 +160,28 @@ $selectedType = (string) ($_POST['request_type_id'] ?? '');
 
         <!-- ── Cash advance fields ──────────────────────────────────────── -->
         <div id="section-cash-advance" style="display:none">
-            <div class="form-group" style="max-width:280px;margin-bottom:1rem">
-                <label for="amount_requested" style="display:block;font-weight:500;margin-bottom:.3rem">
-                    Amount requested (₱)
-                </label>
-                <input type="number" id="amount_requested" name="amount_requested"
-                       value="<?= $fp('amount_requested') ?>"
-                       min="1" max="2000" step="0.01"
-                       style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['amount_requested']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
-                <small style="color:#6b7280;font-size:.78rem">Maximum: ₱2,000.00 per request.</small>
-                <?= $err('amount_requested') ?>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem">
+                <div class="form-group">
+                    <label for="request_date" style="display:block;font-weight:500;margin-bottom:.3rem">
+                        Date needed <span style="color:#dc2626">*</span>
+                    </label>
+                    <input type="date" id="request_date" name="request_date"
+                           value="<?= $fp('request_date') ?>"
+                           style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['request_date']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem"
+                           required>
+                    <?= $err('request_date') ?>
+                </div>
+                <div class="form-group">
+                    <label for="amount_requested" style="display:block;font-weight:500;margin-bottom:.3rem">
+                        Amount requested (₱)
+                    </label>
+                    <input type="number" id="amount_requested" name="amount_requested"
+                           value="<?= $fp('amount_requested') ?>"
+                           min="1" max="2000" step="0.01"
+                           style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['amount_requested']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
+                    <small style="color:#6b7280;font-size:.78rem">Maximum: ₱2,000.00 per request; repayments are ₱500.00 per week.</small>
+                    <?= $err('amount_requested') ?>
+                </div>
             </div>
         </div>
 

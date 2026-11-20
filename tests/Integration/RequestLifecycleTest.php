@@ -171,9 +171,10 @@ final class RequestLifecycleTest extends IntegrationTestCase
     public function testOwnerApproveCreatesCashAdvanceObligation(): void
     {
         $requestId = $this->service->submit($this->employeeId, [
-            'request_type_id' => $this->cashAdvanceTypeId,
-            'reason'          => 'Emergency expense',
+            'request_type_id'  => $this->cashAdvanceTypeId,
+            'reason'           => 'Emergency expense',
             'amount_requested' => '2000.00',
+            'request_date'     => '2026-11-15',
         ]);
 
         $this->service->approve($requestId, $this->hrUserId);

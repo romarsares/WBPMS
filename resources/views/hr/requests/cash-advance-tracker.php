@@ -81,6 +81,7 @@ $repaid = count(array_filter($rows, static fn(array $r): bool => (float) $r['rem
                 <th style="text-align:right">Remaining</th>
                 <th style="text-align:center">Repayment Progress</th>
                 <th>Status</th>
+                <th>Requested</th>
                 <th>Approved</th>
                 <th>Reason</th>
             </tr>
@@ -118,6 +119,9 @@ $repaid = count(array_filter($rows, static fn(array $r): bool => (float) $r['rem
                 <?php endif; ?>
             </td>
             <td style="font-size:.8rem;color:#6b7280;white-space:nowrap">
+                <?= Formatter::date($r['request_date'] ?? null) ?>
+            </td>
+            <td style="font-size:.8rem;color:#6b7280;white-space:nowrap">
                 <?= Formatter::date($r['approved_at'] ?? null) ?>
             </td>
             <td style="font-size:.82rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
@@ -133,7 +137,7 @@ $repaid = count(array_filter($rows, static fn(array $r): bool => (float) $r['rem
                 <td style="text-align:right;padding:.6rem .75rem;color:#d97706">
                     ₱<?= number_format($totalOutstanding, 2) ?>
                 </td>
-                <td colspan="4"></td>
+                <td colspan="5"></td>
             </tr>
         </tfoot>
         <?php endif; ?>
