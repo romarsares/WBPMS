@@ -48,7 +48,7 @@ final class EmployeePortalController
      *
      * REQ075: own attendance view, scoped to session.employee_id.
      * Variable contract: resources/views/employee/attendance.php
-     *   expects $rows, $total, $present, $incomplete, and $totalOT.
+     *   expects $rows, $total, $present, $incomplete, $totalLate, $totalAbsent, and $totalOT.
      *
      * @param array<string, string> $params
      */
@@ -60,6 +60,11 @@ final class EmployeePortalController
         // From / To date filter (REQ075)
         $dateFrom = trim((string) ($_GET['date_from'] ?? ''));
         $dateTo   = trim((string) ($_GET['date_to']   ?? ''));
+        $statusFilter = trim((string) ($_GET['status'] ?? ''));
+        $allowedStatuses = ['', 'Complete', 'Incomplete', 'Late', 'Absent', 'Overtime'];
+        if (!in_array($statusFilter, $allowedStatuses, true)) {
+            $statusFilter = '';
+        }
 
         $validDate = static function (string $v): bool {
             $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $v);
@@ -112,24 +117,134 @@ final class EmployeePortalController
         $stmt->execute($bind);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // An absence is a scheduled working day covered by an approved import
+        // with no attendance row. Holidays and approved leave are excluded.
+        $periodFrom = $dateFrom !== '' ? $dateFrom : (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila')))->modify('-89 days')->format('Y-m-d');
+        $periodTo = $dateTo !== '' ? $dateTo : (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila')))->format('Y-m-d');
+        $absenceDates = $this->employeeAbsenceDates($pdo, $employeeId, $periodFrom, $periodTo);
+        foreach ($absenceDates as $absenceDate) {
+            $rows[] = [
+                'attendance_date' => $absenceDate,
+                'time_in' => null,
+                'time_out' => null,
+                'worked_minutes' => 0,
+                'late_minutes' => 0,
+                'undertime_minutes' => 0,
+                'overtime_minutes' => 0,
+                'is_incomplete' => 0,
+                'is_absent' => 1,
+            ];
+        }
+        usort($rows, static fn (array $left, array $right): int => strcmp((string) $right['attendance_date'], (string) $left['attendance_date']));
+        foreach ($rows as &$row) {
+            $row['is_absent'] = (int) ($row['is_absent'] ?? 0);
+        }
+        unset($row);
+        if ($statusFilter !== '') {
+            $rows = array_values(array_filter($rows, static function (array $row) use ($statusFilter): bool {
+                if ((int) $row['is_absent'] === 1) return $statusFilter === 'Absent';
+                if ((int) $row['is_incomplete'] === 1) return $statusFilter === 'Incomplete';
+                if ($statusFilter === 'Late') return (int) $row['late_minutes'] > 0;
+                if ($statusFilter === 'Overtime') return (int) $row['overtime_minutes'] > 0;
+                return $statusFilter === 'Complete';
+            }));
+        }
+
         $total      = count($rows);
         $incomplete = 0;
+        $totalLate  = 0;
+        $totalAbsent = 0;
         $totalOT    = 0;
         foreach ($rows as $row) {
             $incomplete += (int) $row['is_incomplete'];
+            $totalLate  += (int) ((int) $row['late_minutes'] > 0);
+            $totalAbsent += (int) $row['is_absent'];
             $totalOT    += (int) $row['overtime_minutes'];
         }
-        $present = $total - $incomplete;
+        $present = $total - $incomplete - $totalAbsent;
 
         ViewRenderer::render('employee/attendance', [
             'rows'       => $rows,
             'total'      => $total,
             'present'    => $present,
             'incomplete' => $incomplete,
+            'totalLate'  => $totalLate,
+            'totalAbsent' => $totalAbsent,
             'totalOT'    => $totalOT,
             'dateFrom'   => $dateFrom,
             'dateTo'     => $dateTo,
+            'statusFilter' => $statusFilter,
         ], 'My Attendance');
+    }
+
+    /** @return list<string> */
+    private function employeeAbsenceDates(PDO $pdo, int $employeeId, string $dateFrom, string $dateTo): array
+    {
+        $assignment = $pdo->prepare(
+            "SELECT esa.effective_from, esa.effective_to, ws.working_days
+               FROM employee_schedule_assignment esa
+               JOIN work_schedule ws ON ws.schedule_id = esa.schedule_id
+              WHERE esa.employee_id = :employee_id
+                AND esa.effective_from <= :date_to
+                AND (esa.effective_to IS NULL OR esa.effective_to >= :date_from)
+              ORDER BY esa.effective_from DESC"
+        );
+        $assignment->execute([':employee_id' => $employeeId, ':date_from' => $dateFrom, ':date_to' => $dateTo]);
+        $assignments = $assignment->fetchAll(PDO::FETCH_ASSOC);
+
+        $coverage = $pdo->prepare(
+            "SELECT COUNT(*)
+               FROM attendance_import_batch aib
+               JOIN biometric_device_branch dbb ON dbb.device_id = aib.device_id
+               JOIN employee_branch_assignment eba ON eba.branch_id = dbb.branch_id
+              WHERE eba.employee_id = :employee_id
+                AND aib.status IN ('Approved', 'Completed')
+                AND aib.source_year = :source_year
+                AND aib.source_month = :source_month
+                AND eba.effective_from <= :date_value
+                AND (eba.effective_to IS NULL OR eba.effective_to >= :date_value)
+                AND dbb.effective_from <= :date_value
+                AND (dbb.effective_to IS NULL OR dbb.effective_to >= :date_value)"
+        );
+        $leave = $pdo->prepare(
+            "SELECT 1 FROM request r
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id AND rt.type_name = 'Leave'
+               JOIN leave_request_detail lrd ON lrd.request_id = r.request_id
+              WHERE r.employee_id = :employee_id AND r.status = 'Approved'
+                AND lrd.start_date <= :date_value AND lrd.end_date >= :date_value LIMIT 1"
+        );
+        $holiday = $pdo->prepare(
+            "SELECT 1 FROM holiday_calendar WHERE holiday_date = :date_value AND status = 'Active' LIMIT 1"
+        );
+        $existing = $pdo->prepare(
+            "SELECT 1 FROM attendance a
+              LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
+             WHERE a.employee_id = :employee_id AND a.attendance_date = :date_value
+               AND a.status <> 'Cancelled' AND (aib.status IS NULL OR aib.status <> 'Cancelled') LIMIT 1"
+        );
+
+        $absent = [];
+        for ($day = new \DateTimeImmutable($dateFrom); $day <= new \DateTimeImmutable($dateTo); $day = $day->modify('+1 day')) {
+            $date = $day->format('Y-m-d');
+            $working = false;
+            foreach ($assignments as $row) {
+                if ((string) $row['effective_from'] > $date || ($row['effective_to'] !== null && (string) $row['effective_to'] < $date)) continue;
+                $days = json_decode((string) $row['working_days'], true);
+                $working = is_array($days) && in_array($day->format('l'), $days, true);
+                break;
+            }
+            if (!$working) continue;
+            $coverage->execute([':employee_id' => $employeeId, ':source_year' => (int) $day->format('Y'), ':source_month' => (int) $day->format('m'), ':date_value' => $date]);
+            if ((int) $coverage->fetchColumn() === 0) continue;
+            $existing->execute([':employee_id' => $employeeId, ':date_value' => $date]);
+            if ($existing->fetchColumn() !== false) continue;
+            $leave->execute([':employee_id' => $employeeId, ':date_value' => $date]);
+            if ($leave->fetchColumn() !== false) continue;
+            $holiday->execute([':date_value' => $date]);
+            if ($holiday->fetchColumn() !== false) continue;
+            $absent[] = $date;
+        }
+        return $absent;
     }
 
     /**
@@ -241,16 +356,21 @@ final class EmployeePortalController
         }
 
         // request_type.type_name is the actual column; request.reason for summary;
-        // request.review_notes for hr_note
+        // request.review_notes for hr_note. Leave detail lets the employee
+        // see the saved number of requested leave days after submission.
         $stmt = $pdo->prepare(
             "SELECT r.request_id         AS id,
                     rt.type_name         AS type,
                     r.submitted_at,
                     r.status,
                     COALESCE(r.reason, '') AS summary,
-                    r.review_notes         AS hr_note
+                    r.review_notes         AS hr_note,
+                    lrd.start_date         AS leave_start_date,
+                    lrd.end_date           AS leave_end_date,
+                    lrd.days_requested     AS leave_days
              FROM request r
              JOIN request_type rt ON rt.request_type_id = r.request_type_id
+             LEFT JOIN leave_request_detail lrd ON lrd.request_id = r.request_id
              WHERE r.employee_id = :emp_id
              {$whereStatus}
              ORDER BY r.submitted_at DESC
@@ -267,6 +387,21 @@ final class EmployeePortalController
             $sickLeaveBalance = 4.0;
         }
         $sickLeaveLimit = 4; // ADR-0001: 4 paid sick days per year
+
+        // Requests are debited only on Owner approval. Show their projected
+        // effect without changing the actual ledger balance prematurely.
+        $pendingLeaveStmt = $pdo->prepare(
+            "SELECT COALESCE(SUM(lrd.days_requested), 0)
+               FROM request r
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+               JOIN leave_request_detail lrd ON lrd.request_id = r.request_id
+              WHERE r.employee_id = :employee_id
+                AND rt.type_name = 'Leave'
+                AND r.status IN ('Pending', 'HRApproved')"
+        );
+        $pendingLeaveStmt->execute([':employee_id' => $employeeId]);
+        $pendingLeaveDays = (float) $pendingLeaveStmt->fetchColumn();
+        $leaveBalanceAfterPending = $sickLeaveBalance - $pendingLeaveDays;
 
         // Outstanding cash advance balance (remaining unpaid amount)
         $caRow = $pdo->prepare(
@@ -285,6 +420,8 @@ final class EmployeePortalController
             'filterStatus'           => $filterStatus,
             'sickLeaveBalance'       => $sickLeaveBalance,
             'sickLeaveLimit'         => $sickLeaveLimit,
+            'pendingLeaveDays'       => $pendingLeaveDays,
+            'leaveBalanceAfterPending' => $leaveBalanceAfterPending,
             'cashAdvanceOutstanding' => $cashAdvanceOutstanding,
             'cashAdvanceMax'         => $cashAdvanceMax,
         ], 'My Requests');
@@ -334,11 +471,26 @@ final class EmployeePortalController
         $caRow->execute([':id' => $employeeId]);
         $cashAdvanceOutstanding = (float) $caRow->fetchColumn();
 
+        // Pending leave days so the form can project "left after"
+        $pendingLeaveStmt = $pdo->prepare(
+            "SELECT COALESCE(SUM(lrd.days_requested), 0)
+               FROM request r
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+               JOIN leave_request_detail lrd ON lrd.request_id = r.request_id
+              WHERE r.employee_id = :employee_id
+                AND rt.type_name = 'Leave'
+                AND r.status IN ('Pending', 'HRApproved')"
+        );
+        $pendingLeaveStmt->execute([':employee_id' => $employeeId]);
+        $pendingLeaveDays = (float) $pendingLeaveStmt->fetchColumn();
+
         ViewRenderer::render('employee/requests/form', [
-            'requestTypes'          => $requestTypes,
-            'sickLeaveBalance'      => $sickLeaveBalance,
-            'cashAdvanceOutstanding' => $cashAdvanceOutstanding,
-            'errors'                => [],
+            'requestTypes'             => $requestTypes,
+            'sickLeaveBalance'         => $sickLeaveBalance,
+            'pendingLeaveDays'         => $pendingLeaveDays,
+            'leaveBalanceAfterPending' => $sickLeaveBalance - $pendingLeaveDays,
+            'cashAdvanceOutstanding'   => $cashAdvanceOutstanding,
+            'errors'                   => [],
         ], 'Submit Request');
     }
 
@@ -403,6 +555,19 @@ final class EmployeePortalController
                 $balance = 4.0;
             }
 
+            // Re-fetch pending leave days so the form summary is correct on re-render
+            $pendingLeaveStmt = $connection->pdo()->prepare(
+                "SELECT COALESCE(SUM(lrd.days_requested), 0)
+                   FROM request r
+                   JOIN request_type rt ON rt.request_type_id = r.request_type_id
+                   JOIN leave_request_detail lrd ON lrd.request_id = r.request_id
+                  WHERE r.employee_id = :employee_id
+                    AND rt.type_name = 'Leave'
+                    AND r.status IN ('Pending', 'HRApproved')"
+            );
+            $pendingLeaveStmt->execute([':employee_id' => $employeeId]);
+            $pendingLeaveDays = (float) $pendingLeaveStmt->fetchColumn();
+
             // Re-fetch outstanding cash advance balance for re-render
             $caRow = $connection->pdo()->prepare(
                 "SELECT COALESCE(SUM(remaining_balance), 0) AS outstanding
@@ -413,10 +578,12 @@ final class EmployeePortalController
             $cashAdvanceOutstanding = (float) $caRow->fetchColumn();
 
             ViewRenderer::render('employee/requests/form', [
-                'requestTypes'          => $requestTypes,
-                'sickLeaveBalance'      => (int) $balance,
-                'cashAdvanceOutstanding' => $cashAdvanceOutstanding,
-                'errors'                => ['_general' => $e->getMessage()],
+                'requestTypes'              => $requestTypes,
+                'sickLeaveBalance'          => $balance,
+                'pendingLeaveDays'          => $pendingLeaveDays,
+                'leaveBalanceAfterPending'  => $balance - $pendingLeaveDays,
+                'cashAdvanceOutstanding'    => $cashAdvanceOutstanding,
+                'errors'                    => ['_general' => $e->getMessage()],
             ], 'Submit Request');
         }
     }

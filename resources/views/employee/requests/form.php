@@ -18,6 +18,8 @@ $cashAdvanceOutstanding ??= 0.0;
 $errors           ??= [];
 $csrf             ??= '';
 $base             ??= '';
+$pendingLeaveDays ??= 0.0;
+$leaveBalanceAfterPending ??= (float) $sickLeaveBalance;
 
 // Helper: re-populate a POST field safely
 $fp  = static fn(string $key, string $fallback = ''): string =>
@@ -119,6 +121,23 @@ $selectedType = (string) ($_POST['request_type_id'] ?? '');
                     <?= $err('end_date') ?>
                 </div>
             </div>
+
+            <!-- Live leave summary: shown as soon as both dates are filled -->
+            <div id="leave-summary" style="display:none;margin-bottom:1rem;padding:.75rem 1rem;border-radius:6px;border:1px solid #d1d5db;background:#f9fafb;font-size:.875rem">
+                <div style="display:flex;gap:2rem;flex-wrap:wrap">
+                    <div>
+                        <span style="color:#6b7280">Days requested:</span>
+                        <strong id="leave-days-count" style="margin-left:.4rem">—</strong>
+                    </div>
+                    <div>
+                        <span style="color:#6b7280">Balance after approval:</span>
+                        <strong id="leave-balance-after" style="margin-left:.4rem">—</strong>
+                    </div>
+                </div>
+                <div id="leave-balance-warn" style="display:none;margin-top:.5rem;color:#dc2626;font-size:.8rem">
+                    ⚠ This request exceeds your remaining balance and will be blocked.
+                </div>
+            </div>
         </div>
 
         <!-- ── Overtime fields ──────────────────────────────────────────── -->
@@ -168,7 +187,7 @@ $selectedType = (string) ($_POST['request_type_id'] ?? '');
                        value="<?= $fp('amount_requested') ?>"
                        min="1" max="2000" step="0.01"
                        style="width:100%;padding:.45rem .7rem;border:1px solid <?= isset($errors['amount_requested']) ? '#dc2626' : '#d1d5db' ?>;border-radius:4px;font-size:.9rem">
-                <small style="color:#6b7280;font-size:.78rem">Maximum: ₱2,000.00 per request.</small>
+                <small style="color:#6b7280;font-size:.78rem">Maximum: ₱2,000.00 per month; repayments are limited to ₱500.00 per week.</small>
                 <?= $err('amount_requested') ?>
             </div>
         </div>
@@ -217,5 +236,40 @@ $selectedType = (string) ($_POST['request_type_id'] ?? '');
 
     sel.addEventListener('change', update);
     update(); // apply on page load when re-rendering with POST data
+
+    // --- Live leave day count and balance projection ---
+    var startInput   = document.getElementById('start_date');
+    var endInput     = document.getElementById('end_date');
+    var summaryPanel = document.getElementById('leave-summary');
+    var daysEl       = document.getElementById('leave-days-count');
+    var balanceEl    = document.getElementById('leave-balance-after');
+    var warnEl       = document.getElementById('leave-balance-warn');
+    var currentBalance = <?= (float) $sickLeaveBalance ?>;
+
+    function updateLeaveSummary() {
+        var s = startInput.value;
+        var e = endInput.value;
+        if (!s || !e || s > e) {
+            summaryPanel.style.display = 'none';
+            return;
+        }
+        // Inclusive day count matching RequestService::calcLeaveDays
+        var start = new Date(s + 'T00:00:00');
+        var end   = new Date(e + 'T00:00:00');
+        var days  = Math.round((end - start) / 86400000) + 1;
+        var after = currentBalance - days;
+
+        daysEl.textContent      = days + ' day' + (days !== 1 ? 's' : '');
+        daysEl.style.color      = days > currentBalance ? '#dc2626' : '#111827';
+        balanceEl.textContent   = after.toFixed(1) + ' day' + (Math.abs(after) !== 1 ? 's' : '');
+        balanceEl.style.color   = after < 0 ? '#dc2626' : (after === 0 ? '#d97706' : '#059669');
+        warnEl.style.display    = after < 0 ? '' : 'none';
+        summaryPanel.style.display = '';
+    }
+
+    startInput.addEventListener('change', updateLeaveSummary);
+    endInput.addEventListener('change', updateLeaveSummary);
+    // Run on load in case the form is re-rendered with POST values
+    updateLeaveSummary();
 }());
 </script>

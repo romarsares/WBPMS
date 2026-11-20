@@ -23,6 +23,8 @@ $filterStatus           ??= '';
 $csrf                   ??= '';
 $sickLeaveBalance       ??= 0.0;
 $sickLeaveLimit         ??= 4;
+$pendingLeaveDays       ??= 0.0;
+$leaveBalanceAfterPending ??= (float) $sickLeaveBalance;
 $cashAdvanceOutstanding ??= 0.0;
 $cashAdvanceMax         ??= null;
 
@@ -72,6 +74,15 @@ $statusBadge = static function (string $status): string {
             <div style="font-size:.75rem;color:#9ca3af;margin-top:.25rem">
                 <?= number_format((float)$sickLeaveBalance, 1) ?> day<?= (float)$sickLeaveBalance !== 1.0 ? 's' : '' ?> remaining &nbsp;·&nbsp; Limit: <?= (int)$sickLeaveLimit ?> days/year
             </div>
+            <?php if ((float)$pendingLeaveDays > 0): ?>
+            <div style="font-size:.75rem;margin-top:.25rem;color:#d97706">
+                <?= number_format((float)$pendingLeaveDays, 1) ?> day<?= (float)$pendingLeaveDays !== 1.0 ? 's' : '' ?> pending approval
+                &nbsp;·&nbsp;
+                <strong style="color:<?= (float)$leaveBalanceAfterPending < 0 ? '#dc2626' : '#374151' ?>">
+                    <?= number_format((float)$leaveBalanceAfterPending, 1) ?> left after
+                </strong>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -97,7 +108,7 @@ $statusBadge = static function (string $status): string {
                 <div style="height:100%;width:<?= round($caPct) ?>%;background:<?= $caBar ?>;border-radius:3px;transition:width .3s"></div>
             </div>
             <div style="font-size:.75rem;color:#9ca3af;margin-top:.25rem">
-                Unpaid: ₱<?= number_format((float)$cashAdvanceOutstanding, 2) ?> &nbsp;·&nbsp; Max: ₱<?= number_format((float)$cashAdvanceMax, 2) ?>
+                Unpaid: ₱<?= number_format((float)$cashAdvanceOutstanding, 2) ?> &nbsp;·&nbsp; Max: ₱<?= number_format((float)$cashAdvanceMax, 2) ?> per month &nbsp;·&nbsp; ₱500.00 per week only
             </div>
         </div>
         <?php else: ?>
@@ -152,7 +163,23 @@ $statusBadge = static function (string $status): string {
         <tr>
             <td style="white-space:nowrap;font-weight:500"><?= Formatter::escape($req['type']) ?></td>
             <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                <?= Formatter::escape($req['summary']) ?>
+                <?php if ($req['type'] === 'Leave' && isset($req['leave_start_date'], $req['leave_end_date'])): ?>
+                    <?php
+                    $leaveStart = Formatter::escape($req['leave_start_date']);
+                    $leaveEnd   = Formatter::escape($req['leave_end_date']);
+                    $leaveDays  = isset($req['leave_days']) ? (float) $req['leave_days'] : 0.0;
+                    ?>
+                    <span style="white-space:nowrap">
+                        <?= $leaveStart ?> – <?= $leaveEnd ?>
+                    </span>
+                    <?php if ($leaveDays > 0): ?>
+                    <span style="display:inline-block;margin-left:.35rem;font-size:.78rem;color:#6b7280;white-space:nowrap">
+                        (<?= number_format($leaveDays, 0) ?> day<?= $leaveDays !== 1.0 ? 's' : '' ?>)
+                    </span>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <?= Formatter::escape($req['summary']) ?>
+                <?php endif; ?>
             </td>
             <td><?= Formatter::date($req['submitted_at']) ?></td>
             <td><?= $statusBadge($req['status']) ?></td>

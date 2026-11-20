@@ -1,9 +1,10 @@
 <?php
 use Wbpms\Http\View\Formatter;
-/** @var array[] $rows @var int $total @var int $present @var int $incomplete @var int $totalOT @var string $dateFrom @var string $dateTo @var string $base */
+/** @var array[] $rows @var int $total @var int $present @var int $incomplete @var int $totalLate @var int $totalAbsent @var int $totalOT @var string $dateFrom @var string $dateTo @var string $base */
 $fmt      = fn(int $m) => intdiv($m,60).'h '.str_pad((string)($m%60),2,'0',STR_PAD_LEFT).'m';
 $dateFrom ??= '';
 $dateTo   ??= '';
+$statusFilter ??= '';
 $filtered = $dateFrom !== '' || $dateTo !== '';
 ?>
 <div class="page-head">
@@ -14,6 +15,8 @@ $filtered = $dateFrom !== '' || $dateTo !== '';
     <div class="stat"><strong><?= $total ?></strong><span>Total Days</span></div>
     <div class="stat"><strong style="color:var(--ok)"><?= $present ?></strong><span>Complete</span></div>
     <div class="stat"><strong style="color:var(--bad)"><?= $incomplete ?></strong><span>Incomplete</span></div>
+    <div class="stat"><strong style="color:var(--bad)"><?= $totalLate ?></strong><span>Total Lates</span></div>
+    <div class="stat"><strong style="color:var(--bad)"><?= $totalAbsent ?></strong><span>Total Absents</span></div>
     <div class="stat"><strong style="color:var(--ok)"><?= $fmt($totalOT) ?></strong><span>Total Overtime</span></div>
 </div>
 
@@ -37,6 +40,22 @@ $filtered = $dateFrom !== '' || $dateTo !== '';
         <?php if ($filtered): ?>
         <a href="<?= $base ?>/employee/attendance" class="btn btn-secondary">Clear</a>
         <?php endif; ?>
+    </form>
+    <form method="GET" action="<?= $base ?>/employee/attendance" style="display:flex;gap:.75rem;align-items:flex-end;margin-top:.75rem">
+        <input type="hidden" name="date_from" value="<?= Formatter::escape($dateFrom) ?>">
+        <input type="hidden" name="date_to" value="<?= Formatter::escape($dateTo) ?>">
+        <div>
+            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Status</label>
+            <select name="status" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
+                <option value="" <?= $statusFilter === '' ? 'selected' : '' ?>>All statuses</option>
+                <option value="Complete" <?= $statusFilter === 'Complete' ? 'selected' : '' ?>>Complete</option>
+                <option value="Incomplete" <?= $statusFilter === 'Incomplete' ? 'selected' : '' ?>>Incomplete</option>
+                <option value="Late" <?= $statusFilter === 'Late' ? 'selected' : '' ?>>Late</option>
+                <option value="Absent" <?= $statusFilter === 'Absent' ? 'selected' : '' ?>>Absent</option>
+                <option value="Overtime" <?= $statusFilter === 'Overtime' ? 'selected' : '' ?>>Overtime</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary">Apply status</button>
     </form>
     <?php if ($filtered): ?>
     <p style="margin:.6rem 0 0;font-size:.8rem;color:#6b7280">
@@ -68,7 +87,9 @@ $filtered = $dateFrom !== '' || $dateTo !== '';
                 <td><?= (int)$r['overtime_minutes']  > 0 ? '<span style="color:var(--ok)">'.$fmt((int)$r['overtime_minutes']).'</span>'   : '—' ?></td>
                 <td>
                     <?php
-                    if ($r['is_incomplete']) {
+                    if ($r['is_absent']) {
+                        echo '<span class="badge bad">Absent</span>';
+                    } elseif ($r['is_incomplete']) {
                         echo '<span class="badge bad">Incomplete</span>';
                     } elseif ((int)$r['late_minutes'] > 0) {
                         echo '<span class="badge wait">Late</span>';
