@@ -10,6 +10,19 @@ use Wbpms\Http\Controllers\EmployeeController;
 
 final class EmployeeValidationTest extends TestCase
 {
+    public function testEmployeeAddRejectsDailyRateAboveMaximum(): void
+    {
+        $errors = $this->validateEmployee([
+            'branch_id' => '1',
+            'schedule_id' => '1',
+            'device_id' => '1',
+            'enrollment_code' => '00123',
+            'daily_rate' => '800.01',
+        ], false);
+
+        self::assertSame('Daily rate cannot exceed ₱800.00.', $errors['daily_rate']);
+    }
+
     public function testEmployeeEditRejectsDailyRateAboveMaximum(): void
     {
         $errors = $this->validateEmployee(['daily_rate' => '800.01']);
@@ -47,7 +60,7 @@ final class EmployeeValidationTest extends TestCase
     }
 
     /** @param array<string,string> $changes @return array<string,string> */
-    private function validateEmployee(array $changes): array
+    private function validateEmployee(array $changes, bool $isEdit = true): array
     {
         $controller = new EmployeeController();
         $method = new ReflectionMethod($controller, 'validate');
@@ -76,6 +89,6 @@ final class EmployeeValidationTest extends TestCase
             'status' => 'Active',
         ], $changes);
 
-        return $method->invoke($controller, $data, true, null, 1);
+        return $method->invoke($controller, $data, $isEdit, null, $isEdit ? 1 : null);
     }
 }
