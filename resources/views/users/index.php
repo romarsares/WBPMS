@@ -22,7 +22,13 @@ $filterStatus   ??= '';
 $roleName       ??= '';
 ?>
 <div class="page-head">
-    <div><h1>User Management</h1><p>System accounts are created automatically when employees are added.</p></div>
+    <div>
+        <h1>User Management</h1>
+        <p>Employee accounts are created automatically when employees are added.</p>
+    </div>
+    <?php if ($roleName === 'BusinessOwner'): ?>
+        <a href="<?= $base ?>/users/create" class="btn btn-primary">+ Add User</a>
+    <?php endif; ?>
 </div>
 
 <div class="cards four">

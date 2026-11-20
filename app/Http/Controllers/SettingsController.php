@@ -146,11 +146,17 @@ final class SettingsController
     /** GET /hr/settings/periods */
     public function periods(array $params = []): void
     {
+        $month = trim((string) ($_GET['payroll_month'] ?? ''));
+        $isMonthFilter = preg_match('/^\d{4}-(?:0[1-9]|1[0-2])$/', $month) === 1;
+        $service = $this->payrollService();
+
         ViewRenderer::render('hr/settings/index', [
-            'activePage' => 'settings',
-            'tab'        => 'periods',
-            'periods'    => $this->payrollService()->listPeriods(),
-            'errors'     => [],
+            'activePage'          => 'settings',
+            'tab'                 => 'periods',
+            'periods'             => $isMonthFilter ? $service->listPeriodsForMonth($month) : $service->listPeriods(),
+            'payroll_month'       => $isMonthFilter ? $month : date('Y-m'),
+            'period_filter_month' => $isMonthFilter ? $month : null,
+            'errors'              => [],
         ], 'Settings');
     }
 
@@ -167,7 +173,9 @@ final class SettingsController
                 $result['created'],
                 $result['existing']
             ));
-            $this->redirect('/hr/settings/periods');
+            // Keep the generated month in view so the user sees the exact
+            // cutoffs just created instead of an unrelated historical list.
+            $this->redirect('/hr/settings/periods?payroll_month=' . rawurlencode($month));
         } catch (RuntimeException $e) {
             ViewRenderer::render('hr/settings/index', [
                 'activePage'   => 'settings',

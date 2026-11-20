@@ -19,7 +19,8 @@ use Wbpms\Http\View\Formatter;
  *
  * Periods tab:
  * @var list<array<string,mixed>>    $periods
- * @var string                       $period_start
+ * @var string                       $payroll_month
+ * @var string|null                  $period_filter_month
  *
  * Holidays tab:
  * @var list<array<string,mixed>>    $holidays
@@ -35,6 +36,7 @@ $editRow      ??= null;
 $input        ??= [];
 $periods      ??= [];
 $payroll_month ??= date('Y-m');
+$period_filter_month ??= null;
 $holidays     ??= [];
 
 $e = static fn(string $key): string => isset($errors[$key])
@@ -338,12 +340,28 @@ openEditModal(
     <!-- Period list -->
     <div class="card" style="padding:0;overflow:hidden">
         <div style="padding:16px 20px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
-            <h3 style="margin:0;font-size:15px">All Periods</h3>
-            <span class="muted" style="font-size:13px"><?= count($periods) ?> period(s)</span>
+            <div>
+                <h3 style="margin:0;font-size:15px">
+                    <?= $period_filter_month !== null
+                        ? 'Periods for ' . Formatter::escape((new DateTimeImmutable($period_filter_month . '-01'))->format('F Y'))
+                        : 'All Periods' ?>
+                </h3>
+                <?php if ($period_filter_month !== null): ?>
+                    <span class="muted" style="font-size:12px">Includes cutoffs that overlap the selected month.</span>
+                <?php endif; ?>
+            </div>
+            <div style="display:flex;gap:12px;align-items:center">
+                <?php if ($period_filter_month !== null): ?>
+                    <a href="<?= $base ?>/hr/settings/periods" class="muted" style="font-size:12px">View all</a>
+                <?php endif; ?>
+                <span class="muted" style="font-size:13px"><?= count($periods) ?> period(s)</span>
+            </div>
         </div>
 
         <?php if (empty($periods)): ?>
-            <p class="muted" style="padding:2rem;text-align:center">No periods yet. Use the form to create the first one.</p>
+            <p class="muted" style="padding:2rem;text-align:center">
+                <?= $period_filter_month !== null ? 'No periods overlap this month yet.' : 'No periods yet. Use the form to create the first one.' ?>
+            </p>
         <?php else: ?>
         <?php
         $statusBadge = static function (string $s): string {

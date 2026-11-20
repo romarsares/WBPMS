@@ -166,6 +166,55 @@ final class PayrollService
         return $rows;
     }
 
+    /**
+     * List payroll periods that overlap a calendar month.
+     *
+     * This uses the same overlap rule as createPeriodsForMonth(): a cutoff
+     * beginning in the previous month or ending in the next month is included.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function listPeriodsForMonth(string $month): array
+    {
+        if (!preg_match('/^\d{4}-(?:0[1-9]|1[0-2])$/', $month)) {
+            throw new RuntimeException('Select a valid payroll month.');
+        }
+
+        $timezone = new DateTimeZone('Asia/Manila');
+        $firstDay = new DateTimeImmutable($month . '-01', $timezone);
+        $lastDay = $firstDay->modify('last day of this month');
+
+        $stmt = $this->connection->pdo()->prepare(
+            "SELECT pp.payroll_period_id,
+                    pp.period_start,
+                    pp.period_end,
+                    pp.pay_date,
+                    pp.cutoff_pattern,
+                    pp.status,
+                    pp.created_at,
+                    COUNT(pr.payroll_run_id) AS run_count
+               FROM payroll_period pp
+               LEFT JOIN payroll_run pr ON pr.payroll_period_id = pp.payroll_period_id
+              WHERE pp.period_start <= :last_day
+                AND pp.period_end >= :first_day
+              GROUP BY pp.payroll_period_id, pp.period_start, pp.period_end, pp.pay_date,
+                       pp.cutoff_pattern, pp.status, pp.created_at
+              ORDER BY pp.period_start DESC"
+        );
+        $stmt->execute([
+            ':first_day' => $firstDay->format('Y-m-d'),
+            ':last_day'  => $lastDay->format('Y-m-d'),
+        ]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($rows as &$row) {
+            $row['is_month_end_contribution_cutoff'] = $this->isMonthlyContributionCutoff((string) $row['pay_date']);
+        }
+        unset($row);
+
+        return $rows;
+    }
+
     /** @return list<array<string,mixed>> Periods formatted for select dropdowns. */
     public function periods(): array
     {
