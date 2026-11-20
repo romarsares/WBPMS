@@ -58,6 +58,7 @@ $router->add('POST', '/reset-password',         [AuthController::class, 'resetPa
 // ---------------------------------------------------------------------------
 
 $router->add('POST', '/logout', [AuthController::class, 'logout'], ['BusinessOwner', 'HRHead', 'Employee']);
+$router->add('POST', '/switch-role', [AuthController::class, 'switchRole'], ['BusinessOwner', 'HRHead', 'Employee']);
 
 // Requirement 13: mandatory first-login password change (any authenticated role)
 $router->add('GET',  '/change-password', [AuthController::class, 'showChangePassword'], ['BusinessOwner', 'HRHead', 'Employee']);
@@ -83,15 +84,15 @@ $router->add('GET', '/owner/dashboard', [DashboardController::class, 'ownerDashb
 //       "create" being captured as an {id} segment.
 // ---------------------------------------------------------------------------
 
-$router->add('GET',  '/users',              [UserController::class, 'index'],         ['BusinessOwner', 'HRHead']);
-$router->add('GET',  '/users/create',       [UserController::class, 'create'],        ['BusinessOwner', 'HRHead']);
-$router->add('POST', '/users',              [UserController::class, 'store'],         ['BusinessOwner', 'HRHead']);
-$router->add('GET',  '/users/{id}/edit',    [UserController::class, 'edit'],          ['BusinessOwner', 'HRHead']);
-$router->add('PUT',  '/users/{id}',         [UserController::class, 'update'],        ['BusinessOwner', 'HRHead']);
-$router->add('POST', '/users/{id}/toggle',    [UserController::class, 'toggle'],    ['BusinessOwner', 'HRHead']);
-$router->add('POST', '/users/{id}/archive',   [UserController::class, 'archive'],   ['BusinessOwner', 'HRHead']);
-$router->add('POST', '/users/{id}/unarchive', [UserController::class, 'unarchive'], ['BusinessOwner', 'HRHead']);
-$router->add('POST', '/users/{id}/reset-password', [UserController::class, 'resetPassword'], ['BusinessOwner', 'HRHead']);
+$router->add('GET',  '/users',              [UserController::class, 'index'],         ['BusinessOwner']);
+$router->add('GET',  '/users/create',       [UserController::class, 'create'],        ['BusinessOwner']);
+$router->add('POST', '/users',              [UserController::class, 'store'],         ['BusinessOwner']);
+$router->add('GET',  '/users/{id}/edit',    [UserController::class, 'edit'],          ['BusinessOwner']);
+$router->add('PUT',  '/users/{id}',         [UserController::class, 'update'],        ['BusinessOwner']);
+$router->add('POST', '/users/{id}/toggle',    [UserController::class, 'toggle'],    ['BusinessOwner']);
+$router->add('POST', '/users/{id}/archive',   [UserController::class, 'archive'],   ['BusinessOwner']);
+$router->add('POST', '/users/{id}/unarchive', [UserController::class, 'unarchive'], ['BusinessOwner']);
+$router->add('POST', '/users/{id}/reset-password', [UserController::class, 'resetPassword'], ['BusinessOwner']);
 
 // ---------------------------------------------------------------------------
 // Business Owner — Payroll review  (REQ050, REQ051)

@@ -120,7 +120,10 @@ final class EmployeeLifecycleRepository extends AbstractRepository
 
     public function deactivateEmployeeAccounts(int $employeeId): void
     {
-        $this->pdo()->prepare("UPDATE users SET status = 'Inactive', updated_at = NOW() WHERE employee_id = :id AND status = 'Active'")
+        // An employment archive is a terminal account lifecycle state. Keeping
+        // the linked user Inactive made User Management disagree with the
+        // employee record and hid the intended restore workflow.
+        $this->pdo()->prepare("UPDATE users SET status = 'Archived', updated_at = NOW() WHERE employee_id = :id AND status != 'Archived'")
             ->execute([':id' => $employeeId]);
     }
 

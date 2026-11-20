@@ -93,7 +93,9 @@ $v = static fn(string $key, string $fallback = ''): string =>
         </div>
 
         <?php if ($errors !== []): ?>
-        <div class="alert error" role="alert">Please correct the highlighted fields.</div>
+        <div class="alert error" role="alert">
+            <?= isset($errors['form']) ? Formatter::escape($errors['form']) : 'Please correct the highlighted fields.' ?>
+        </div>
         <?php endif; ?>
 
         <div style="display:flex;gap:.75rem;margin-top:1rem">

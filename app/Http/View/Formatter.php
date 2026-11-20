@@ -23,13 +23,17 @@ final class Formatter
             return '—';
         }
         $date = is_string($value) ? new \DateTimeImmutable($value) : $value;
-        return $date->format('H:i');
+        return $date->format('g:i A');
     }
 
     /** Return a database time value in the HH:MM format accepted by forms. */
     public static function inputTime(DateTimeInterface|string|null $value): string
     {
-        return $value === null || $value === '' ? '' : self::time($value);
+        if ($value === null || $value === '') {
+            return '';
+        }
+        $date = is_string($value) ? new \DateTimeImmutable($value) : $value;
+        return $date->format('H:i');
     }
 
     public static function dateTime(DateTimeInterface|string|null $value): string

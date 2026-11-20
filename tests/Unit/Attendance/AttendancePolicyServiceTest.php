@@ -30,6 +30,9 @@ final class AttendancePolicyServiceTest extends TestCase
         )');
         $pdo->exec('CREATE TABLE request (request_id INTEGER PRIMARY KEY, employee_id INTEGER, status TEXT)');
         $pdo->exec('CREATE TABLE leave_request_detail (request_id INTEGER PRIMARY KEY, start_date TEXT, end_date TEXT)');
+        $pdo->exec('CREATE TABLE employee_schedule_assignment (employee_id INTEGER, schedule_id INTEGER, effective_from TEXT, effective_to TEXT, status TEXT)');
+        $pdo->exec('CREATE TABLE work_schedule (schedule_id INTEGER, working_days TEXT)');
+        $pdo->exec('CREATE TABLE holiday_calendar (holiday_date TEXT, status TEXT)');
         $pdo->exec("INSERT INTO attendance VALUES
             (42, '2026-08-03', '08:10:00', 10, 'Complete'),
             (42, '2026-08-04', '08:05:00', 5, 'Complete'),
@@ -64,6 +67,26 @@ final class AttendancePolicyServiceTest extends TestCase
             '2026-08-02, 2026-08-03, 2026-08-04, 2026-08-05, 2026-08-06, 2026-08-07, 2026-08-08, 2026-08-09, 2026-08-10, 2026-08-11, 2026-08-12, 2026-08-13, 2026-08-14, 2026-08-15',
             $flags[1]['absence_dates'],
         );
+    }
+
+    public function testAwolEvidenceSkipsAnEmployeeRestDay(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $pdo->exec('CREATE TABLE employee_schedule_assignment (employee_id INTEGER, schedule_id INTEGER, effective_from TEXT, effective_to TEXT, status TEXT)');
+        $pdo->exec('CREATE TABLE work_schedule (schedule_id INTEGER, working_days TEXT)');
+        $pdo->exec('CREATE TABLE holiday_calendar (holiday_date TEXT, status TEXT)');
+        $pdo->exec("INSERT INTO work_schedule VALUES (1, '[\"Monday\",\"Tuesday\",\"Wednesday\",\"Thursday\",\"Friday\"]')");
+        $pdo->exec("INSERT INTO employee_schedule_assignment VALUES (42, 1, '2026-01-01', NULL, 'Active')");
+
+        $method = new ReflectionMethod(AttendancePolicyService::class, 'withAbsenceEvidenceDates');
+        $flags = $method->invoke(new AttendancePolicyService(new Connection([], $pdo)), [[
+            'employee_id' => 42,
+            'flag_type' => 'ConsecutiveAWOL',
+            'triggering_date' => '2026-07-21',
+        ]]);
+
+        self::assertSame('2026-07-17, 2026-07-20, 2026-07-21', $flags[0]['absence_dates']);
     }
 
     public function testHrCanIssueOneEmployeeNoticeWhenReviewingAFlag(): void

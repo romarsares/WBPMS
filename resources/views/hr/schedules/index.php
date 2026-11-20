@@ -96,7 +96,12 @@ $timeValue = static fn(string $key): string =>
                         <td style="font-size:13px"><?= Formatter::escape($days) ?></td>
                         <td><?= Formatter::time($s['time_in'] ?? null) ?></td>
                         <td><?= Formatter::time($s['time_out'] ?? null) ?></td>
-                        <td><?= (int) ($s['break_minutes'] ?? 0) ?>m</td>
+                        <td>
+                            <?php if (!empty($s['break_start_time']) && !empty($s['break_end_time'])): ?>
+                                <?= Formatter::time($s['break_start_time']) ?> &ndash; <?= Formatter::time($s['break_end_time']) ?><br>
+                            <?php endif; ?>
+                            <span class="muted"><?= (int) ($s['break_minutes'] ?? 0) ?> min</span>
+                        </td>
                         <td><?= Formatter::date($s['effective_from'] ?? null) ?></td>
                         <td><?= $s['effective_to'] ? Formatter::date($s['effective_to']) : '<span class="muted">current</span>' ?></td>
                         <td><span class="badge <?= $badge ?>"><?= Formatter::escape(ucfirst($s['status'])) ?></span></td>
@@ -131,7 +136,6 @@ $timeValue = static fn(string $key): string =>
         <div class="card" style="padding:0;overflow:hidden">
             <div style="padding:14px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
                 <strong>Employee Schedule Assignments</strong>
-                <a href="<?= $base ?>/hr/schedules/assign" class="btn btn-secondary" style="padding:4px 12px;font-size:13px">+ Assign</a>
             </div>
             <table class="data-table" id="assignTable">
                 <thead>

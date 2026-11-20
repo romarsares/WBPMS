@@ -195,10 +195,19 @@ final class EmployeeController
 
                 $provisionedUsername = $username;
             });
-        } catch (\PDOException $e) {
-            $fieldErrors = $this->uniqueConstraintErrors($e);
+        } catch (\RuntimeException|\PDOException $e) {
+            $fieldErrors = $e instanceof \PDOException ? $this->uniqueConstraintErrors($e) : [];
             if ($fieldErrors === []) {
-                throw $e;
+                if ($e instanceof \RuntimeException
+                    && str_starts_with($e->getMessage(), 'This biometric enrollment ID')) {
+                    $fieldErrors = ['enrollment_code' => $e->getMessage()];
+                } else {
+                // Employee provisioning validates login-email uniqueness itself.
+                // Convert that validation failure into the same field-level form
+                // response instead of leaking it as a 500 after employee data
+                // has been prepared.
+                    $fieldErrors = ['email' => $e->getMessage()];
+                }
             }
 
             [$branches, $schedules, $devices, $positions] = $this->dropdownData();
@@ -209,22 +218,6 @@ final class EmployeeController
                 'devices'            => $devices,
                 'positions'          => $positions,
                 'errors'             => $fieldErrors,
-                'suggestedEmpNumber' => $repo->nextEmployeeNumber(),
-            ], 'Add Employee');
-            return;
-        } catch (\RuntimeException $e) {
-            if (!str_starts_with($e->getMessage(), 'This biometric enrollment ID')) {
-                throw $e;
-            }
-
-            [$branches, $schedules, $devices, $positions] = $this->dropdownData();
-            ViewRenderer::render('hr/employees/edit', [
-                'employee'           => null,
-                'branches'           => $branches,
-                'schedules'          => $schedules,
-                'devices'            => $devices,
-                'positions'          => $positions,
-                'errors'             => ['enrollment_code' => $e->getMessage()],
                 'suggestedEmpNumber' => $repo->nextEmployeeNumber(),
             ], 'Add Employee');
             return;
@@ -611,6 +604,7 @@ final class EmployeeController
                     'email'                => $data['email']          !== '' ? $data['email']          : null,
                     'contact_number'       => $data['contact_number'] !== '' ? $data['contact_number'] : null,
                     'birthdate'            => $data['birthdate']      !== '' ? $data['birthdate']      : null,
+                    'hire_date'            => $data['effective_from'],
                     'position'             => $data['position']       !== '' ? $data['position']       : null,
                     'philhealth_number'    => $data['philhealth_number'] !== '' ? $data['philhealth_number'] : null,
                     'pagibig_number'       => $data['pagibig_number']    !== '' ? $data['pagibig_number']    : null,
@@ -628,6 +622,15 @@ final class EmployeeController
                     && (float) $data['daily_rate'] > 0
                     && abs((float) $data['daily_rate'] - (float) $row['daily_rate']) > 0.00001) {
                     $repo->updateSalary($id, (float) $data['daily_rate']);
+                }
+
+                if ($data['device_id'] !== '' && $data['enrollment_code'] !== '') {
+                    $repo->updateCurrentBiometricEnrollment(
+                        $id,
+                        (int) $data['device_id'],
+                        $data['enrollment_code'],
+                        (string) $row['effective_from'],
+                    );
                 }
 
                 // Sync employee.email → users.account_email for the linked user account.
@@ -667,7 +670,11 @@ final class EmployeeController
                 'schedules' => $schedules,
                 'devices'   => $devices,
                 'positions' => $positions,
-                'errors'    => ['email' => $e->getMessage()],
+                'errors'    => [
+                    (str_starts_with($e->getMessage(), 'This biometric enrollment ID')
+                        ? 'enrollment_code'
+                        : 'email') => $e->getMessage(),
+                ],
             ], 'Edit Employee');
             return;
         }
@@ -917,6 +924,20 @@ final class EmployeeController
             if ($data['schedule_id'] === '') {
                 $errors['schedule_id'] = 'Work schedule is required.';
             }
+        } elseif ($data['effective_from'] === '' || !$this->isIsoDate($data['effective_from'])) {
+            $errors['effective_from'] = 'Hire date must be a valid calendar date (YYYY-MM-DD).';
+        }
+
+        $hasDevice = $data['device_id'] !== '';
+        $hasEnrollmentCode = $data['enrollment_code'] !== '';
+        if (!$isEdit && !$hasDevice) {
+            $errors['device_id'] = 'Biometric device is required.';
+        }
+        if (!$isEdit && !$hasEnrollmentCode) {
+            $errors['enrollment_code'] = 'Biometric enrollment ID is required.';
+        }
+        if ($isEdit && $hasDevice !== $hasEnrollmentCode) {
+            $errors[$hasDevice ? 'enrollment_code' : 'device_id'] = 'Provide both the biometric device and enrollment ID to update the current mapping.';
         }
 
         // A person cannot be hired before they are born: when both dates are
@@ -979,6 +1000,9 @@ final class EmployeeController
         }
         if (str_contains($message, 'uq_employee_email')) {
             return ['email' => 'This email address is already assigned to another employee.'];
+        }
+        if (str_contains($message, 'uq_users_account_email') || str_contains($message, 'account_email')) {
+            return ['email' => 'This email address is already used by another account, including archived accounts. Use a different email address.'];
         }
 
         return [];

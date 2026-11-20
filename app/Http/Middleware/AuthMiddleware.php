@@ -72,6 +72,7 @@ final class AuthMiddleware
             'user_id'                  => $identity['user_id'],
             'username'                 => $identity['username'],
             'role_name'                => $identity['role_name'],
+            'available_roles'          => $identity['available_roles'] ?? [$identity['role_name']],
             'employee_id'              => $identity['employee_id'],
             'requires_password_change' => (bool) ($identity['requires_password_change'] ?? false),
             'is_email_verified'        => (bool) ($identity['is_email_verified'] ?? false),
@@ -85,7 +86,7 @@ final class AuthMiddleware
      *
      * Updates last_active on every call for idle-expiry tracking.
      *
-     * @return array{user_id: int, username: string, role_name: string, employee_id: int|null, requires_password_change: bool, is_email_verified: bool}|null
+     * @return array{user_id: int, username: string, role_name: string, available_roles: list<string>, employee_id: int|null, requires_password_change: bool, is_email_verified: bool}|null
      */
     public static function identity(): ?array
     {
@@ -120,7 +121,7 @@ final class AuthMiddleware
         // stale session data on the very next request.
         try {
             $current = (new AuthService(new Connection(require APP_ROOT . '/config/database.php')))
-                ->currentIdentity((int) $auth['user_id']);
+                ->currentIdentity((int) $auth['user_id'], isset($auth['role_name']) ? (string) $auth['role_name'] : null);
         } catch (\Throwable) {
             // Fail closed if account state cannot be checked.
             $current = null;
@@ -147,6 +148,7 @@ final class AuthMiddleware
         // Refresh the session from the authoritative row and update last_active.
         $_SESSION[self::SESSION_KEY]['username']                 = $current['username'];
         $_SESSION[self::SESSION_KEY]['role_name']                = $current['role_name'];
+        $_SESSION[self::SESSION_KEY]['available_roles']          = $current['available_roles'] ?? [$current['role_name']];
         $_SESSION[self::SESSION_KEY]['employee_id']              = $current['employee_id'];
         $_SESSION[self::SESSION_KEY]['requires_password_change'] = $current['requires_password_change'];
         $_SESSION[self::SESSION_KEY]['is_email_verified']        = $current['is_email_verified'];
@@ -156,6 +158,7 @@ final class AuthMiddleware
             'user_id'                  => $current['user_id'],
             'username'                 => $current['username'],
             'role_name'                => $current['role_name'],
+            'available_roles'          => $current['available_roles'] ?? [$current['role_name']],
             'employee_id'              => $current['employee_id'],
             'requires_password_change' => $current['requires_password_change'],
             'is_email_verified'        => $current['is_email_verified'],

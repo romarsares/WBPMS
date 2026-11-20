@@ -161,6 +161,21 @@ final class AuthController
         $this->redirect('/login');
     }
 
+    /** POST /switch-role — explicitly change the active role for a multi-role account. */
+    public function switchRole(array $params = []): void
+    {
+        $this->startSessionIfNeeded();
+        $roleName = trim((string) ($_POST['role_name'] ?? ''));
+        $identity = AuthMiddleware::identity();
+        if ($identity === null || !in_array($roleName, $identity['available_roles'] ?? [], true)) {
+            $_SESSION['_flash_error'] = 'That role is not assigned to your account.';
+            $this->redirect('/login');
+            return;
+        }
+        $_SESSION['_auth']['role_name'] = $roleName;
+        $this->redirectToDashboard($roleName);
+    }
+
     /**
      * GET /change-password — mandatory first-login password change screen.
      *

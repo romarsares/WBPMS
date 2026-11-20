@@ -155,6 +155,50 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
     }
 
     /**
+     * Correct the employee's current biometric mapping from the employee edit
+     * form. This intentionally updates the current setup record in place;
+     * effective-dated device migrations remain a separate workflow.
+     */
+    public function updateCurrentBiometricEnrollment(int $employeeId, int $deviceId, string $enrollmentCode, string $effectiveFrom): void
+    {
+        $this->assertBiometricEnrollmentAvailable(
+            $deviceId,
+            $enrollmentCode,
+            $effectiveFrom,
+            $employeeId
+        );
+
+        $current = $this->pdo()->prepare(
+            "SELECT enrollment_id
+               FROM employee_biometric_enrollment
+              WHERE employee_id = :employee_id
+                AND effective_to IS NULL
+                AND status = 'Active'
+              ORDER BY effective_from DESC, enrollment_id DESC
+              LIMIT 1"
+        );
+        $current->execute([':employee_id' => $employeeId]);
+        $enrollmentId = $current->fetchColumn();
+
+        if ($enrollmentId === false) {
+            $this->enrollBiometricCode($employeeId, $deviceId, $enrollmentCode, $effectiveFrom);
+            return;
+        }
+
+        $stmt = $this->pdo()->prepare(
+            "UPDATE employee_biometric_enrollment
+                SET device_id = :device_id,
+                    device_employee_code = :code
+              WHERE enrollment_id = :enrollment_id"
+        );
+        $stmt->execute([
+            ':device_id' => $deviceId,
+            ':code' => $enrollmentCode,
+            ':enrollment_id' => (int) $enrollmentId,
+        ]);
+    }
+
+    /**
      * An Enroll ID identifies a person only within one biometric device. It
      * may be reused on a different device, or after its previous assignment
      * has ended, but its active periods must never overlap.

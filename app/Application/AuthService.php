@@ -152,10 +152,13 @@ final class AuthService
             $upd->execute([':hash' => $newHash, ':id' => $user['user_id']]);
         }
 
+        $availableRoles = $this->roleNamesForUser($pdo, (int) $user['user_id']);
+
         return [
             'user_id'                  => (int)    $user['user_id'],
             'username'                 => (string) $user['username'],
             'role_name'                => (string) $user['role_name'],
+            'available_roles'          => $availableRoles,
             'employee_id'              => $employeeId,
             'requires_password_change' => (bool)   ($user['requires_password_change'] ?? false),
         ];
@@ -168,9 +171,9 @@ final class AuthService
      * calls this on every protected request so status, role, and link changes
      * take effect immediately.
      *
-     * @return array{user_id:int, username:string, role_name:string, employee_id:int|null, requires_password_change:bool, is_email_verified:bool, status:string}|null
+     * @return array{user_id:int, username:string, role_name:string, available_roles:list<string>, employee_id:int|null, requires_password_change:bool, is_email_verified:bool, status:string}|null
      */
-    public function currentIdentity(int $userId): ?array
+    public function currentIdentity(int $userId, ?string $selectedRole = null): ?array
     {
         $stmt = $this->connection->pdo()->prepare(
             "SELECT u.user_id, u.username, u.employee_id,
@@ -187,15 +190,39 @@ final class AuthService
             return null;
         }
 
+        // Direct callers that do not supply a selected role only need the
+        // backward-compatible primary role. Middleware supplies the session
+        // role and therefore performs the authoritative membership refresh.
+        $availableRoles = $selectedRole === null
+            ? [(string) $user['role_name']]
+            : $this->roleNamesForUser($this->connection->pdo(), $userId);
+        if ($availableRoles === []) {
+            $availableRoles = [(string) $user['role_name']];
+        }
+        $roleName = ($selectedRole !== null && in_array($selectedRole, $availableRoles, true))
+            ? $selectedRole
+            : (string) $user['role_name'];
+
         return [
             'user_id'                  => (int) $user['user_id'],
             'username'                 => (string) $user['username'],
-            'role_name'                => (string) $user['role_name'],
+            'role_name'                => $roleName,
+            'available_roles'          => $availableRoles,
             'employee_id'              => $user['employee_id'] !== null ? (int) $user['employee_id'] : null,
             'requires_password_change' => (bool) ($user['requires_password_change'] ?? false),
             'is_email_verified'        => (bool) ($user['is_email_verified'] ?? false),
             'status'                   => (string) $user['status'],
         ];
+    }
+
+    /** @return list<string> */
+    private function roleNamesForUser(PDO $pdo, int $userId): array
+    {
+        $stmt = $pdo->prepare(
+            'SELECT r.role_name FROM user_role ur JOIN role r ON r.role_id = ur.role_id WHERE ur.user_id = :user_id ORDER BY r.role_name'
+        );
+        $stmt->execute([':user_id' => $userId]);
+        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
     }
 
     /**

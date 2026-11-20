@@ -80,6 +80,10 @@ final class UserService
         $sql = "SELECT u.user_id, u.username, u.account_email, u.status,
                        u.employee_id, u.created_at, u.updated_at,
                        r.role_id, r.role_name,
+                       (SELECT GROUP_CONCAT(r2.role_name ORDER BY r2.role_name SEPARATOR ', ')
+                          FROM user_role ur2
+                          JOIN role r2 ON r2.role_id = ur2.role_id
+                         WHERE ur2.user_id = u.user_id) AS role_names,
                        CONCAT(e.last_name, ', ', e.first_name) AS employee_name
                   FROM users u
                   JOIN role r   ON r.role_id = u.role_id
@@ -217,6 +221,9 @@ final class UserService
 
         $newUserId = (int) $pdo->lastInsertId();
 
+        $pdo->prepare('INSERT INTO user_role (user_id, role_id) VALUES (:user_id, :role_id)')
+            ->execute([':user_id' => $newUserId, ':role_id' => $roleId]);
+
         // Audit inside the same transaction
         $pdo->prepare(
             "INSERT INTO audit_logs
@@ -273,12 +280,22 @@ final class UserService
                         ? (int) $data['employee_id'] : null;
 
         $this->validateCreateInput($username, $email, $password, $roleId);
-        $this->assertUniqueUsername($username);
-        $this->assertUniqueEmail($email);
         $roleName = $this->roleNameForId($roleId);
         if ($roleName === 'Employee') {
             throw new RuntimeException('Employee accounts are created automatically from Employee Management.');
         }
+
+        // A matching email represents the same person.  Grant the requested
+        // role to that one account rather than creating a second ambiguous
+        // login record with a separate password and account state.
+        $existingUserId = $this->userIdByEmail($email);
+        if ($existingUserId !== null) {
+            $this->grantRole($existingUserId, $roleId, $actingUserId);
+            return $existingUserId;
+        }
+
+        $this->assertUniqueUsername($username);
+        $this->assertUniqueEmail($email);
         if ($employeeId !== null) {
             throw new RuntimeException('Only automatically provisioned Employee accounts can be linked to an employee profile.');
         }
@@ -300,6 +317,9 @@ final class UserService
                 ':pwd'   => $hash,
             ]);
             $newId = (int) $pdo->lastInsertId();
+
+            $pdo->prepare('INSERT INTO user_role (user_id, role_id) VALUES (:user_id, :role_id)')
+                ->execute([':user_id' => $newId, ':role_id' => $roleId]);
 
             $this->insertAudit($pdo, $actingUserId, 'user_created', 'users', $newId,
                 "Created user '{$username}' with role_id={$roleId}");
@@ -379,6 +399,11 @@ final class UserService
                 ':status'=> $status,
                 ':id'    => $userId,
             ]);
+
+            // Keep the legacy primary-role column for backward-compatible
+            // reporting, while making the selected role an actual membership.
+            $pdo->prepare('INSERT IGNORE INTO user_role (user_id, role_id) VALUES (:user_id, :role_id)')
+                ->execute([':user_id' => $userId, ':role_id' => $roleId]);
 
             // Sync users.account_email → employee.email for the linked employee profile.
             // When HR changes the login email from User Management the employee's
@@ -565,6 +590,45 @@ final class UserService
             ->fetchAll();
     }
 
+    /** @return list<string> */
+    public function roleNamesForUser(int $userId): array
+    {
+        $stmt = $this->connection->pdo()->prepare(
+            'SELECT r.role_name\n'
+            . '  FROM user_role ur\n'
+            . '  JOIN role r ON r.role_id = ur.role_id\n'
+            . ' WHERE ur.user_id = :user_id\n'
+            . ' ORDER BY r.role_name'
+        );
+        $stmt->execute([':user_id' => $userId]);
+        return array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
+
+    /** Add a role grant to an existing account; no duplicate email/account is created. */
+    public function grantRole(int $userId, int $roleId, int $actingUserId): void
+    {
+        $roleName = $this->roleNameForId($roleId);
+        if ($roleName === 'Employee') {
+            throw new RuntimeException('Employee roles are granted automatically through Employee Management.');
+        }
+
+        $this->connection->transaction(function (PDO $pdo) use ($userId, $roleId, $roleName, $actingUserId): void {
+            $exists = $pdo->prepare('SELECT 1 FROM users WHERE user_id = :user_id');
+            $exists->execute([':user_id' => $userId]);
+            if ($exists->fetchColumn() === false) {
+                throw new RuntimeException('User account was not found.');
+            }
+
+            $stmt = $pdo->prepare('INSERT IGNORE INTO user_role (user_id, role_id) VALUES (:user_id, :role_id)');
+            $stmt->execute([':user_id' => $userId, ':role_id' => $roleId]);
+            if ($stmt->rowCount() === 0) {
+                throw new RuntimeException('This account already has the ' . $roleName . ' role.');
+            }
+            $this->insertAudit($pdo, $actingUserId, 'user_role_granted', 'user_role', $userId,
+                "Granted {$roleName} role to user_id={$userId}");
+        });
+    }
+
     /**
      * Return employees that are not yet linked to a user account (for create form).
      *
@@ -639,6 +703,16 @@ final class UserService
         if ((int) $stmt->fetchColumn() > 0) {
             throw new RuntimeException("Email '{$email}' is already registered.");
         }
+    }
+
+    private function userIdByEmail(string $email): ?int
+    {
+        $stmt = $this->connection->pdo()->prepare(
+            'SELECT user_id FROM users WHERE account_email = :email LIMIT 1'
+        );
+        $stmt->execute([':email' => $email]);
+        $userId = $stmt->fetchColumn();
+        return $userId === false ? null : (int) $userId;
     }
 
     private function roleNameForId(int $roleId): string

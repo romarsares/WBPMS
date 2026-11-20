@@ -665,6 +665,8 @@ final class AttendanceController
                     aib.file_name,
                     aib.file_checksum,
                     aib.status,
+                    aib.source_year,
+                    aib.source_month,
                     u.username            AS uploaded_by,
                     aib.uploaded_at,
                     aib.records_parsed,
@@ -839,6 +841,8 @@ final class AttendanceController
                     aib.file_name,
                     aib.file_checksum,
                     aib.status,
+                    aib.source_year,
+                    aib.source_month,
                     u.username            AS uploaded_by,
                     aib.uploaded_at,
                     aib.records_parsed,
@@ -1028,6 +1032,7 @@ final class AttendanceController
         $pdo = $this->makeConnection()->pdo();
         $batches = $pdo->query(
             "SELECT aib.import_batch_id, aib.file_name, aib.file_checksum, aib.status,
+                    aib.source_year, aib.source_month,
                     u.username AS uploaded_by, aib.uploaded_at, aib.records_parsed,
                     aib.records_matched, aib.records_unmatched, aib.duplicates_skipped,
                     aib.incomplete_days, aib.multi_punch_days, aib.completed_at

@@ -16,7 +16,7 @@ use DateTimeImmutable;
  *   TardinessMemoCap  — the third tardiness memorandum (ConsecutiveLate flag)
  *   TwoWeekAbsence    — fourteen consecutive calendar days without reporting,
  *                       none excused by an approved leave request
- *   ConsecutiveAWOL   — three consecutive unexcused days without reporting,
+ *   ConsecutiveAWOL   — three consecutive scheduled workdays without reporting,
  *                       inside the employee's attendance span
  *
  * The evaluator is pure: it receives attendance rows, existing flags, approved
@@ -46,6 +46,8 @@ final class AttendancePolicyEvaluator
      * @param list<array{flag_type:string,triggering_date:string}> $existingFlags Flags already on file for this employee in the window.
      * @param list<string> $excusedDates          'YYYY-MM-DD' covered by an approved leave request.
      * @param int          $existingMemoCount     Prior ConsecutiveLate flags for this employee (any status).
+     * @param array<string,bool>|null $scheduledWorkDates  Eligible work dates keyed by Y-m-d. Null preserves the
+     *                                                      calendar-day behaviour for standalone callers.
      * @return list<array{flag_type:string,triggering_date:string,notes:string}>
      */
     public function evaluate(
@@ -53,6 +55,7 @@ final class AttendancePolicyEvaluator
         array $existingFlags = [],
         array $excusedDates = [],
         int $existingMemoCount = 0,
+        ?array $scheduledWorkDates = null,
     ): array {
         if ($attendance === []) {
             return [];
@@ -119,32 +122,44 @@ final class AttendancePolicyEvaluator
             }
         }
 
-        // --- Unexcused absence runs (ConsecutiveAWOL, TwoWeekAbsence) -----
-        $absenceRun = 0;
+        // --- Unexcused absence runs ----------------------------------------
+        // Two weeks without reporting remains a calendar-day policy. AWOL is
+        // measured on scheduled workdays: rest days and holidays are ignored,
+        // rather than being incorrectly counted as absences or breaking a run.
+        $calendarAbsenceRun = 0;
+        $awolAbsenceRun = 0;
         foreach ($span as $date => $info) {
             if ($info['attended'] || $info['excused']) {
-                $absenceRun = 0;
+                $calendarAbsenceRun = 0;
+                $awolAbsenceRun = 0;
                 continue;
             }
-            $absenceRun++;
-            if ($absenceRun === self::CONSECUTIVE_AWOL_DAYS) {
-                $key = 'ConsecutiveAWOL|' . $date;
-                if (!isset($already[$key])) {
-                    $proposals[] = [
-                        'flag_type' => 'ConsecutiveAWOL',
-                        'triggering_date' => $date,
-                        'notes' => "Three consecutive unexcused absences through {$date}; flag for AWOL/termination policy review.",
-                    ];
-                    $already[$key] = true;
-                }
-            }
-            if ($absenceRun === self::TWO_WEEK_ABSENCE_DAYS) {
+
+            $calendarAbsenceRun++;
+            if ($calendarAbsenceRun === self::TWO_WEEK_ABSENCE_DAYS) {
                 $key = 'TwoWeekAbsence|' . $date;
                 if (!isset($already[$key])) {
                     $proposals[] = [
                         'flag_type' => 'TwoWeekAbsence',
                         'triggering_date' => $date,
                         'notes' => "No reporting for 14 consecutive days ending {$date}; flag for AWOL/termination policy review.",
+                    ];
+                    $already[$key] = true;
+                }
+            }
+
+            if ($scheduledWorkDates !== null && !isset($scheduledWorkDates[$date])) {
+                continue;
+            }
+
+            $awolAbsenceRun++;
+            if ($awolAbsenceRun === self::CONSECUTIVE_AWOL_DAYS) {
+                $key = 'ConsecutiveAWOL|' . $date;
+                if (!isset($already[$key])) {
+                    $proposals[] = [
+                        'flag_type' => 'ConsecutiveAWOL',
+                        'triggering_date' => $date,
+                        'notes' => "Three consecutive unexcused absences through {$date}; flag for AWOL/termination policy review.",
                     ];
                     $already[$key] = true;
                 }

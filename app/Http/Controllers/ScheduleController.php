@@ -67,9 +67,14 @@ final class ScheduleController
     {
         $data   = $this->extractScheduleFields();
         $errors = $this->validateSchedule($data);
+        $repo   = $this->repo();
+        if (!isset($errors['schedule_name'])
+            && $data['schedule_name'] !== ''
+            && $repo->scheduleNameExists($data['schedule_name'])) {
+            $errors['schedule_name'] = 'A work schedule with this name already exists.';
+        }
 
         if ($errors !== []) {
-            $repo = $this->repo();
             $all  = $repo->findAll();
             ViewRenderer::render('hr/schedules/index', [
                 'schedules'   => $all,
@@ -86,7 +91,7 @@ final class ScheduleController
         }
 
         try {
-            $this->repo()->create([
+            $repo->create([
                 'schedule_name'     => $data['schedule_name'],
                 'working_days'      => $this->buildWorkingDaysJson($data['work_days']),
                 'rest_days'         => $this->buildRestDaysJson($data['work_days']),
@@ -102,8 +107,7 @@ final class ScheduleController
                 'effective_from'    => $data['effective_from'],
                 'status'            => $data['status'] !== '' ? ucfirst($data['status']) : 'Active',
             ]);
-        } catch (\RuntimeException $e) {
-            $repo = $this->repo();
+        } catch (\RuntimeException|\PDOException $e) {
             $all  = $repo->findAll();
             ViewRenderer::render('hr/schedules/index', [
                 'schedules'   => $all,
@@ -113,7 +117,7 @@ final class ScheduleController
                 'active'      => count(array_filter($all, fn($s) => strtolower($s['status']) === 'active')),
                 'hTotal'      => 0,
                 'upcoming'    => 0,
-                'errors'      => ['schedule_name' => $e->getMessage()],
+                'errors'      => ['schedule_name' => $this->scheduleSaveError($e)],
                 'input'       => $data,
             ], 'Work Schedules');
             return;
@@ -178,6 +182,11 @@ final class ScheduleController
 
         $data   = $this->extractScheduleFields();
         $errors = $this->validateSchedule($data);
+        if (!isset($errors['schedule_name'])
+            && $data['schedule_name'] !== ''
+            && $repo->scheduleNameExists($data['schedule_name'], $id)) {
+            $errors['schedule_name'] = 'A work schedule with this name already exists.';
+        }
 
         if ($errors !== []) {
             ViewRenderer::render('hr/schedules/edit', [
@@ -187,22 +196,30 @@ final class ScheduleController
             return;
         }
 
-        $repo->update($id, [
-            'schedule_name'     => $data['schedule_name'],
-            'working_days'      => $this->buildWorkingDaysJson($data['work_days']),
-            'rest_days'         => $this->buildRestDaysJson($data['work_days']),
-            'work_start_time'   => $data['time_in'],
-            'work_end_time'     => $data['time_out'],
-            'standard_minutes'  => $this->computeStandardMinutes($data['time_in'], $data['time_out'], (int) $data['break_minutes']),
-            'break_minutes'     => (int) $data['break_minutes'],
-            'grace_minutes'     => (int) $data['grace_minutes'],
-            'overtime_allowed'  => (int) $data['overtime_allowed'],
-            'break_start_time'  => $data['break_start'] !== '' ? $data['break_start'] : null,
-            'break_end_time'    => $data['break_end'] !== '' ? $data['break_end'] : null,
-            'notes'             => $data['notes'] !== '' ? $data['notes'] : null,
-            'effective_from'    => $data['effective_from'],
-            'status'            => $data['status'] !== '' ? ucfirst($data['status']) : 'Active',
-        ]);
+        try {
+            $repo->update($id, [
+                'schedule_name'     => $data['schedule_name'],
+                'working_days'      => $this->buildWorkingDaysJson($data['work_days']),
+                'rest_days'         => $this->buildRestDaysJson($data['work_days']),
+                'work_start_time'   => $data['time_in'],
+                'work_end_time'     => $data['time_out'],
+                'standard_minutes'  => $this->computeStandardMinutes($data['time_in'], $data['time_out'], (int) $data['break_minutes']),
+                'break_minutes'     => (int) $data['break_minutes'],
+                'grace_minutes'     => (int) $data['grace_minutes'],
+                'overtime_allowed'  => (int) $data['overtime_allowed'],
+                'break_start_time'  => $data['break_start'] !== '' ? $data['break_start'] : null,
+                'break_end_time'    => $data['break_end'] !== '' ? $data['break_end'] : null,
+                'notes'             => $data['notes'] !== '' ? $data['notes'] : null,
+                'effective_from'    => $data['effective_from'],
+                'status'            => $data['status'] !== '' ? ucfirst($data['status']) : 'Active',
+            ]);
+        } catch (\PDOException $e) {
+            ViewRenderer::render('hr/schedules/edit', [
+                'schedule' => array_merge(['id' => $id], $data),
+                'errors'   => ['schedule_name' => $this->scheduleSaveError($e)],
+            ], 'Edit Schedule');
+            return;
+        }
 
         ViewRenderer::flash('Work schedule updated.');
         $this->redirect('/hr/schedules');
@@ -248,12 +265,25 @@ final class ScheduleController
             return;
         }
 
-        $this->repo()->assign([
-            'employee_id'    => (int) $data['employee_id'],
-            'schedule_id'    => (int) $data['schedule_id'],
-            'effective_from' => $data['effective_from'],
-            'notes'          => $data['notes'] !== '' ? $data['notes'] : null,
-        ]);
+        try {
+            $this->repo()->assign([
+                'employee_id'    => (int) $data['employee_id'],
+                'schedule_id'    => (int) $data['schedule_id'],
+                'effective_from' => $data['effective_from'],
+                'notes'          => $data['notes'] !== '' ? $data['notes'] : null,
+            ]);
+        } catch (\RuntimeException|\PDOException $e) {
+            $repo = $this->repo();
+            ViewRenderer::render('hr/schedules/assign', [
+                'employees' => $repo->employeeList(),
+                'schedules' => $repo->dropdownList(),
+                'errors'    => ['form' => $e instanceof \PDOException
+                    ? 'Could not assign this work schedule. Please verify the employee, schedule, and effective date.'
+                    : $e->getMessage()],
+                'input'     => $data,
+            ], 'Assign Schedule');
+            return;
+        }
 
         ViewRenderer::flash('Schedule assigned to employee.');
         $this->redirect('/hr/schedules');
@@ -663,6 +693,15 @@ final class ScheduleController
             return 0; // Overnight or equal — validation should have blocked this
         }
         return max(0, $total - $breakMinutes);
+    }
+
+    private function scheduleSaveError(\Throwable $error): string
+    {
+        if ($error instanceof \PDOException
+            && (int) ($error->errorInfo[1] ?? 0) === 1062) {
+            return 'A work schedule with this name already exists.';
+        }
+        return $error->getMessage();
     }
 
     private function repo(): ScheduleRepository

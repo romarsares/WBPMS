@@ -316,7 +316,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <input type="date" id="effective_from" name="effective_from"
                     value="<?= $v('effective_from') ?>"
                     class="<?= isset($errors['effective_from']) ? 'is-invalid' : '' ?>"
-                    <?= $isEdit ? 'readonly style="background:#f3f4f6"' : '' ?>>
+                    required>
                 <?= $err('effective_from') ?>
             </div>
         </div>
@@ -463,7 +463,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 </select>
                 <?= $err('device_id') ?>
                 <?php if ($isEdit): ?>
-                <small class="muted">To re-enroll this employee on a device, use the biometric enrollment workflow.</small>
+                <small class="muted">Changes update this employee's current biometric device mapping.</small>
                 <?php endif; ?>
             </div>
             <div class="form-group">
@@ -483,7 +483,7 @@ $err = static fn(string $key): string => isset($errors[$key])
         </div>
         <?php endif; ?>
 
-        <div style="display:flex;gap:.75rem;margin-top:1.25rem">
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;margin-top:1.25rem">
             <button type="submit" class="btn btn-primary">
                 <?= $isEdit ? 'Save Changes' : 'Create Employee' ?>
             </button>
@@ -494,7 +494,7 @@ $err = static fn(string $key): string => isset($errors[$key])
                 <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/bank"
                    class="btn btn-secondary">Bank Account</a>
                 <a href="<?= $base ?>/hr/employees/<?= (int) $employee['id'] ?>/transfer"
-                   class="btn btn-warning" style="margin-left:auto;">
+                   class="btn btn-warning">
                     Transfer Branch
                 </a>
                 <?php if (strtolower((string) $employee['status']) !== 'archived'): ?>

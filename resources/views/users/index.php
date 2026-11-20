@@ -22,13 +22,7 @@ $filterStatus   ??= '';
 $roleName       ??= '';
 ?>
 <div class="page-head">
-    <div>
-        <h1>User Management</h1>
-        <p>Employee accounts are created automatically when employees are added.</p>
-    </div>
-    <?php if ($roleName === 'BusinessOwner'): ?>
-        <a href="<?= $base ?>/users/create" class="btn btn-primary">+ Add User</a>
-    <?php endif; ?>
+    <div><h1>User Management</h1><p>System accounts are created automatically when employees are added.</p></div>
 </div>
 
 <div class="cards four">
@@ -103,7 +97,7 @@ $roleName       ??= '';
             <tr>
                 <td style="font-weight:700"><?= $unameDisplay ?></td>
                 <td><?= $r['account_email'] !== '' && $r['account_email'] !== null ? Formatter::escape($r['account_email']) : '<span class="muted">—</span>' ?></td>
-                <td><?= Formatter::escape($r['role_name'] ?? '—') ?></td>
+                <td><?= Formatter::escape($r['role_names'] ?? $r['role_name'] ?? '—') ?></td>
                 <td class="muted"><?= Formatter::escape($r['employee_name'] ?? '—') ?></td>
                 <td><span class="badge <?= $badge ?>"><?= Formatter::escape($r['status']) ?></span></td>
                 <td><?= Formatter::date($r['created_at']) ?></td>

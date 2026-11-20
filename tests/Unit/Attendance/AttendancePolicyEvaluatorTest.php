@@ -123,6 +123,29 @@ final class AttendancePolicyEvaluatorTest extends TestCase
         self::assertSame('2026-08-06', $awol[0]['triggering_date']);
     }
 
+    public function testAwolCountsScheduledWorkdaysAndSkipsRestDays(): void
+    {
+        $proposals = (new AttendancePolicyEvaluator())->evaluate(
+            [
+                $this->attended('2026-07-16'),
+                ['attendance_date' => '2026-07-21', 'time_in' => null, 'late_minutes' => 0, 'status' => 'Incomplete'],
+            ],
+            [],
+            [],
+            0,
+            [
+                '2026-07-16' => true,
+                '2026-07-17' => true,
+                '2026-07-20' => true,
+                '2026-07-21' => true,
+            ],
+        );
+
+        $awol = array_values($this->rowsOf($proposals, 'ConsecutiveAWOL'));
+        self::assertCount(1, $awol);
+        self::assertSame('2026-07-21', $awol[0]['triggering_date']);
+    }
+
     public function testApprovedLeaveResetsAnUnexcusedAbsenceRun(): void
     {
         $proposals = (new AttendancePolicyEvaluator())->evaluate([

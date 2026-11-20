@@ -27,9 +27,10 @@ use Wbpms\Infrastructure\Database\Connection;
  * Evaluation rules (see AttendancePolicyEvaluator):
  *   - Late days come from attendance.late_minutes after the schedule grace
  *     period has already been applied at import/adjustment time.
- *   - Absence days are calendar days inside the employee's attendance span
- *     without an attendance row; days covered by an Approved leave request
- *     are excused and reset an unexcused-absence run.
+ *   - Three-day AWOL runs are scheduled workdays inside the employee's
+ *     attendance span. Rest days and active holidays neither count nor break
+ *     that run; approved leave resets it. The separate two-week policy uses
+ *     calendar days without reporting.
  *   - Flags are unique per (employee_id, flag_type, triggering_date), so
  *     re-running an evaluation never duplicates flags.
  */
@@ -103,7 +104,14 @@ final class AttendancePolicyService
         $existingMemoCount = (int) $memoStmt->fetchColumn();
 
         $excusedDates = $this->approvedLeaveDates($pdo, $employeeId, $from, $to);
-        $proposals = (new AttendancePolicyEvaluator())->evaluate($attendance, $existing, $excusedDates, $existingMemoCount);
+        $scheduledWorkDates = $this->scheduledWorkDates($pdo, $employeeId, $from, $to);
+        $proposals = (new AttendancePolicyEvaluator())->evaluate(
+            $attendance,
+            $existing,
+            $excusedDates,
+            $existingMemoCount,
+            $scheduledWorkDates,
+        );
 
         if ($proposals === []) {
             return [];
@@ -452,9 +460,58 @@ final class AttendancePolicyService
     }
 
     /**
-     * AWOL thresholds are evaluated on calendar-day runs, so their evidence
-     * dates can be reconstructed exactly from the triggering date without
-     * storing a duplicate row per absent day.
+     * Return dates on which an employee was scheduled to work, excluding
+     * active holidays. Assignment periods are effective-dated, so a schedule
+     * change within the evaluation window is respected.
+     *
+     * @return array<string,bool> keyed by Y-m-d
+     */
+    private function scheduledWorkDates(PDO $pdo, int $employeeId, string $from, string $to): array
+    {
+        $assignments = $pdo->prepare(
+            "SELECT esa.effective_from, esa.effective_to, ws.working_days
+               FROM employee_schedule_assignment esa
+               JOIN work_schedule ws ON ws.schedule_id = esa.schedule_id
+              WHERE esa.employee_id = :id
+                AND esa.status = 'Active'
+                AND esa.effective_from <= :to
+                AND (esa.effective_to IS NULL OR esa.effective_to >= :from)
+              ORDER BY esa.effective_from DESC"
+        );
+        $assignments->execute([':id' => $employeeId, ':from' => $from, ':to' => $to]);
+
+        $byDate = [];
+        foreach ($assignments->fetchAll(PDO::FETCH_ASSOC) as $assignment) {
+            $workingDays = json_decode((string) $assignment['working_days'], true);
+            if (!is_array($workingDays)) {
+                continue;
+            }
+            $start = max($from, (string) $assignment['effective_from']);
+            $end = min($to, (string) ($assignment['effective_to'] ?? $to));
+            for ($day = new DateTimeImmutable($start), $last = new DateTimeImmutable($end); $day <= $last; $day = $day->modify('+1 day')) {
+                $date = $day->format('Y-m-d');
+                if (!isset($byDate[$date])) {
+                    $byDate[$date] = in_array($day->format('l'), $workingDays, true);
+                }
+            }
+        }
+
+        $holidays = $pdo->prepare(
+            "SELECT holiday_date
+               FROM holiday_calendar
+              WHERE status = 'Active' AND holiday_date BETWEEN :from AND :to"
+        );
+        $holidays->execute([':from' => $from, ':to' => $to]);
+        foreach ($holidays->fetchAll(PDO::FETCH_COLUMN) as $holiday) {
+            unset($byDate[(string) $holiday]);
+        }
+
+        return array_filter($byDate);
+    }
+
+    /**
+     * Attach absence evidence. AWOL evidence uses the employee's scheduled
+     * workdays, while the two-week policy remains calendar-day based.
      *
      * @param list<array<string,mixed>> $flags
      * @return list<array<string,mixed>>
@@ -475,15 +532,41 @@ final class AttendancePolicyService
             if ($end === false) {
                 continue;
             }
-            $dates = [];
-            for ($offset = $days - 1; $offset >= 0; $offset--) {
-                $dates[] = $end->modify("-{$offset} days")->format('Y-m-d');
+            if ((string) $flag['flag_type'] === 'ConsecutiveAWOL'
+                && isset($flag['employee_id'])
+                && (int) $flag['employee_id'] > 0) {
+                $dates = $this->awolEvidenceDates((int) $flag['employee_id'], $end, $days);
+            } else {
+                $dates = [];
+                for ($offset = $days - 1; $offset >= 0; $offset--) {
+                    $dates[] = $end->modify("-{$offset} days")->format('Y-m-d');
+                }
             }
             $flag['absence_dates'] = implode(', ', $dates);
         }
         unset($flag);
 
         return $flags;
+    }
+
+    /** @return list<string> */
+    private function awolEvidenceDates(int $employeeId, DateTimeImmutable $triggeringDate, int $days): array
+    {
+        $from = $triggeringDate->modify('-90 days')->format('Y-m-d');
+        $to = $triggeringDate->format('Y-m-d');
+        $scheduled = $this->scheduledWorkDates($this->connection->pdo(), $employeeId, $from, $to);
+        $dates = array_keys($scheduled);
+        rsort($dates);
+
+        $evidence = [];
+        foreach ($dates as $date) {
+            $evidence[] = $date;
+            if (count($evidence) === $days) {
+                break;
+            }
+        }
+        sort($evidence);
+        return $evidence;
     }
 
     /**

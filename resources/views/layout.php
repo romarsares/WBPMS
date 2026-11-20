@@ -56,7 +56,6 @@ $nav = match ($roleName) {
         ['hr/salary',        'Salary Management',      '₱', 'salary'],
         ['hr/benefits',      'Benefits & Deductions',  '＋', 'benefits'],
         ['hr/reports',       'Reports',                '▤', 'reports'],
-        ['users',            'User Management',        '👤', 'users'],
         ['hr/settings',      'Settings',               '⚙', 'settings'],
     ],
     default => [ // Employee
@@ -113,6 +112,18 @@ $nav = match ($roleName) {
         <div class="side-user">
             <b><?= Formatter::escape($displayName) ?></b>
             <span><?= Formatter::escape($roleName) ?></span>
+            <?php if (count($identity['available_roles'] ?? []) > 1): ?>
+            <form method="POST" action="<?= $base ?>/switch-role" style="margin-top:.4rem">
+                <input type="hidden" name="_csrf" value="<?= htmlspecialchars(CsrfMiddleware::token(), ENT_QUOTES, 'UTF-8') ?>">
+                <select name="role_name" onchange="this.form.submit()" aria-label="Switch active role" style="max-width:100%;font-size:.75rem">
+                    <?php foreach ($identity['available_roles'] as $availableRole): ?>
+                    <option value="<?= Formatter::escape($availableRole) ?>" <?= $availableRole === $roleName ? 'selected' : '' ?>>
+                        <?= Formatter::escape($availableRole) ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
+            <?php endif; ?>
             <form method="POST" action="<?= $base ?>/logout" style="display:inline">
                 <input type="hidden" name="_csrf" value="<?= htmlspecialchars(CsrfMiddleware::token(), ENT_QUOTES, 'UTF-8') ?>">
                 <button type="submit" class="side-user-logout">

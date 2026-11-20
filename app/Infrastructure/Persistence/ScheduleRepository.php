@@ -15,7 +15,8 @@ final class ScheduleRepository extends AbstractRepository
         $stmt = $this->pdo()->query(
             "SELECT ws.schedule_id AS id, ws.schedule_name, ws.working_days, ws.rest_days,
                     ws.work_start_time AS time_in, ws.work_end_time AS time_out,
-                    ws.break_minutes, ws.grace_minutes, ws.overtime_allowed,
+                    ws.break_minutes, ws.break_start_time, ws.break_end_time,
+                    ws.grace_minutes, ws.overtime_allowed,
                     ws.standard_minutes, ws.effective_from, ws.effective_to,
                     LOWER(ws.status) AS status
              FROM work_schedule ws
@@ -76,6 +77,19 @@ final class ScheduleRepository extends AbstractRepository
             ':status' => $attributes['status'] ?? 'Active',
         ]);
         return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function scheduleNameExists(string $scheduleName, ?int $excludeScheduleId = null): bool
+    {
+        $sql = 'SELECT 1 FROM work_schedule WHERE schedule_name = :schedule_name';
+        $params = [':schedule_name' => $scheduleName];
+        if ($excludeScheduleId !== null) {
+            $sql .= ' AND schedule_id != :schedule_id';
+            $params[':schedule_id'] = $excludeScheduleId;
+        }
+        $stmt = $this->pdo()->prepare($sql . ' LIMIT 1');
+        $stmt->execute($params);
+        return $stmt->fetchColumn() !== false;
     }
 
     /** @param array<string, mixed> $attributes */

@@ -33,8 +33,8 @@ foreach ($documents as $doc) {
 
 $statusBadge = static function (string $status): string {
     return match ($status) {
-        'Current'    => '<span class="badge badge-success">Current</span>',
-        'Superseded' => '<span class="badge badge-warning">Superseded</span>',
+        'Current'    => '<span class="badge badge-warning">For verification</span>',
+        'Superseded' => '<span class="badge badge-secondary">Replaced</span>',
         'Archived'   => '<span class="badge badge-secondary">Archived</span>',
         default      => Formatter::escape($status),
     };
@@ -52,6 +52,13 @@ $formatSize = static function (int $bytes): string {
     <h1>Documents — <?= $empName ?></h1>
     <a href="<?= $base ?>/hr/employees/<?= $empId ?>/edit" class="btn btn-secondary">← Back to Employee</a>
 </div>
+
+<?php if ($documents !== []): ?>
+<div class="card" style="padding:.9rem 1rem;margin-bottom:1rem">
+    <label for="document-search" style="display:block;font-size:.82rem;font-weight:600;margin-bottom:.35rem">Search documents</label>
+    <input id="document-search" type="search" placeholder="Search type, label, filename, or status" style="max-width:420px;width:100%">
+</div>
+<?php endif; ?>
 
 <!-- ------------------------------------------------------------------ -->
 <!-- Upload form                                                          -->
@@ -84,7 +91,7 @@ $formatSize = static function (int $bytes): string {
                 </select>
             </div>
             <div class="form-group">
-                <label for="document_label">Label <span class="muted">(optional)</span></label>
+                <label for="document_label">Label</label>
                 <input type="text" id="document_label" name="document_label"
                        value="<?= Formatter::escape((string) ($_POST['document_label'] ?? '')) ?>"
                        placeholder="e.g. SSS ID front, Contract 2026">
@@ -103,7 +110,7 @@ $formatSize = static function (int $bytes): string {
         </div>
 
         <div class="form-group">
-            <label for="notes">Notes <span class="muted">(optional)</span></label>
+            <label for="notes">Notes</label>
             <textarea id="notes" name="notes" rows="2"
                       maxlength="1000"
                       style="width:100%;resize:vertical"><?= Formatter::escape((string) ($_POST['notes'] ?? '')) ?></textarea>
@@ -123,17 +130,17 @@ $formatSize = static function (int $bytes): string {
 <?php foreach (['Current', 'Superseded', 'Archived'] as $section):
     if ($grouped[$section] === []) continue; ?>
 <h2 style="font-size:.95rem;font-weight:600;color:#374151;margin-bottom:.5rem;margin-top:1.5rem">
-    <?= $section ?> Documents
+    <?= $section === 'Superseded' ? 'Replacement History' : $section . ' Documents' ?>
 </h2>
 <div class="card" style="padding:0;overflow:hidden;margin-bottom:1rem">
-    <table class="data-table" style="margin:0">
+    <table class="data-table document-table" style="margin:0">
         <thead>
             <tr>
                 <th>Type</th>
                 <th>Label / Filename</th>
                 <th>Size</th>
                 <th>Uploaded</th>
-                <th>Verified</th>
+                <th style="display:none">Verification</th>
                 <th>Status</th>
                 <th style="width:1%">Actions</th>
             </tr>
@@ -152,7 +159,7 @@ $formatSize = static function (int $bytes): string {
             $verifiedBy  = (string) ($doc['verified_by_name'] ?? '');
             $byteSize    = (int) $doc['byte_size'];
         ?>
-        <tr>
+        <tr data-document-row>
             <td><?= Formatter::escape($typeLabel) ?></td>
             <td>
                 <?php if ($label !== ''): ?>
@@ -173,7 +180,11 @@ $formatSize = static function (int $bytes): string {
                     <span class="muted">—</span>
                 <?php endif; ?>
             </td>
-            <td><?= $statusBadge($docStatus) ?></td>
+            <td>
+                <?= ($docStatus === 'Current' && $verifiedAt)
+                    ? '<span class="badge badge-success">Verified</span>'
+                    : $statusBadge($docStatus) ?>
+            </td>
             <td style="white-space:nowrap">
                 <div style="display:flex;gap:.4rem;flex-wrap:wrap">
                     <!-- View / download -->
@@ -284,9 +295,18 @@ function toggleReplaceForm(docId) {
         el.style.display = (el.style.display === 'none') ? 'block' : 'none';
     }
 }
+
+document.getElementById('document-search')?.addEventListener('input', function () {
+    var query = this.value.toLowerCase().trim();
+    document.querySelectorAll('[data-document-row]').forEach(function (row) {
+        row.style.display = !query || row.textContent.toLowerCase().includes(query) ? '' : 'none';
+    });
+});
 </script>
 
 <style>
+.document-table th:nth-child(5),
+.document-table td:nth-child(5) { display:none; }
 .badge {
     display: inline-block;
     padding: .15rem .5rem;
