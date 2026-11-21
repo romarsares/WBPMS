@@ -43,6 +43,11 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
 # start with more than one MPM when deployed on a managed build host.
 RUN (a2dismod mpm_event mpm_worker 2>/dev/null || true) \
     && a2enmod mpm_prefork rewrite
+
+# Railway assigns a private runtime address, so Apache cannot derive a stable
+# hostname itself. Set a harmless global name to prevent AH00558 at startup.
+RUN printf 'ServerName localhost\n' > /etc/apache2/conf-available/wbpms-servername.conf \
+    && a2enconf wbpms-servername
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' \
         /etc/apache2/sites-available/000-default.conf \
