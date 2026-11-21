@@ -43,5 +43,11 @@ echo "[entrypoint] MySQL is ready."
 chown -R www-data:www-data /var/www/html/storage
 chmod -R 775 /var/www/html/storage
 
+# Ensure only prefork MPM is loaded (fix for "More than one MPM loaded")
+if command -v a2dismod >/dev/null 2>&1; then
+    a2dismod mpm_event mpm_worker 2>/dev/null || true
+    a2enmod mpm_prefork 2>/dev/null || true
+fi
+
 echo "[entrypoint] Starting process: $*"
 exec "$@"
