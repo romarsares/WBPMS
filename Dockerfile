@@ -8,7 +8,7 @@ FROM php:8.5-apache-bookworm
 # ── System packages ─────────────────────────────────────────
 # BuildKit retains downloaded .deb packages between builds, avoiding repeated
 # downloads from the Debian mirror during a rebuild.
-RUN --mount=type=cache,id=wbpms-apt-cache,target=/var/cache/apt,sharing=locked \
+RUN --mount=type=cache,id=s/04eee43b-7f01-4d0a-b23b-3432966b44df-/var/cache/apt,target=/var/cache/apt,sharing=locked \
     apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 update \
     && apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 install -y --no-install-recommends \
         libzip-dev \
