@@ -50,6 +50,12 @@
     --wait-text:   #92400e;
     --info-bg:     #dbeafe;
     --info-text:   #1e40af;
+    --purple:      #a855f7;
+    --purple-bg:   #f3e8ff;
+    --purple-text: #7e22ce;
+    --orange:      #ea580c;
+    --orange-bg:   #ffedd5;
+    --orange-text: #9a3412;
 
     /* Shadows */
     --shadow-sm:   0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
@@ -706,6 +712,8 @@ button:disabled,
 .badge.wait,
 .badge.badge-yellow { background: var(--wait-bg); color: var(--wait-text); }
 .badge.badge-blue   { background: var(--info-bg); color: var(--info-text); }
+.badge.badge-purple { background: var(--purple-bg); color: var(--purple-text); }
+.badge.badge-orange { background: var(--orange-bg); color: var(--orange-text); }
 .badge.off,
 .badge.badge-gray   { background: #f3ede6;        color: #7a6655; }
 

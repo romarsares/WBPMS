@@ -23,6 +23,9 @@ $roleName       ??= '';
 ?>
 <div class="page-head">
     <div><h1>User Management</h1><p>System accounts are created automatically when employees are added.</p></div>
+    <div style="display:flex;gap:.5rem">
+        <a href="<?= $base ?>/users/create" class="btn btn-primary">+ Add User</a>
+    </div>
 </div>
 
 <div class="cards four">

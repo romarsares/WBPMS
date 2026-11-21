@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Comparison Summary - WBPMS Dev vs CSV Test Cases</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; max-width: 900px; margin: 0 auto; padding: 2rem; color: #1f2937; }
+        h1 { font-size: 1.75rem; font-weight: 700; color: #111827; border-bottom: 2px solid #3b82f6; padding-bottom: 0.5rem; margin-bottom: 0.25rem; }
+        .subtitle { color: #6b7280; margin-bottom: 2rem; font-size: 0.95rem; }
+        h2 { font-size: 1.25rem; font-weight: 600; color: #1f2937; margin-top: 2rem; margin-bottom: 0.75rem; padding-bottom: 0.25rem; border-bottom: 1px solid #e5e7eb; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 0.875rem; }
+        th, td { padding: 0.625rem 0.75rem; border: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
+        th { background: #f9fafb; font-weight: 600; color: #374151; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        tr:nth-child(even) td { background: #fafafa; }
+        .status-full { color: #059669; font-weight: 600; }
+        .status-partial { color: #d97706; font-weight: 600; }
+        .module-header { background: #eff6ff; }
+        .summary-table th { background: #111827; color: white; }
+        .summary-table td { font-weight: 500; }
+        .note { font-size: 0.8rem; color: #6b7280; font-style: italic; }
+        @media print {
+            body { padding: 0; margin: 0; font-size: 12pt; }
+            h1 { page-break-after: avoid; }
+            h2 { page-break-after: avoid; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+        }
+        .footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; font-size: 0.8rem; color: #9ca3af; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>Fix Comparison Summary</h1>
+    <p class="subtitle">WBPMS Dev Branch vs CSV Test Cases (CAPSTONE - PAYROLL)<br>Generated: November 21, 2026</p>
+
+    <h2>EMPLOYEE MANAGEMENT MODULE (TC2–TC11)</h2>
+    <table>
+        <thead><tr><th>Test Case</th><th>CSV Note / Expected Fix</th><th>Implementation Status</th></tr></thead>
+        <tbody>
+            <tr><td>TC2</td><td>Duplicate Enroll ID blocks creation with message "This Enroll ID has already been used..."</td><td class="status-full">✅ Implemented – EmployeeController.php:657-665 validates enrollment ID uniqueness across devices</td></tr>
+            <tr><td>TC3</td><td>Device + enrollment ID required together</td><td class="status-full">✅ Implemented – EmployeeController.php:670-678 enforces both required together</td></tr>
+            <tr><td>TC4</td><td>Editing updates biometric enrollment</td><td class="status-full">✅ Implemented – EmployeeController.php:750-765 updates current enrollment on edit</td></tr>
+            <tr><td>TC5</td><td>Daily Rate display-only, derived from Position</td><td class="status-full">✅ Implemented – EmployeeController.php:556-575 ignores POST daily_rate, derives from job_position.daily_rate</td></tr>
+            <tr><td>TC6</td><td>Status badge alignment, button overlap fixed</td><td class="status-full">✅ Implemented – hr/employees/show.php:112-116 uses detail-field--status with centered badge; buttons no longer overlap</td></tr>
+            <tr><td>TC7</td><td>Document replacement shows only new Current file; old under collapsed "Replacement History"</td><td class="status-full">✅ Implemented – hr/employees/documents.php:27-34, 139-146 groups by status, Superseded in collapsible <details></td></tr>
+            <tr><td>TC8</td><td>Search filter across all document sections</td><td class="status-full">✅ Implemented – hr/employees/documents.php:312-336 JS searches Current/Superseded/Archived, opens history on match</td></tr>
+            <tr><td>TC9</td><td>Removed VERIFIED column; STATUS shows "For verification"/"Verified"/"Replaced"/"Archived"</td><td class="status-full">✅ Implemented – hr/employees/documents.php:156-163, 191-195 removed 5th column, status badge logic updated</td></tr>
+            <tr><td>TC10</td><td>Hire time editable with AM/PM display</td><td class="status-full">✅ Implemented – EmployeeController.php:576-590 stores in employee.hire_time; show.php:50, 112 formats as g:i A</td></tr>
+            <tr><td>TC11</td><td>Duplicate enroll ID validation message</td><td class="status-full">✅ Implemented – Same as TC2, blocks with clear message</td></tr>
+        </tbody>
+    </table>
+
+    <h2>USER MANAGEMENT MODULE (TC1–TC4)</h2>
+    <table>
+        <thead><tr><th>Test Case</th><th>CSV Note / Expected Fix</th><th>Implementation Status</th></tr></thead>
+        <tbody>
+            <tr><td>TC1</td><td>Archive action in Actions dropdown for active users</td><td class="status-full">✅ Implemented – UserController.php:127-133 shows Archive for Active users</td></tr>
+            <tr><td>TC2</td><td>Archiving employee → archives linked user account</td><td class="status-full">✅ Implemented – EmployeeController.php:840-865 calls UserRepository::archiveByEmployeeId()</td></tr>
+            <tr><td>TC3</td><td>HRHead no access to User Management</td><td class="status-full">✅ Implemented – UserController.php:56-62 restricts to Owner role; nav removed</td></tr>
+            <tr><td>TC4</td><td>Same email, different roles allowed</td><td class="status-partial">⚠️ Partial – Backend allows (UserRepository::createOrAddRole()), but UI "Add User" button removed per CSV note. Needs UI re-add for Owner to use this flow.</td></tr>
+        </tbody>
+    </table>
+
+    <h2>WORK SCHEDULE MODULE (TC1–TC5)</h2>
+    <table>
+        <thead><tr><th>Test Case</th><th>CSV Note / Expected Fix</th><th>Implementation Status</th></tr></thead>
+        <tbody>
+            <tr><td>TC1</td><td>Time in/out displays AM/PM</td><td class="status-full">✅ Implemented – ScheduleController.php:260-270 uses g:i A formatter</td></tr>
+            <tr><td>TC2</td><td>Assign schedule no 500 error; removed "+Assign" button</td><td class="status-full">✅ Implemented – ScheduleController.php:420-480 transaction-safe; view removes redundant button</td></tr>
+            <tr><td>TC3</td><td>Duplicate schedule name shows friendly error; removed × button</td><td class="status-full">✅ Implemented – ScheduleController.php:330-345 validates uniqueness; view cleaned up</td></tr>
+            <tr><td>TC4</td><td>Break duration computed from start/end; displays in table</td><td class="status-partial">⚠️ Partial – Break logic exists in model but view table may not show computed break duration column</td></tr>
+            <tr><td>TC5</td><td>Edit shift persists</td><td class="status-full">✅ Implemented – ScheduleController.php:380-420 updates assignment; integration tests pass</td></tr>
+        </tbody>
+    </table>
+
+    <h2>ATTENDANCE MANAGEMENT MODULE (TC1–TC6)</h2>
+    <table>
+        <thead><tr><th>Test Case</th><th>CSV Note / Expected Fix</th><th>Implementation Status</th></tr></thead>
+        <tbody>
+            <tr><td>TC1</td><td>Import "? 0" fixed; Surallah branch removed</td><td class="status-full">✅ Implemented – AttendanceController.php:580-610 includes year/month in batch display; branch filtering excludes Surallah</td></tr>
+            <tr><td>TC2</td><td>Approve imported data reflects correctly</td><td class="status-full">✅ Implemented – AttendanceController.php:720-780 approval flow works</td></tr>
+            <tr><td>TC3</td><td>AWOL evaluates scheduled workdays only (excludes rest days/holidays)</td><td class="status-full">✅ Implemented – AttendancePolicyController.php:85-120 uses employee_schedule_assignment + holiday_calendar</td></tr>
+            <tr><td>TC4</td><td>3rd Tardiness uses only attended late records</td><td class="status-full">✅ Implemented – AttendancePolicyController.php:125-145 reconstructs triggering late run from actual attendance</td></tr>
+            <tr><td>TC5</td><td>Cancelled attendance excluded from display/totals</td><td class="status-full">✅ Implemented – AttendanceController.php:890-950 filters status <> 'Cancelled' and excludes from worked-hours</td></tr>
+            <tr><td>TC6</td><td>Undertime calculation uses schedule at import time</td><td class="status-full">✅ Implemented – Frozen at import; AttendanceController.php:955-980 documents this behavior</td></tr>
+        </tbody>
+    </table>
+
+    <h2>EMPLOYEE SIDE LEAVE/OT/CASH ADVANCE MODULE (TC1–TC4)</h2>
+    <table>
+        <thead><tr><th>Test Case</th><th>CSV Note / Expected Fix</th><th>Implementation Status</th></tr></thead>
+        <tbody>
+            <tr><td>TC1</td><td>Cash advance description: "Max: ₱2,000.00 per month · ₱500.00 per week only"</td><td class="status-full">✅ Implemented – employee/requests/index.php:111 and employee/requests/form.php:201 both updated</td></tr>
+            <tr><td>TC2</td><td>Attendance shows Absents, Total Lates, Total Absents cards; status filters</td><td class="status-full">✅ Implemented – EmployeePortalController.php:153-164 computes all; employee/attendance.php:14-20, 44-59 shows cards + filter dropdown</td></tr>
+            <tr><td>TC3</td><td>Leave form shows "X days pending approval · Y left after" with red if negative</td><td class="status-full">✅ Implemented – EmployeePortalController.php:382-404 computes pendingLeaveDays & leaveBalanceAfterPending; employee/requests/index.php:77-84 & form.php:126-140 display</td></tr>
+            <tr><td>TC4</td><td>Cash Advance form has required "Date needed" field</td><td class="status-full">✅ Implemented – Both employee/requests/form.php:183-192 and hr/requests/form.php:186-196 have required request_date field</td></tr>
+        </tbody>
+    </table>
+
+    <h2>OVERALL SUMMARY</h2>
+    <table class="summary-table">
+        <thead><tr><th>Module</th><th>Total TCs</th><th>✅ Fully Implemented</th><th>⚠️ Partial/Needs UI</th></tr></thead>
+        <tbody>
+            <tr><td>Employee Management</td><td>10</td><td class="status-full">10</td><td>0</td></tr>
+            <tr><td>User Management</td><td>4</td><td class="status-full">3</td><td class="status-partial">1 (TC4 UI)</td></tr>
+            <tr><td>Work Schedule</td><td>5</td><td class="status-full">4</td><td class="status-partial">1 (TC4 break display)</td></tr>
+            <tr><td>Attendance Management</td><td>6</td><td class="status-full">6</td><td>0</td></tr>
+            <tr><td>Employee Side Leave/OT/CA</td><td>4</td><td class="status-full">4</td><td>0</td></tr>
+            <tr style="background:#f3f4f6; font-weight:700;"><td>TOTAL</td><td>29</td><td class="status-full">27</td><td class="status-partial">2</td></tr>
+        </tbody>
+    </table>
+
+    <p class="note">The two partial items:<br>
+    1. <strong>User Management TC4</strong> – Backend supports same email/different roles but Owner UI "Add User" button was removed<br>
+    2. <strong>Work Schedule TC4</strong> – Break duration computed in model but may not display in schedule list view</p>
+
+    <div class="footer">
+        All other CSV test case fixes are <strong>fully implemented and deployed</strong> in the WBPMS-dev branch.
+    </div>
+</body>
+</html>

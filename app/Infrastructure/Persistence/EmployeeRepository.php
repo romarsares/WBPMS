@@ -405,7 +405,17 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                     '—'
                 )                                AS schedule_name,
                 LOWER(e.status)                  AS status,
-                COALESCE(eba.effective_from, e.hire_date) AS effective_from
+                COALESCE(eba.effective_from, e.hire_date) AS effective_from,
+                -- Check if linked user has HRHead role
+                COALESCE((
+                    SELECT 1 FROM user_role ur
+                    JOIN role r ON r.role_id = ur.role_id
+                    JOIN users u ON u.user_id = ur.user_id
+                    WHERE u.employee_id = e.employee_id
+                      AND u.status != 'Archived'
+                      AND r.role_name = 'HRHead'
+                    LIMIT 1
+                ), 0) AS has_hr_access
             FROM employee e
             LEFT JOIN employee_branch_assignment eba
                    ON eba.employee_id = e.employee_id
@@ -461,7 +471,15 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                 COALESCE(esa.schedule_id, 0) AS schedule_id,
                 COALESCE(s.daily_rate, 0)  AS daily_rate,
                 COALESCE(ebe.device_id, 0) AS device_id,
-                COALESCE(ebe.device_employee_code, '') AS enrollment_code
+                COALESCE(ebe.device_employee_code, '') AS enrollment_code,
+                -- Check if linked user has HRHead role
+                COALESCE((
+                    SELECT 1 FROM user_role ur
+                    JOIN role r ON r.role_id = ur.role_id
+                    WHERE ur.user_id = u.user_id
+                      AND r.role_name = 'HRHead'
+                    LIMIT 1
+                ), 0) AS has_hr_access
              FROM employee e
              LEFT JOIN employee_branch_assignment eba
                     ON eba.employee_id = e.employee_id
@@ -479,6 +497,7 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                     ON ebe.employee_id = e.employee_id
                    AND ebe.effective_to IS NULL
                    AND ebe.status = 'Active'
+             LEFT JOIN users u ON u.employee_id = e.employee_id AND u.status != 'Archived'
              WHERE e.employee_id = :id"
         );
         $stmt->execute([':id' => $employeeId]);
@@ -707,7 +726,15 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
                 u.user_id,
                 u.username,
                 u.status                                        AS account_status,
-                u.requires_password_change
+                u.requires_password_change,
+                -- Check if linked user has HRHead role
+                COALESCE((
+                    SELECT 1 FROM user_role ur
+                    JOIN role r ON r.role_id = ur.role_id
+                    WHERE ur.user_id = u.user_id
+                      AND r.role_name = 'HRHead'
+                    LIMIT 1
+                ), 0) AS has_hr_access
              FROM employee e
              LEFT JOIN employee_branch_assignment eba
                     ON eba.employee_id = e.employee_id

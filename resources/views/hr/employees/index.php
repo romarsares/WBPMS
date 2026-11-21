@@ -121,6 +121,11 @@ $positions      ??= [];
             'archived' => '<span class="badge badge-gray">Archived</span>',
             default    => '<span class="badge badge-gray">' . Formatter::escape($emp['status']) . '</span>',
         };
+        $hasHrAccess = !empty($emp['has_hr_access']);
+        $roleBadges = '<span class="badge badge-blue">Employee</span>';
+        if ($hasHrAccess) {
+            $roleBadges .= ' <span class="badge badge-purple">HRHead</span>';
+        }
         ?>
         <tr>
             <td><code style="font-size:.8rem"><?= Formatter::escape($emp['employee_number']) ?></code></td>
@@ -128,6 +133,7 @@ $positions      ??= [];
                 <a href="<?= $base ?>/hr/employees/<?= (int) $emp['id'] ?>">
                     <?= Formatter::escape($emp['last_name']) ?>, <?= Formatter::escape($emp['first_name']) ?><?= !empty($emp['middle_name']) ? ' ' . Formatter::escape($emp['middle_name']) : '' ?>
                 </a>
+                <?= $roleBadges ?>
             </td>
             <td><?= Formatter::escape($emp['position'] ?? '—') ?></td>
             <td><?= Formatter::escape($emp['branch_name']) ?></td>

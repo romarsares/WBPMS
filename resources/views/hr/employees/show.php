@@ -33,6 +33,12 @@ $statusBadge = match (strtolower((string) $employee['status'])) {
     default     => '<span class="badge badge-gray">' . Formatter::escape((string) $employee['status']) . '</span>',
 };
 
+$hasHrAccess = !empty($employee['has_hr_access']);
+$roleBadges = '<span class="badge badge-blue">Employee</span>';
+if ($hasHrAccess) {
+    $roleBadges .= ' <span class="badge badge-purple">HRHead</span>';
+}
+
 $field = static function (string $label, ?string $value, bool $mono = false) use ($employee): string {
     $display = ($value !== null && $value !== '' && $value !== '0' && $value !== '0.00')
         ? ($mono
@@ -57,6 +63,7 @@ $formatMoney = static fn(mixed $v): string =>
     <div>
         <h1 style="margin-bottom:.2rem"><?= $empName ?></h1>
         <span style="font-size:.85rem;color:#6b7280"><?= Formatter::escape((string) $employee['employee_number']) ?></span>
+        <div style="margin-top:.5rem"><?= $roleBadges ?></div>
     </div>
     <div style="display:flex;gap:.6rem;flex-wrap:wrap">
         <a href="<?= $base ?>/hr/employees" class="btn btn-secondary">← Employees</a>

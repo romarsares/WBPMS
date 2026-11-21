@@ -190,7 +190,7 @@ final class EmployeeController
 
                 // Auto-provision the Employee login account (Requirement 13).
                 // Login credential is the employee's email address (not username).
-                $userService->provisionForEmployee(
+                $newUserId = $userService->provisionForEmployee(
                     $pdo,
                     $employeeId,
                     $username,
@@ -198,6 +198,33 @@ final class EmployeeController
                     $actorId,
                     $data['email']
                 );
+
+                // If "Grant HRHead access" was checked, grant the HRHead role
+                // to the newly created user account in the same transaction.
+                $grantHrAccess = isset($data['grant_hr_access']) && $data['grant_hr_access'] === '1';
+                if ($grantHrAccess) {
+                    // Resolve HRHead role_id
+                    $roleStmt = $pdo->prepare("SELECT role_id FROM role WHERE role_name = 'HRHead' LIMIT 1");
+                    $roleStmt->execute();
+                    $hrRoleId = $roleStmt->fetchColumn();
+                    if ($hrRoleId !== false) {
+                        $pdo->prepare('INSERT IGNORE INTO user_role (user_id, role_id) VALUES (:user_id, :role_id)')
+                            ->execute([':user_id' => $newUserId, ':role_id' => (int) $hrRoleId]);
+                        // Audit
+                        $pdo->prepare(
+                            "INSERT INTO audit_logs
+                                (user_id, event_type, action_performed, table_affected,
+                                 record_id, description, action_at)
+                             VALUES
+                                (:uid, 'user_role_granted', 'user_role_granted', 'user_role',
+                                 :rid, :desc, NOW())"
+                        )->execute([
+                            ':uid'  => $actorId,
+                            ':rid'  => $newUserId,
+                            ':desc' => "Granted HRHead role to user_id={$newUserId} (employee_id={$employeeId})",
+                        ]);
+                    }
+                }
 
                 $provisionedUsername = $username;
             });
@@ -667,6 +694,62 @@ final class EmployeeController
                         );
                     }
                 }
+
+                // Handle "Grant HRHead access" checkbox — add or remove HRHead role
+                // for the linked user account.
+                $grantHrAccess = isset($data['grant_hr_access']) && $data['grant_hr_access'] === '1';
+                if ($grantHrAccess !== (bool) ($row['has_hr_access'] ?? false)) {
+                    $stmt = $pdo->prepare(
+                        "SELECT user_id FROM users
+                          WHERE employee_id = :emp
+                            AND status != 'Archived'
+                          LIMIT 1"
+                    );
+                    $stmt->execute([':emp' => $id]);
+                    $linkedUserId = $stmt->fetchColumn();
+
+                    if ($linkedUserId !== false) {
+                        $roleStmt = $pdo->prepare("SELECT role_id FROM role WHERE role_name = 'HRHead' LIMIT 1");
+                        $roleStmt->execute();
+                        $hrRoleId = $roleStmt->fetchColumn();
+                        if ($hrRoleId !== false) {
+                            $hrRoleId = (int) $hrRoleId;
+                            if ($grantHrAccess) {
+                                // Grant HRHead role
+                                $pdo->prepare('INSERT IGNORE INTO user_role (user_id, role_id) VALUES (:user_id, :role_id)')
+                                    ->execute([':user_id' => (int) $linkedUserId, ':role_id' => $hrRoleId]);
+                                $pdo->prepare(
+                                    "INSERT INTO audit_logs
+                                        (user_id, event_type, action_performed, table_affected,
+                                         record_id, description, action_at)
+                                     VALUES
+                                        (:uid, 'user_role_granted', 'user_role_granted', 'user_role',
+                                         :rid, :desc, NOW())"
+                                )->execute([
+                                    ':uid'  => $actorId,
+                                    ':rid'  => (int) $linkedUserId,
+                                    ':desc' => "Granted HRHead role to user_id={$linkedUserId} (employee_id={$id})",
+                                ]);
+                            } else {
+                                // Revoke HRHead role
+                                $pdo->prepare('DELETE FROM user_role WHERE user_id = :user_id AND role_id = :role_id')
+                                    ->execute([':user_id' => (int) $linkedUserId, ':role_id' => $hrRoleId]);
+                                $pdo->prepare(
+                                    "INSERT INTO audit_logs
+                                        (user_id, event_type, action_performed, table_affected,
+                                         record_id, description, action_at)
+                                     VALUES
+                                        (:uid, 'user_role_revoked', 'user_role_revoked', 'user_role',
+                                         :rid, :desc, NOW())"
+                                )->execute([
+                                    ':uid'  => $actorId,
+                                    ':rid'  => (int) $linkedUserId,
+                                    ':desc' => "Revoked HRHead role from user_id={$linkedUserId} (employee_id={$id})",
+                                ]);
+                            }
+                        }
+                    }
+                }
             });
         } catch (\RuntimeException $e) {
             // Surface domain errors (e.g. email already used by another account)
@@ -751,6 +834,7 @@ final class EmployeeController
             'sss_number'           => trim((string) ($_POST['sss_number']           ?? '')),
             'contract_review_date' => trim((string) ($_POST['contract_review_date'] ?? '')),
             'status'               => trim((string) ($_POST['status']               ?? 'active')),
+            'grant_hr_access'      => trim((string) ($_POST['grant_hr_access']      ?? '')),
         ];
     }
 
