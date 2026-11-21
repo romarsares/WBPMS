@@ -49,6 +49,37 @@ services:
       - "traefik.http.routers.wbpms.rule=Host(`wbpms.coreflow.business`)"
       - "traefik.http.routers.wbpms.entrypoints=web"
       - "traefik.http.services.wbpms.loadbalancer.server.port=80"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Schema changes are a deliberate release operation. Run with:
+  # docker compose --profile migration run --rm migrate
+  # The shared entrypoint waits for MySQL, but it never runs migrations for the
+  # regular web service.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles: ["migration"]
+    restart: "no"
+    command: ["php", "/var/www/html/vendor/bin/phinx", "migrate", "-c", "/var/www/html/phinx.php", "-e", "production"]
+    environment:
+      APP_ENV:        "${APP_ENV:-production}"
+      APP_BASE_URL:   "${APP_BASE_URL}"
+      APP_KEY:        "${APP_KEY}"
+      APP_FORCE_SECURE_COOKIE: "${APP_FORCE_SECURE_COOKIE:-false}"
+      DB_HOST:        "${DB_HOST:-shared-mysql}"
+      DB_PORT:        "${DB_PORT:-3306}"
+      DB_NAME:        "${DB_NAME:-wbpms}"
+      DB_USER:        "${DB_USER:-wbpms}"
+      DB_PASSWORD:    "${DB_PASSWORD}"
+    networks:
+      - wbpms_net
+      - shared-mysql_net
 
 volumes:
   wbpms_storage:

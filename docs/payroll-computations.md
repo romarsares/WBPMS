@@ -10,12 +10,12 @@
 
 | Property | Value |
 |---|---|
-| Cycle | Sunday → Friday (6 calendar days) |
-| Pay date | The Friday at period end (same day as `period_end`) |
-| Pattern stored | `SundayFriday` (legacy `LegacyFridayThursday` for historical periods) |
+| Cycle | Friday → Thursday (7 calendar days) |
+| Pay date | The Friday after `period_end` |
+| Pattern stored | `FridayThursday` (`SundayFriday` retained only for historical periods) |
 
 A period is created by `PayrollService::createPeriod()`. The `period_start`
-**must be a Sunday**; `period_end = period_start + 5 days`; `pay_date = period_end`.
+**must be a Friday**; `period_end = period_start + 6 days`; `pay_date = period_end + 1 day`.
 
 ---
 
@@ -296,8 +296,8 @@ repayment = min(₱500.00, remaining_balance)
 
 - ₱500.00 is the fixed weekly repayment amount (ADR-0001).
 - Sourced from the most-recent `cash_advance_history` row with `status = 'Active'`.
-- After deduction, the `remaining_balance` is decremented transactionally;
-  if balance reaches ₱0.00, `status` is set to `'Settled'`.
+- After final payroll approval, the `remaining_balance` is decremented
+  transactionally; if balance reaches ₱0.00, `status` is set to `'Paid'`.
 - Only one active cash advance obligation is repaid per payroll run.
 
 ### Cash Advance Approval Flow

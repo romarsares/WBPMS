@@ -31,7 +31,10 @@
         "seed": "vendor/bin/phinx seed:run -c phinx.php",
         "migrate:test": "vendor/bin/phinx migrate -c phinx.php -e testing",
         "seed:test": "vendor/bin/phinx seed:run -c phinx.php -e testing",
-        "migrate:rollback": "vendor/bin/phinx rollback -c phinx.php"
+        "migrate:rollback": "vendor/bin/phinx rollback -c phinx.php",
+        "db:clean": "php bin/console.php db:clean",
+        "db:seed": "php bin/console.php db:seed",
+        "db:reseed": "php bin/console.php db:reseed"
     },
     "config": {
         "optimize-autoloader": true,

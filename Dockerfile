@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ============================================================
 # WBPMS — Dockerfile
 # PHP 8.5 + Apache (Debian Bookworm)
@@ -5,7 +6,10 @@
 FROM php:8.5-apache-bookworm
 
 # ── System packages ─────────────────────────────────────────
-RUN apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 update \
+# BuildKit retains downloaded .deb packages between builds, avoiding repeated
+# downloads from the Debian mirror during a rebuild.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 update \
     && apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 install -y --no-install-recommends \
         libzip-dev \
         libpng-dev \
@@ -16,8 +20,6 @@ RUN apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 update \
         zip \
         unzip \
         curl \
-        git \
-        default-mysql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # ── PHP extensions ───────────────────────────────────────────
@@ -55,10 +57,17 @@ COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 
 # ── Application code ────────────────────────────────────────
 WORKDIR /var/www/html
-COPY . .
 
-# Install PHP dependencies (no dev, optimized autoloader)
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+# Install production dependencies in their own layer. This keeps application-code
+# changes from needlessly downloading dependencies again and ensures the lock file
+# determines the deployed dependency set.
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --prefer-dist --no-interaction --no-progress
+
+# Application code. .dockerignore excludes developer-only material and local
+# credentials from this build context.
+COPY . .
+RUN composer dump-autoload --no-dev --optimize --no-interaction
 
 # ── Storage directory permissions ───────────────────────────
 RUN mkdir -p storage/private \

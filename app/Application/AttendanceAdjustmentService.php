@@ -103,10 +103,6 @@ final class AttendanceAdjustmentService
                 (int) $attendance['standard_minutes'],
             );
 
-            if (!(bool) $attendance['overtime_allowed'] && $overtime > 0) {
-                throw new RuntimeException('This work schedule does not allow overtime.');
-            }
-
             $timeChanged = $timeIn !== $attendance['time_in'] || $timeOut !== $attendance['time_out'];
             $overtimeChanged = $overtime !== (int) $attendance['overtime_minutes'];
             if (!$timeChanged && !$overtimeChanged) {

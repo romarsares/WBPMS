@@ -1,43 +1,47 @@
 #!/bin/sh
-# ============================================================
-# WBPMS Docker entrypoint
-# Waits for MySQL, runs Phinx migrations, then starts Apache.
-# ============================================================
-set -e
+# WBPMS Docker entrypoint.
+#
+# Wait for the database and then start the requested process. A normal restart
+# must not alter payroll data: schema migrations are performed explicitly by the
+# Compose "migrate" profile after release approval and backup confirmation.
+set -eu
 
-# ── Wait for MySQL ───────────────────────────────────────────
+: "${DB_HOST:?DB_HOST is required}"
+: "${DB_PORT:?DB_PORT is required}"
+: "${DB_USER:?DB_USER is required}"
+: "${DB_PASSWORD:?DB_PASSWORD is required}"
+
 echo "[entrypoint] Waiting for MySQL at ${DB_HOST}:${DB_PORT} ..."
 MAX_TRIES=30
 i=0
-until mysqladmin ping -h"${DB_HOST}" -P"${DB_PORT}" -u"${DB_USER}" -p"${DB_PASSWORD}" --silent 2>/dev/null; do
+until php -r '
+    try {
+        new PDO(
+            sprintf("mysql:host=%s;port=%s", getenv("DB_HOST"), getenv("DB_PORT")),
+            getenv("DB_USER"),
+            getenv("DB_PASSWORD"),
+            [PDO::ATTR_TIMEOUT => 2]
+        );
+        exit(0);
+    } catch (Throwable) {
+        exit(1);
+    }
+'; do
     i=$((i + 1))
-    if [ "$i" -ge "$MAX_TRIES" ]; then
-        echo "[entrypoint] ERROR: MySQL did not become ready within ${MAX_TRIES} seconds. Aborting."
+    if [ "${i}" -ge "${MAX_TRIES}" ]; then
+        echo "[entrypoint] ERROR: MySQL did not become ready within ${MAX_TRIES} attempts. Aborting." >&2
         exit 1
     fi
-    echo "[entrypoint] MySQL not ready yet (attempt $i/${MAX_TRIES}). Sleeping 2s ..."
+    echo "[entrypoint] MySQL not ready yet (attempt ${i}/${MAX_TRIES}). Sleeping 2s ..."
     sleep 2
 done
+
 echo "[entrypoint] MySQL is ready."
 
-# ── Run Phinx migrations ─────────────────────────────────────
-echo "[entrypoint] Running database migrations ..."
-php /var/www/html/vendor/bin/phinx migrate -c /var/www/html/phinx.php -e production
-echo "[entrypoint] Migrations complete."
-
-# ── Flush stale sessions ──────────────────────────────────────
-# After a deploy or DB restore, old session IDs in the browser
-# will not match the new server state and cause CSRF failures.
-# Clearing all sessions forces every user to log in fresh.
-echo "[entrypoint] Flushing stale sessions ..."
-mysql -h"${DB_HOST}" -P"${DB_PORT}" -u"${DB_USER}" -p"${DB_PASSWORD}" "${DB_NAME}" \
-  -e "DELETE FROM sessions;" 2>/dev/null || true
-echo "[entrypoint] Sessions flushed."
-
-# ── Fix storage permissions (in case volume mounted at runtime) ──
+# The named volume is mounted after the image is built, so correct its ownership
+# at container start before Apache drops privileges to www-data.
 chown -R www-data:www-data /var/www/html/storage
 chmod -R 775 /var/www/html/storage
 
-# ── Hand off to Apache ───────────────────────────────────────
-echo "[entrypoint] Starting Apache ..."
+echo "[entrypoint] Starting process: $*"
 exec "$@"

@@ -76,18 +76,10 @@ final class TimesheetGenerator
         if ($timeIn === null || $timeOut === null) {
             return [0, 0, 0, 0];
         }
-        $timezone = $timeIn->getTimezone();
-        $scheduledStart = $schedule->startOn($timeIn, $timezone);
-        $scheduledEnd = $schedule->endOn($timeIn, $timezone);
-        if ($scheduledEnd <= $scheduledStart) {
-            $scheduledEnd = $scheduledEnd->modify('+1 day');
-        }
-        $elapsed = max(0, intdiv($timeOut->getTimestamp() - $timeIn->getTimestamp(), 60));
-        $worked = max(0, $elapsed - $schedule->unpaidBreakMinutes);
-        // Match the HR adjustment rule: the schedule grace period reduces
-        // chargeable lateness, never the recorded time-in.
-        $late = max(0, intdiv($timeIn->getTimestamp() - $scheduledStart->getTimestamp(), 60) - $schedule->graceMinutes);
-        $undertime = max(0, intdiv($scheduledEnd->getTimestamp() - $timeOut->getTimestamp(), 60));
+        // Imports and manual HR corrections must calculate the same figures.
+        // AttendanceMinutesCalculator is the single source of truth for paid
+        // minutes, grace, and undertime (including overnight schedules).
+        [$worked, $late, $undertime] = AttendanceMinutesCalculator::calculate($timeIn, $timeOut, $schedule);
         $overtime = max(0, $worked - $schedule->standardMinutes);
         return [$worked, $late, $undertime, $overtime];
     }

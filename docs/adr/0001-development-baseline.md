@@ -86,8 +86,8 @@ mirrors for development tooling and must not independently redefine rules.
 
 ### Weekly payroll and time rules
 
-- The recurring payroll period is Sunday through Friday. Friday is both the
-  attendance cutoff and salary-release date. Basic pay is the daily rate times
+- The recurring payroll period is Friday through Thursday. Friday following the
+  attendance cutoff is the salary-release date. Basic pay is the daily rate times
   accepted days worked, with overtime and deductions applied separately.
 - Default documented shifts are 07:00–16:00 and 08:00–17:00 with eight paid
   hours. The MVP uses no undocumented grace period.

@@ -52,6 +52,10 @@ final class FixPhStatutory2026ContributionRates extends AbstractMigration
         // --- Rebuild SSS bracket table -----------------------------------
         // RA 11199 final tranche (effective 2025, carried through 2026):
         //   15% total: 5% EE / 10% ER, MSC ₱5,000–₱35,000 in ₱500 steps.
+        //   Per SSS Circular 2024-006: brackets are centred on MSC:
+        //     salary_from = MSC - 250 (floor at 0), salary_to = MSC + 249.99 (NULL at ceiling).
+        //   Employer share includes Employees' Compensation (EC) premium:
+        //     ₱10 for MSC ≤ ₱14,500, ₱30 for MSC > ₱14,500.
         $this->execute(
             "DELETE FROM sss_bracket WHERE contribution_policy_id = {$pid}"
         );
@@ -61,30 +65,37 @@ final class FixPhStatutory2026ContributionRates extends AbstractMigration
         $floor   = 5000;
         $ceiling = 35000;
         $step    = 500;
+        $halfStep = $step / 2; // 250
 
         $rows = [];
 
-        // Floor bracket: covers 0.00–5,499.99 → MSC ₱5,000
+        // Floor bracket: covers 0.00–5,249.99 → MSC ₱5,000 (centred: 5000-250=4750, but floor at 0)
+        $floorSalaryTo = $floor + $halfStep - 0.01; // 5249.99
+        $floorEC = 10; // EC for MSC 5000
         $rows[] = sprintf(
-            "(%d, 0.00, 5499.99, %.2f, %.2f, '%s', NULL, '%s', '%s')",
+            "(%d, 0.00, %.2f, %.2f, %.2f, '%s', NULL, '%s', '%s')",
             $pid,
-            $floor * $sssEE,   // 250.00
-            $floor * $sssER,   // 500.00
+            $floorSalaryTo,
+            $floor * $sssEE,           // 250.00
+            $floor * $sssER + $floorEC, // 500.00 + 10.00
             $eff, $now, $now
         );
 
         for ($msc = $floor + $step; $msc <= $ceiling; $msc += $step) {
+            $salaryFrom = $msc - $halfStep; // MSC - 250
             $salaryTo = ($msc === $ceiling)
                 ? 'NULL'
-                : sprintf("'%.2f'", $msc + $step - 0.01);
+                : sprintf("'%.2f'", $msc + $halfStep - 0.01); // MSC + 249.99
+
+            $ec = ($msc <= 14500) ? 10 : 30;
 
             $rows[] = sprintf(
                 "(%d, %.2f, %s, %.2f, %.2f, '%s', NULL, '%s', '%s')",
                 $pid,
-                (float) $msc,
+                (float) $salaryFrom,
                 $salaryTo,
                 $msc * $sssEE,
-                $msc * $sssER,
+                $msc * $sssER + $ec,
                 $eff, $now, $now
             );
         }

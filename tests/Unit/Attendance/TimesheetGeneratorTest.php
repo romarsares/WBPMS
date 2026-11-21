@@ -97,4 +97,22 @@ final class TimesheetGeneratorTest extends TestCase
 
         self::assertSame(5, $attendance->lateMinutes);
     }
+
+    public function testImportedAndEditedAttendanceUseTheSamePaidMinuteRule(): void
+    {
+        $tz = new DateTimeZone('Asia/Manila');
+        $attendance = (new TimesheetGenerator())->generate(
+            9,
+            '2026-08-13',
+            [
+                new ParsedPunch(1, '00123', new DateTimeImmutable('2026-08-13 12:06', $tz), 2, 'E', '12:06', null, null, null),
+                new ParsedPunch(1, '00123', new DateTimeImmutable('2026-08-13 16:32', $tz), 2, 'E', '16:32', null, null, null),
+            ],
+            new WorkSchedule(1, '07:00', '16:00'),
+        );
+
+        self::assertSame(206, $attendance->workedMinutes);
+        self::assertSame(306, $attendance->lateMinutes);
+        self::assertSame(274, $attendance->undertimeMinutes);
+    }
 }

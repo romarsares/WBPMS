@@ -135,6 +135,70 @@ final class PayrollImmutabilityTest extends IntegrationTestCase
         self::assertSame('Approved', $run['status']);
     }
 
+    public function testComputeOrSubmitActorCannotApproveTheSameRun(): void
+    {
+        $branchId = $this->insertBranch();
+        $periodId = $this->insertPayrollPeriod('2026-10-04', '2026-10-09', '2026-10-09');
+        $policyId = $this->insertPayrollPolicy();
+        $this->pdo->prepare(
+            "INSERT INTO payroll_run
+                (payroll_period_id, branch_id, payroll_policy_id, status, computed_by,
+                 gross_pay, total_deductions, net_pay, lock_version, created_at, updated_at)
+             VALUES (:period, :branch, :policy, 'PendingOwnerApproval', :computed_by,
+                     0.00, 0.00, 0.00, 0, NOW(), NOW())"
+        )->execute([
+            ':period' => $periodId,
+            ':branch' => $branchId,
+            ':policy' => $policyId,
+            ':computed_by' => $this->ownerUserId,
+        ]);
+        $runId = (int) $this->pdo->lastInsertId();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessageMatches('/cannot approve/i');
+        $this->payrollService->approve($runId, $this->ownerUserId);
+    }
+
+    public function testFutureSalaryRateDoesNotRemoveEmployeeFromCurrentPayroll(): void
+    {
+        $branchId = $this->insertBranch();
+        $periodId = $this->insertPayrollPeriod('2026-10-04', '2026-10-09', '2026-10-09');
+        $policyId = $this->insertPayrollPolicy();
+        $runId = $this->insertPayrollRun($periodId, $branchId, $policyId);
+        $employeeId = $this->insertEmployee();
+        $this->pdo->prepare("UPDATE employee SET hire_date = '2026-01-01' WHERE employee_id = :id")
+            ->execute([':id' => $employeeId]);
+        $this->insertBranchAssignment($employeeId, $branchId, '2026-01-01');
+        $oldSalaryId = $this->insertSalary($employeeId, '2026-01-01');
+        $this->pdo->prepare(
+            "UPDATE salary
+                SET status = 'Superseded', effective_to = '2026-10-15'
+              WHERE salary_id = :id"
+        )->execute([':id' => $oldSalaryId]);
+        $this->pdo->prepare(
+            "INSERT INTO salary (employee_id, daily_rate, effective_from, status)
+             VALUES (:employee_id, 500.00, '2026-10-16', 'Active')"
+        )->execute([':employee_id' => $employeeId]);
+
+        $midPeriodHireId = $this->insertEmployee();
+        $this->pdo->prepare("UPDATE employee SET hire_date = '2026-10-06' WHERE employee_id = :id")
+            ->execute([':id' => $midPeriodHireId]);
+        $this->insertBranchAssignment($midPeriodHireId, $branchId, '2026-10-06');
+        $this->insertSalary($midPeriodHireId, '2026-10-06');
+
+        $this->payrollService->computeRun($runId, $this->hrUserId);
+
+        $stmt = $this->pdo->prepare(
+            'SELECT daily_rate_snapshot FROM payroll WHERE payroll_run_id = :run_id AND employee_id = :employee_id'
+        );
+        $stmt->execute([':run_id' => $runId, ':employee_id' => $employeeId]);
+        self::assertSame('460.00', number_format((float) $stmt->fetchColumn(), 2, '.', ''));
+
+        $count = $this->pdo->prepare('SELECT COUNT(*) FROM payroll WHERE payroll_run_id = :run_id');
+        $count->execute([':run_id' => $runId]);
+        self::assertSame(2, (int) $count->fetchColumn(), 'A mid-period hire must be included in the current run.');
+    }
+
     // -----------------------------------------------------------------------
     // Build fixture: Approved run with one employee payroll row
     // -----------------------------------------------------------------------

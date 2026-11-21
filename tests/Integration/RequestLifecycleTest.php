@@ -194,6 +194,30 @@ final class RequestLifecycleTest extends IntegrationTestCase
         self::assertSame('Active', $obligation['status']);
     }
 
+    public function testOwnerApprovalCannotApplyCashAdvanceTwice(): void
+    {
+        $requestId = $this->service->submit($this->employeeId, [
+            'request_type_id'  => $this->cashAdvanceTypeId,
+            'reason'           => 'Emergency expense',
+            'amount_requested' => '1000.00',
+            'request_date'     => '2026-11-15',
+        ]);
+
+        $this->service->approve($requestId, $this->hrUserId);
+        $this->service->ownerApprove($requestId, $this->ownerUserId);
+
+        try {
+            $this->service->ownerApprove($requestId, $this->ownerUserId);
+            self::fail('A second Owner approval must be rejected.');
+        } catch (RuntimeException $expected) {
+            self::assertMatchesRegularExpression('/HR-approved|changed status/i', $expected->getMessage());
+        }
+
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM cash_advance_history WHERE request_id = :id');
+        $stmt->execute([':id' => $requestId]);
+        self::assertSame(1, (int) $stmt->fetchColumn());
+    }
+
     // -----------------------------------------------------------------------
     // Archive (REQ036)
     // -----------------------------------------------------------------------

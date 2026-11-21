@@ -575,7 +575,7 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
      */
     private function approvedOvertimeMinutes(int $employeeId, string $attendanceDate, ?string $timeIn, ?string $timeOut, WorkSchedule $schedule): int
     {
-        if ($timeIn === null || $timeOut === null || !$schedule->overtimeAllowed) {
+        if ($timeIn === null || $timeOut === null) {
             return 0;
         }
 
@@ -644,6 +644,7 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
             ];
         }
 
+        $punches = $this->removeConsecutiveDuplicateTaps($punches);
         $timezone = new DateTimeZone('Asia/Manila');
         $timeIn = new DateTimeImmutable((string) $punches[0], $timezone);
         $timeOut = count($punches) > 1 ? new DateTimeImmutable((string) $punches[array_key_last($punches)], $timezone) : null;
@@ -667,6 +668,30 @@ final class PdoAttendanceImportGateway implements AttendanceImportGateway
             'undertime' => $undertime,
             'status' => count($punches) > 2 ? 'ReviewRequired' : 'Complete',
         ];
+    }
+
+    /**
+     * Keep immutable raw biometric evidence but ignore a consecutive tap made
+     * within ten minutes of the prior tap when deriving a daily timesheet.
+     * This covers a normal accidental double-tap without hiding materially
+     * distinct midday punches, which continue to require HR review.
+     *
+     * @param list<string> $punches UTC/local timestamp strings ordered ascending
+     * @return list<string>
+     */
+    private function removeConsecutiveDuplicateTaps(array $punches): array
+    {
+        $normalised = [];
+        $previous = null;
+        foreach ($punches as $punch) {
+            $current = new DateTimeImmutable((string) $punch, new DateTimeZone('Asia/Manila'));
+            if ($previous !== null && ($current->getTimestamp() - $previous->getTimestamp()) <= 600) {
+                continue;
+            }
+            $normalised[] = (string) $punch;
+            $previous = $current;
+        }
+        return $normalised;
     }
 
     /** @return array{int,int,int} worked, late, undertime */

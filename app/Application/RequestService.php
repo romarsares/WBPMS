@@ -70,6 +70,7 @@ final class RequestService
      *   start_time?:       string,
      *   end_time?:         string,
      *   amount_requested?: string,
+     *   request_date?:     string,
      * } $data
      * @throws RuntimeException on validation failure or insufficient leave balance
      */
@@ -450,14 +451,19 @@ final class RequestService
         }
 
         $this->connection->transaction(function (PDO $pdo) use ($requestId, $actingUserId, $row): void {
-            $pdo->prepare(
+            $transition = $pdo->prepare(
                 "UPDATE request
                     SET status             = 'Approved',
                         owner_reviewed_by  = :owner,
                         owner_reviewed_at  = NOW(),
                         updated_at         = NOW()
-                  WHERE request_id = :id"
-            )->execute([':owner' => $actingUserId, ':id' => $requestId]);
+                  WHERE request_id = :id
+                    AND status = 'HRApproved'"
+            );
+            $transition->execute([':owner' => $actingUserId, ':id' => $requestId]);
+            if ($transition->rowCount() !== 1) {
+                throw new RuntimeException('This request changed status and can no longer be finally approved.');
+            }
 
             // REQ078: approved Leave → debit leave_ledger
             if ($row['type_name'] === 'Leave') {
@@ -472,6 +478,27 @@ final class RequestService
 
             // REQ034: approved CashAdvance → create obligation in cash_advance_history
             if ($row['type_name'] === 'CashAdvance') {
+                // Serialise approvals for one employee. Submission validation is
+                // helpful UX, but this lock is what prevents two already-pending
+                // requests from becoming active debts in concurrent approvals.
+                $employeeLock = $pdo->prepare(
+                    'SELECT employee_id FROM employee WHERE employee_id = :employee_id FOR UPDATE'
+                );
+                $employeeLock->execute([':employee_id' => $row['employee_id']]);
+                $activeAdvance = $pdo->prepare(
+                    "SELECT history_id
+                       FROM cash_advance_history
+                      WHERE employee_id = :employee_id
+                        AND status = 'Active'
+                        AND remaining_balance > 0
+                      LIMIT 1
+                      FOR UPDATE"
+                );
+                $activeAdvance->execute([':employee_id' => $row['employee_id']]);
+                if ($activeAdvance->fetchColumn() !== false) {
+                    throw new RuntimeException('This employee already has an outstanding cash advance.');
+                }
+
                 $amount = (string) ($row['amount_requested'] ?? '0.00');
                 $pdo->prepare(
                     "INSERT INTO cash_advance_history
@@ -532,8 +559,7 @@ final class RequestService
                     COALESCE(ws.work_start_time, '07:00:00') AS work_start_time,
                     COALESCE(ws.work_end_time, '16:00:00') AS work_end_time,
                     COALESCE(ws.break_minutes, 60) AS break_minutes,
-                    COALESCE(ws.standard_minutes, 480) AS standard_minutes,
-                    COALESCE(ws.overtime_allowed, 0) AS overtime_allowed
+                    COALESCE(ws.standard_minutes, 480) AS standard_minutes
                FROM attendance a
                LEFT JOIN work_schedule ws ON ws.schedule_id = a.schedule_id
               WHERE a.employee_id = :employee_id
@@ -557,7 +583,7 @@ final class RequestService
             ':attendance_date' => $attendanceDate,
         ]);
         $attendance = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$attendance || !(bool) $attendance['overtime_allowed']) {
+        if (!$attendance) {
             return;
         }
 
@@ -1160,7 +1186,8 @@ final class RequestService
     /**
      * Validate weekly cash advance limit.
      *
-     * Business rule: only one active cash advance per week is allowed since
+     * Business rule: only one active cash advance per Friday-through-Thursday
+     * payroll week is allowed since
      * repayment is fixed at ₱500/week (ADR-0001). This prevents an employee
      * from accumulating multiple advances that would exceed the weekly
      * repayment capacity.
@@ -1169,10 +1196,32 @@ final class RequestService
      */
     private function assertCashAdvanceWeeklyLimit(PDO $pdo, int $employeeId, string $requestDate, float $amount): void
     {
-        // Determine the week boundaries (Monday-Sunday) for the requested date
+        // Determine the Friday-through-Thursday payroll week for the requested date.
         $date = new \DateTimeImmutable($requestDate);
-        $weekStart = $date->modify('Monday this week')->format('Y-m-d');
-        $weekEnd   = $date->modify('Sunday this week')->format('Y-m-d');
+        $daysSinceFriday = ((int) $date->format('N') + 2) % 7;
+        $weekStart = $date->modify('-' . $daysSinceFriday . ' days')->format('Y-m-d');
+        $weekEnd   = (new \DateTimeImmutable($weekStart))->modify('+6 days')->format('Y-m-d');
+
+        // An approved advance remains a debt until its repayment ledger is
+        // settled. Do not allow another request to bypass that obligation by
+        // selecting a later payroll week.
+        $outstanding = $pdo->prepare(
+            "SELECT remaining_balance
+               FROM cash_advance_history
+              WHERE employee_id = :emp_id
+                AND status = 'Active'
+                AND remaining_balance > 0
+              LIMIT 1"
+        );
+        $outstanding->execute([':emp_id' => $employeeId]);
+        $balance = $outstanding->fetchColumn();
+        if ($balance !== false) {
+            throw new RuntimeException(
+                'A new cash advance cannot be requested while ₱'
+                . number_format((float) $balance, 2)
+                . ' remains outstanding.'
+            );
+        }
 
         // Check for existing cash advance requests (Pending, HRApproved, or Approved)
         // in the same week for this employee

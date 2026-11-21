@@ -295,7 +295,10 @@ final class PayrollService
         $stmt = $pdo->prepare(
             "SELECT pr.payroll_run_id,
                     pr.payroll_period_id,
+                    pr.branch_id,
                     pr.status,
+                    pr.computed_by,
+                    pr.submitted_by,
                     pr.return_reason,
                     pr.cancellation_reason,
                     pr.cancelled_at,
@@ -480,6 +483,19 @@ final class PayrollService
             throw new RuntimeException('Only Draft, Computed, or Returned payroll runs can be computed.');
         }
 
+        $exceptions = $this->unresolvedAttendanceExceptions($pdo, $run);
+        if ($exceptions !== []) {
+            $examples = array_slice(array_map(
+                static fn (array $row): string => $row['employee_name'] . ' (' . $row['attendance_date'] . ': ' . $row['status'] . ')',
+                $exceptions,
+            ), 0, 5);
+            throw new RuntimeException(
+                'Payroll cannot be computed while attendance exceptions are unresolved: '
+                . implode(', ', $examples)
+                . (count($exceptions) > 5 ? ' and ' . (count($exceptions) - 5) . ' more.' : '.')
+            );
+        }
+
         $adjustmentCheck = $pdo->prepare(
             "SELECT COUNT(*)
                FROM payroll_adjustment
@@ -518,21 +534,67 @@ final class PayrollService
                FROM employee_branch_assignment eba
                JOIN employee e ON e.employee_id = eba.employee_id
                JOIN salary s
-                 ON s.employee_id   = e.employee_id
-                AND s.effective_from <= :ps1
-                AND (s.effective_to IS NULL OR s.effective_to > :ps2)
-                AND s.status = 'Active'
+                 ON s.employee_id = e.employee_id
+                AND s.effective_from <= :pe1
+                AND (s.effective_to IS NULL OR s.effective_to > :ps1)
+                AND s.status IN ('Active', 'Superseded')
+                AND (
+                    -- Prefer the single historical rate in force on the
+                    -- period start. A later effective rate cannot erase it.
+                    (s.effective_from <= :ps2 AND (s.effective_to IS NULL OR s.effective_to > :ps3))
+                    OR (
+                        -- A mid-period hire has no rate on period start; use
+                        -- the first valid rate that begins during the period.
+                        NOT EXISTS (
+                            SELECT 1
+                              FROM salary s_at_start
+                             WHERE s_at_start.employee_id = e.employee_id
+                               AND s_at_start.effective_from <= :ps12
+                               AND (s_at_start.effective_to IS NULL OR s_at_start.effective_to > :ps13)
+                               AND s_at_start.status IN ('Active', 'Superseded')
+                        )
+                        AND NOT EXISTS (
+                            SELECT 1
+                              FROM salary s_earlier
+                             WHERE s_earlier.employee_id = e.employee_id
+                               AND s_earlier.effective_from >= :ps14
+                               AND s_earlier.effective_from < s.effective_from
+                               AND s_earlier.effective_from <= :pe5
+                               AND s_earlier.status IN ('Active', 'Superseded')
+                        )
+                    )
+                )
                LEFT JOIN employee_schedule_assignment esa
                  ON esa.employee_id = e.employee_id
-                AND esa.effective_from <= :ps3
-                AND (esa.effective_to IS NULL OR esa.effective_to > :ps4)
+                AND esa.effective_from <= :ps4
+                AND (esa.effective_to IS NULL OR esa.effective_to > :ps5)
                 AND esa.status = 'Active'
                LEFT JOIN work_schedule ws
                  ON ws.schedule_id = esa.schedule_id
               WHERE eba.branch_id     = (SELECT branch_id FROM payroll_run WHERE payroll_run_id = :run_id)
-                AND eba.effective_from <= :ps5
+                AND e.hire_date <= :pe2
+                AND eba.effective_from <= :pe3
                 AND (eba.effective_to IS NULL OR eba.effective_to > :ps6)
-                AND e.status = 'Active'"
+                AND (
+                    (eba.effective_from <= :ps7 AND (eba.effective_to IS NULL OR eba.effective_to > :ps8))
+                    OR NOT EXISTS (
+                        SELECT 1
+                          FROM employee_branch_assignment eba_at_start
+                         WHERE eba_at_start.employee_id = e.employee_id
+                           AND eba_at_start.effective_from <= :ps9
+                           AND (eba_at_start.effective_to IS NULL OR eba_at_start.effective_to > :ps10)
+                    )
+                )
+                AND (
+                    e.status = 'Active'
+                    OR EXISTS (
+                        SELECT 1
+                          FROM employee_employment_episode eee
+                         WHERE eee.employee_id = e.employee_id
+                           AND eee.started_on <= :pe4
+                           AND (eee.ended_on IS NULL OR eee.ended_on >= :ps11)
+                    )
+                )"
         );
         $stmt->execute([
             ':ps1'    => $periodStart,
@@ -541,6 +603,19 @@ final class PayrollService
             ':ps4'    => $periodStart,
             ':ps5'    => $periodStart,
             ':ps6'    => $periodStart,
+            ':ps7'    => $periodStart,
+            ':ps8'    => $periodStart,
+            ':ps9'    => $periodStart,
+            ':ps10'   => $periodStart,
+            ':ps11'   => $periodStart,
+            ':ps12'   => $periodStart,
+            ':ps13'   => $periodStart,
+            ':ps14'   => $periodStart,
+            ':pe1'    => $periodEnd,
+            ':pe2'    => $periodEnd,
+            ':pe3'    => $periodEnd,
+            ':pe4'    => $periodEnd,
+            ':pe5'    => $periodEnd,
             ':run_id' => $runId,
         ]);
         $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -595,10 +670,16 @@ final class PayrollService
                        LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
                       WHERE a.employee_id = :emp_id
                         AND attendance_date BETWEEN :start AND :end
+                        AND a.branch_assignment_id = :branch_assignment_id
                         AND a.status IN ('Complete','Approved')
                         AND (a.import_batch_id IS NULL OR aib.status IN ('Approved','Completed'))"
                 );
-                $stmt->execute([':emp_id' => $employeeId, ':start' => $periodStart, ':end' => $periodEnd]);
+                $stmt->execute([
+                    ':emp_id' => $employeeId,
+                    ':start' => $periodStart,
+                    ':end' => $periodEnd,
+                    ':branch_assignment_id' => $baId,
+                ]);
                 $attendanceRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 $daysCount = count($attendanceRows);
                 $totalLate = array_sum(array_map(static fn (array $row): int => (int) $row['late_minutes'], $attendanceRows));
@@ -639,20 +720,22 @@ final class PayrollService
                 $holidayEarningRows = [];
 
                 $hStmt = $pdo->prepare(
-                    "SELECT a.attendance_id,
-                            a.attendance_date,
-                            a.hours_worked_minutes,
+                    "SELECT hc.holiday_date AS attendance_date,
+                            a.attendance_id,
+                            COALESCE(a.hours_worked_minutes, 0) AS hours_worked_minutes,
                             hc.holiday_type,
                             hc.description AS holiday_description
-                       FROM attendance a
-                       LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
-                       JOIN holiday_calendar hc
-                         ON hc.holiday_date = a.attendance_date
+                       FROM holiday_calendar hc
+                       LEFT JOIN attendance a
+                         ON a.employee_id = :emp_id
+                        AND a.attendance_date = hc.holiday_date
+                        AND a.status IN ('Complete','Approved')
+                       LEFT JOIN attendance_import_batch aib
+                         ON aib.import_batch_id = a.import_batch_id
+                        AND aib.status IN ('Approved','Completed')
+                      WHERE hc.holiday_date BETWEEN :start AND :end
                         AND hc.status = 'Active'
-                      WHERE a.employee_id = :emp_id
-                        AND a.attendance_date BETWEEN :start AND :end
-                         AND a.status IN ('Complete','Approved')
-                         AND (a.import_batch_id IS NULL OR aib.status IN ('Approved','Completed'))"
+                        AND (a.attendance_id IS NULL OR a.import_batch_id IS NULL OR aib.import_batch_id IS NOT NULL)"
                 );
                 $hStmt->execute([
                     ':emp_id' => $employeeId,
@@ -734,8 +817,14 @@ final class PayrollService
                 // --- Undertime deduction ---
                 $undertimeDed = round($totalUndertime * $minuteRate, 2);
 
-                // --- Cash advance outstanding balance ---
-                $caDed = $this->outstandingCashAdvance($pdo, $employeeId);
+                // --- Cash advance repayment ---
+                // A debt cannot be marked as collected when no take-home pay
+                // is available. Statutory and attendance deductions retain
+                // their calculated values; cash advance repayment uses only
+                // the remaining payable amount and is settled on final approval.
+                $cashAdvanceDue = $this->outstandingCashAdvance($pdo, $employeeId);
+                $cashAdvanceCapacity = max(0.0, $grossPay - $sssEmployee - $philEmployee - $pagEmployee - $lateDed - $undertimeDed);
+                $caDed = min($cashAdvanceDue, $cashAdvanceCapacity);
 
                 // --- Totals ---
                 $totalDed = $sssEmployee + $philEmployee + $pagEmployee + $lateDed + $undertimeDed + $caDed;
@@ -774,7 +863,17 @@ final class PayrollService
                 $payrollId = (int) $pdo->lastInsertId();
 
                 // --- Earnings rows ---
-                $this->insertEarning($pdo, $payrollId, 'Basic', 'Basic Pay', $daysCount, $dailyRate, 1.0, $basicPay, $now);
+                $this->insertEarning(
+                    $pdo,
+                    $payrollId,
+                    'Basic',
+                    sprintf('Basic Pay — %d paid day(s) × ₱%s', $daysCount, number_format($dailyRate, 2)),
+                    $daysCount,
+                    $dailyRate,
+                    1.0,
+                    $basicPay,
+                    $now,
+                );
                 foreach ($paidLeaveRows as $leave) {
                     $leaveAmount = round((float) $leave['days'] * $dailyRate, 2);
                     $this->insertEarning(
@@ -824,28 +923,6 @@ final class PayrollService
                 }
                 if ($caDed > 0) {
                     $this->insertDeduction($pdo, $payrollId, 'CashAdvance', 'Cash advance repayment', 1, $caDed, $caDed, $now);
-
-                    // Decrement the remaining balance on the active obligation row.
-                    // If the repayment clears the balance entirely, mark it Settled
-                    // so it is excluded from future runs.
-                    $pdo->prepare(
-                        "UPDATE cash_advance_history
-                            SET remaining_balance = GREATEST(0, remaining_balance - :deducted),
-                                status = CASE
-                                    WHEN GREATEST(0, remaining_balance - :deducted2) = 0
-                                    THEN 'Settled'
-                                    ELSE status
-                                END,
-                                updated_at = NOW()
-                          WHERE employee_id = :emp_id
-                            AND status = 'Active'
-                          ORDER BY approved_at DESC
-                          LIMIT 1"
-                    )->execute([
-                        ':deducted'  => $caDed,
-                        ':deducted2' => $caDed,
-                        ':emp_id'    => $employeeId,
-                    ]);
                 }
 
                 // --- Government contribution deduction rows + contribution_record ---
@@ -976,11 +1053,31 @@ final class PayrollService
         if ($run['status'] !== 'PendingOwnerApproval') {
             throw new RuntimeException('Only runs pending approval can be approved.');
         }
+        if ($reviewedByUserId === (int) ($run['computed_by'] ?? 0)
+            || $reviewedByUserId === (int) ($run['submitted_by'] ?? 0)) {
+            throw new RuntimeException('The user who computed or submitted a payroll run cannot approve it.');
+        }
 
         $now = $this->utcNow();
 
         $this->connection->transaction(function () use ($pdo, $runId, $reviewedByUserId, $now): void {
-            // 1. Mark run as Approved
+            // Lock and revalidate the separation-of-duties check. The initial
+            // read above is only for a fast, friendly error; this lock is the
+            // authoritative check under concurrent requests.
+            $locked = $pdo->prepare(
+                'SELECT status, computed_by, submitted_by FROM payroll_run WHERE payroll_run_id = :id FOR UPDATE'
+            );
+            $locked->execute([':id' => $runId]);
+            $lockedRun = $locked->fetch(PDO::FETCH_ASSOC);
+            if ($lockedRun === false || $lockedRun['status'] !== 'PendingOwnerApproval') {
+                throw new RuntimeException('This payroll run changed status and can no longer be approved.');
+            }
+            if ($reviewedByUserId === (int) ($lockedRun['computed_by'] ?? 0)
+                || $reviewedByUserId === (int) ($lockedRun['submitted_by'] ?? 0)) {
+                throw new RuntimeException('The user who computed or submitted a payroll run cannot approve it.');
+            }
+
+            // 1. Mark run as Approved.
             $updated = $pdo->prepare(
                 "UPDATE payroll_run SET
                     status      = 'Approved',
@@ -995,7 +1092,70 @@ final class PayrollService
                 throw new RuntimeException('This payroll run changed status and can no longer be approved.');
             }
 
-            // 2. Payroll approval finalizes all of its generated contribution records.
+            // 2. A computed payroll is a preview only. Cash-advance balances
+            // are reduced exclusively here, when the payroll has final Owner
+            // approval. Each repayment is linked to its payroll deduction so
+            // cancellation, return, and re-computation cannot double-charge it.
+            $cashDeductions = $pdo->prepare(
+                "SELECT p.payroll_id, p.employee_id, d.deduction_id, d.amount
+                   FROM payroll p
+                   JOIN deduction d ON d.payroll_id = p.payroll_id
+                  WHERE p.payroll_run_id = :run_id
+                    AND d.deduction_type = 'CashAdvance'
+                  FOR UPDATE"
+            );
+            $cashDeductions->execute([':run_id' => $runId]);
+            $history = $pdo->prepare(
+                "SELECT history_id, remaining_balance
+                   FROM cash_advance_history
+                  WHERE employee_id = :employee_id
+                    AND status = 'Active'
+                  ORDER BY approved_at DESC
+                  LIMIT 1
+                  FOR UPDATE"
+            );
+            $insertRepayment = $pdo->prepare(
+                "INSERT INTO cash_advance_repayment
+                    (history_id, payroll_id, deduction_id, amount, created_at)
+                 VALUES (:history_id, :payroll_id, :deduction_id, :amount, :created_at)"
+            );
+            $settleHistory = $pdo->prepare(
+                "UPDATE cash_advance_history
+                    SET remaining_balance = remaining_balance - :amount,
+                        status = CASE WHEN remaining_balance - :amount2 = 0 THEN 'Paid' ELSE 'Active' END,
+                        updated_at = :updated_at
+                  WHERE history_id = :history_id
+                    AND remaining_balance >= :amount3"
+            );
+            foreach ($cashDeductions->fetchAll(PDO::FETCH_ASSOC) as $deduction) {
+                $amount = (float) $deduction['amount'];
+                $history->execute([':employee_id' => $deduction['employee_id']]);
+                $advance = $history->fetch(PDO::FETCH_ASSOC);
+                if ($advance === false || (float) $advance['remaining_balance'] < $amount) {
+                    throw new RuntimeException(
+                        'Cash advance balance changed after computation. Recompute the payroll before approving it.'
+                    );
+                }
+                $insertRepayment->execute([
+                    ':history_id' => $advance['history_id'],
+                    ':payroll_id' => $deduction['payroll_id'],
+                    ':deduction_id' => $deduction['deduction_id'],
+                    ':amount' => $amount,
+                    ':created_at' => $now,
+                ]);
+                $settleHistory->execute([
+                    ':amount' => $amount,
+                    ':amount2' => $amount,
+                    ':amount3' => $amount,
+                    ':updated_at' => $now,
+                    ':history_id' => $advance['history_id'],
+                ]);
+                if ($settleHistory->rowCount() !== 1) {
+                    throw new RuntimeException('Cash advance balance changed while approving payroll. Try again.');
+                }
+            }
+
+            // 3. Payroll approval finalizes all of its generated contribution records.
             // Individual records cannot be independently locked or reopened.
             $pdo->prepare(
                 "UPDATE contribution_record cr
@@ -1010,7 +1170,7 @@ final class PayrollService
                 ':run_id'    => $runId,
             ]);
 
-            // 3. Generate one payslip row per employee payroll row (REQ048)
+            // 4. Generate one payslip row per employee payroll row (REQ048)
             // Skip employees that already have a payslip for this run
             $stmt = $pdo->prepare(
                 "SELECT p.payroll_id
@@ -1038,7 +1198,7 @@ final class PayrollService
                 ]);
             }
 
-            // 4. Audit log
+            // 5. Audit log
             $pdo->prepare(
                 "INSERT INTO audit_logs
                     (user_id, event_type, action_performed, table_affected, record_id,
@@ -1501,8 +1661,7 @@ final class PayrollService
                     COALESCE(ws.work_start_time, '07:00:00') AS work_start_time,
                     COALESCE(ws.work_end_time, '16:00:00') AS work_end_time,
                     COALESCE(ws.break_minutes, 60) AS break_minutes,
-                    COALESCE(ws.standard_minutes, 480) AS standard_minutes,
-                    COALESCE(ws.overtime_allowed, 0) AS overtime_allowed
+                    COALESCE(ws.standard_minutes, 480) AS standard_minutes
                FROM attendance a
                LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
                LEFT JOIN work_schedule ws ON ws.schedule_id = a.schedule_id
@@ -1517,9 +1676,6 @@ final class PayrollService
 
         $payable = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            if (!(bool) $row['overtime_allowed']) {
-                continue;
-            }
             $date = (string) $row['attendance_date'];
             $minutes = $this->approvedOvertimeCalc->payableMinutesForAttendance(
                 $row['time_in'] !== null ? (string) $row['time_in'] : null,
@@ -1535,6 +1691,36 @@ final class PayrollService
             }
         }
         return $payable;
+    }
+
+    /**
+     * Payroll must never silently omit a day that needs HR attention. The
+     * compute action presents these as a blocking, actionable error instead
+     * of producing a partial payroll that looks complete.
+     *
+     * @param array<string,mixed> $run
+     * @return list<array{employee_name:string,attendance_date:string,status:string}>
+     */
+    private function unresolvedAttendanceExceptions(PDO $pdo, array $run): array
+    {
+        $stmt = $pdo->prepare(
+            "SELECT CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    a.attendance_date,
+                    a.status
+               FROM attendance a
+               JOIN employee e ON e.employee_id = a.employee_id
+               JOIN employee_branch_assignment eba ON eba.branch_assignment_id = a.branch_assignment_id
+              WHERE eba.branch_id = :branch_id
+                AND a.attendance_date BETWEEN :period_start AND :period_end
+                AND a.status IN ('Incomplete', 'ReviewRequired')
+              ORDER BY a.attendance_date, e.last_name, e.first_name"
+        );
+        $stmt->execute([
+            ':branch_id' => $run['branch_id'],
+            ':period_start' => $run['period_start'],
+            ':period_end' => $run['period_end'],
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     // ===================================================================
