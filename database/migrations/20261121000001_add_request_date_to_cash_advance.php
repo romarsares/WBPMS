@@ -15,10 +15,21 @@ final class AddRequestDateToCashAdvance extends AbstractMigration
 {
     public function up(): void
     {
-        // Add request_date column to cash_advance_request_detail
+        // Add as nullable first: existing rows would otherwise get '0000-00-00',
+        // which strict-mode MySQL rejects and crashes the deploy.
         $this->table('cash_advance_request_detail')
-            ->addColumn('request_date', 'date', ['null' => false, 'after' => 'amount'])
+            ->addColumn('request_date', 'date', ['null' => true, 'default' => null, 'after' => 'amount'])
             ->save();
+
+        // Backfill existing rows from the parent request's creation date
+        $this->execute(
+            'UPDATE cash_advance_request_detail d '
+            . 'JOIN request r ON r.request_id = d.request_id '
+            . 'SET d.request_date = DATE(r.created_at) '
+            . 'WHERE d.request_date IS NULL'
+        );
+
+        $this->execute('ALTER TABLE cash_advance_request_detail MODIFY request_date DATE NOT NULL');
 
         // Add index for efficient weekly queries
         $this->table('cash_advance_request_detail')
