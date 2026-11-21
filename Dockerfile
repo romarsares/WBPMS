@@ -20,6 +20,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         zip \
         unzip \
         curl \
+        git \
     && rm -rf /var/lib/apt/lists/*
 
 # ── PHP extensions ───────────────────────────────────────────
