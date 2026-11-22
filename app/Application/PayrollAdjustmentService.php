@@ -145,12 +145,12 @@ final class PayrollAdjustmentService
             $runTotals = $totals->fetch(PDO::FETCH_ASSOC);
             $pdo->prepare(
                 "UPDATE payroll_run
-                    SET status = 'Computed', gross_pay = :gross, total_deductions = :dedctions,
+                    SET status = 'Computed', gross_pay = :gross, total_deductions = :deductions,
                         net_pay = :net, updated_at = :updated_at
                   WHERE payroll_run_id = :run_id"
             )->execute([
                 ':gross' => $runTotals['gross'],
-                ':dedctions' => $runTotals['deductions'],
+                ':deductions' => $runTotals['deductions'],
                 ':net' => $runTotals['net'],
                 ':updated_at' => $now,
                 ':run_id' => $runId,
