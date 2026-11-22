@@ -36,13 +36,28 @@ final class ScheduleController
      */
     public function index(array $params = []): void
     {
-        $repo      = $this->repo();
-        $schedules = $repo->findAll();
+        $repo = $this->repo();
+
+        // Pagination for schedules
+        $page      = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize  = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
+        $totalSchedules = $repo->countAll();
+        $totalPages = max(1, (int) ceil($totalSchedules / $pageSize));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $pageSize;
+
+        $schedules = $repo->findAll($page, $pageSize);
         $holidays  = $repo->upcomingHolidays();
         $assignments = $repo->findAllAssignments();
 
-        $total    = count($schedules);
-        $active   = count(array_filter($schedules, fn($s) => strtolower($s['status']) === 'active'));
+        // Get global active count (not just current page)
+        $activeCount = $repo->countActive();
+        $total    = $totalSchedules;
+        $active   = $activeCount;
         $hTotal   = count($holidays);
         $upcoming = count(array_filter($holidays, fn($h) => $h['holiday_date'] >= date('Y-m-d')));
 
@@ -55,6 +70,9 @@ final class ScheduleController
             'hTotal'      => $hTotal,
             'upcoming'    => $upcoming,
             'errors'      => [],
+            'page'        => $page,
+            'totalPages'  => $totalPages,
+            'pageSize'    => $pageSize,
         ], 'Work Schedules');
     }
 
@@ -301,11 +319,29 @@ final class ScheduleController
      */
     public function holidayIndex(array $params = []): void
     {
-        $holidays = $this->repo()->findAllHolidays();
+        $repo = $this->repo();
+
+        // Pagination for holidays
+        $page      = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize  = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
+        $totalHolidays = $repo->countAllHolidays();
+        $totalPages = max(1, (int) ceil($totalHolidays / $pageSize));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $pageSize;
+
+        $holidays = $repo->findAllHolidays($page, $pageSize);
 
         ViewRenderer::render('hr/schedules/holidays', [
-            'holidays' => $holidays,
-            'errors'   => [],
+            'holidays'   => $holidays,
+            'errors'     => [],
+            'page'       => $page,
+            'totalPages' => $totalPages,
+            'pageSize'   => $pageSize,
+            'total'      => $totalHolidays,
         ], 'Holiday Calendar');
     }
 

@@ -11,10 +11,15 @@ use Wbpms\Http\View\Formatter;
  *     issued_at:string, acknowledged_at:string|null,
  *     flag_type:string|null, triggering_date:string|null
  *   }> $notices
+ *   int $page, $totalPages, $total, $pageSize
  *   string $base, $csrf
  */
 
 $notices ??= [];
+$page ??= 1;
+$totalPages ??= 1;
+$total ??= 0;
+$pageSize ??= 50;
 
 /**
  * Map a flag_type to a human-readable label shown on the notice card.
@@ -66,6 +71,23 @@ $flagReason = static function (?string $type): string {
         <h1>HR Notices</h1>
         <p style="margin:0;color:#6b7280">Messages issued to you by Human Resources regarding your attendance records.</p>
     </div>
+</div>
+
+<!-- Per-page selector -->
+<div class="card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
+    <form method="GET" action="<?= $base ?>/employee/notices" style="display:flex;gap:.75rem;align-items:flex-end">
+        <div style="display:flex;align-items:flex-end;margin-left:auto">
+            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Per page</label>
+            <select name="page_size" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
+                <option value="10" <?= $pageSize === 10 ? 'selected' : '' ?>>10</option>
+                <option value="20" <?= $pageSize === 20 ? 'selected' : '' ?>>20</option>
+                <option value="30" <?= $pageSize === 30 ? 'selected' : '' ?>>30</option>
+                <option value="50" <?= $pageSize === 50 ? 'selected' : '' ?>>50</option>
+                <option value="100" <?= $pageSize === 100 ? 'selected' : '' ?>>100</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
+    </form>
 </div>
 
 <?php if ($notices === []): ?>
@@ -127,4 +149,81 @@ $flagReason = static function (?string $type): string {
             </article>
         <?php endforeach; ?>
     </div>
+
+    <!-- Pagination -->
+    <?php if ($totalPages > 1): ?>
+    <div class="card" style="padding:1rem 1.25rem;margin-top:1rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem">
+        <div style="font-size:.875rem;color:#374151">
+            Showing
+            <strong><?= (int) (($page - 1) * $pageSize + 1) ?></strong>
+            to
+            <strong><?= (int) min($page * $pageSize, $total) ?></strong>
+            of
+            <strong><?= (int) $total ?></strong>
+            notices
+        </div>
+        <nav aria-label="Notices pagination">
+            <ul style="display:flex;gap:.25rem;list-style:none;margin:0;padding:0">
+                <!-- Previous -->
+                <?php if ($page > 1): ?>
+                <li>
+                    <a href="<?= $base ?>/employee/notices?page=<?= $page - 1 ?>&page_size=<?= $pageSize ?>"
+                       class="btn btn-secondary btn-sm" aria-label="Previous page">« Prev</a>
+                </li>
+                <?php else: ?>
+                <li>
+                    <span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:not-allowed" aria-disabled="true">« Prev</span>
+                </li>
+                <?php endif; ?>
+
+                <!-- Page numbers -->
+                <?php
+                $start = max(1, $page - 2);
+                $end   = min($totalPages, $page + 2);
+                if ($start > 1): ?>
+                <li>
+                    <a href="<?= $base ?>/employee/notices?page=1&page_size=<?= $pageSize ?>"
+                       class="btn btn-secondary btn-sm">1</a>
+                </li>
+                <?php if ($start > 2): ?>
+                <li><span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:default">…</span></li>
+                <?php endif; ?>
+                <?php endif; ?>
+
+                <?php for ($p = $start; $p <= $end; $p++): ?>
+                <li>
+                    <?php if ($p === $page): ?>
+                    <span class="btn btn-primary btn-sm" aria-current="page"><?= $p ?></span>
+                    <?php else: ?>
+                    <a href="<?= $base ?>/employee/notices?page=<?= $p ?>&page_size=<?= $pageSize ?>"
+                       class="btn btn-secondary btn-sm"><?= $p ?></a>
+                    <?php endif; ?>
+                </li>
+                <?php endfor; ?>
+
+                <?php if ($end < $totalPages): ?>
+                <?php if ($end < $totalPages - 1): ?>
+                <li><span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:default">…</span></li>
+                <?php endif; ?>
+                <li>
+                    <a href="<?= $base ?>/employee/notices?page=<?= $totalPages ?>&page_size=<?= $pageSize ?>"
+                       class="btn btn-secondary btn-sm"><?= $totalPages ?></a>
+                </li>
+                <?php endif; ?>
+
+                <!-- Next -->
+                <?php if ($page < $totalPages): ?>
+                <li>
+                    <a href="<?= $base ?>/employee/notices?page=<?= $page + 1 ?>&page_size=<?= $pageSize ?>"
+                       class="btn btn-secondary btn-sm" aria-label="Next page">Next »</a>
+                </li>
+                <?php else: ?>
+                <li>
+                    <span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:not-allowed" aria-disabled="true">Next »</span>
+                </li>
+                <?php endif; ?>
+            </ul>
+        </nav>
+    </div>
+    <?php endif; ?>
 <?php endif; ?>

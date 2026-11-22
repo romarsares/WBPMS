@@ -278,6 +278,33 @@ final class EmployeeDocumentService
     }
 
     /**
+     * Return paginated documents for an employee.
+     *
+     * @return array{
+     *     documents:   list<array<string, mixed>>,
+     *     total:       int,
+     *     page:        int,
+     *     pageSize:    int,
+     *     totalPages:  int,
+     * }
+     */
+    public function listForEmployeePaginated(int $employeeId, int $page = 1, int $pageSize = 50): array
+    {
+        $repo = new EmployeeDocumentRepository($this->connection);
+        $total = $repo->countByEmployee($employeeId);
+        $totalPages = (int) ceil($total / $pageSize);
+        $documents = $repo->findByEmployee($employeeId, $page, $pageSize);
+
+        return [
+            'documents'  => $documents,
+            'total'      => $total,
+            'page'       => $page,
+            'pageSize'   => $pageSize,
+            'totalPages' => $totalPages,
+        ];
+    }
+
+    /**
      * Return a single document row, asserting it belongs to the given employee.
      *
      * @return array<string, mixed>
@@ -292,6 +319,17 @@ final class EmployeeDocumentService
         }
 
         return $doc;
+    }
+
+    /**
+     * Return the configured page size.
+     *
+     * @param int|null $pageSize  Optional override
+     * @return int
+     */
+    public function pageSize(?int $pageSize = null): int
+    {
+        return $pageSize ?? EmployeeDocumentRepository::PAGE_SIZE;
     }
 
     // -----------------------------------------------------------------------

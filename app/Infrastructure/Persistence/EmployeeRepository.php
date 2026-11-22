@@ -22,6 +22,11 @@ use Wbpms\Infrastructure\Database\Connection;
  */
 final class EmployeeRepository extends AbstractRepository implements EmployeeSetupGateway
 {
+    /**
+     * Page size for paginated employee lists.
+     */
+    private const PAGE_SIZE = 10;
+
     // -----------------------------------------------------------------------
     // EmployeeSetupGateway implementation
     // -----------------------------------------------------------------------
@@ -671,6 +676,164 @@ final class EmployeeRepository extends AbstractRepository implements EmployeeSet
         );
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // -----------------------------------------------------------------------
+    // Pagination helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Build WHERE clause and parameters from filter array.
+     *
+     * @param  array{search?: string, branch?: string|int, status?: string, position?: string} $filters
+     * @return array{where: string, params: array<string, mixed>}
+     */
+    private function buildWhere(array $filters): array
+    {
+        $where  = [];
+        $params = [];
+
+        // Status filter
+        $status = $filters['status'] ?? '';
+        if ($status !== '') {
+            $where[]           = 'e.status = :status';
+            $params[':status'] = ucfirst(strtolower($status));
+        }
+
+        // Branch filter (by branch_id)
+        $branchId = (string) ($filters['branch'] ?? '');
+        if ($branchId !== '') {
+            $where[]               = 'eba.branch_id = :branch_id';
+            $params[':branch_id']  = (int) $branchId;
+        }
+
+        // Position filter (exact match against employee.position)
+        $position = trim((string) ($filters['position'] ?? ''));
+        if ($position !== '') {
+            $where[]               = 'e.position = :position';
+            $params[':position']   = $position;
+        }
+
+        // Search by name or employee number
+        $search = trim((string) ($filters['search'] ?? ''));
+        if ($search !== '') {
+            $where[]               = '(e.last_name LIKE :search_ln OR e.first_name LIKE :search_fn OR e.employee_number LIKE :search_en)';
+            $params[':search_ln']  = '%' . $search . '%';
+            $params[':search_fn']  = '%' . $search . '%';
+            $params[':search_en']  = '%' . $search . '%';
+        }
+
+        $whereClause = $where !== [] ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        return ['where' => $whereClause, 'params' => $params];
+    }
+
+    /**
+     * Return a paginated list of employees with their current branch and schedule.
+     *
+     * @param  array{search?: string, branch?: string|int, status?: string, position?: string} $filters
+     * @param  int $page  1-based page number
+     * @return list<array{
+     *   id: int,
+     *   employee_number: string,
+     *   last_name: string,
+     *   first_name: string,
+     *   position: string,
+     *   branch_name: string,
+     *   schedule_name: string,
+     *   status: string,
+     *   effective_from: string,
+     *   has_hr_access: int
+     * }>
+     */
+    public function findPaginated(array $filters = [], int $page = 1, int $pageSize = self::PAGE_SIZE): array
+    {
+        $page = max(1, $page);
+        $offset = ($page - 1) * $pageSize;
+
+        $built = $this->buildWhere($filters);
+        $whereClause = $built['where'];
+        $params = $built['params'];
+
+        $sql = <<<SQL
+            SELECT
+                e.employee_id              AS id,
+                e.employee_number,
+                e.last_name,
+                e.first_name,
+                COALESCE(e.position, '—')        AS position,
+                COALESCE(b.branch_name, '—')     AS branch_name,
+                COALESCE(
+                    CONCAT(ws.work_start_time, ' – ', ws.work_end_time),
+                    '—'
+                )                                AS schedule_name,
+                LOWER(e.status)                  AS status,
+                COALESCE(eba.effective_from, e.hire_date) AS effective_from,
+                -- Check if linked user has HRHead role
+                COALESCE((
+                    SELECT 1 FROM user_role ur
+                    JOIN role r ON r.role_id = ur.role_id
+                    JOIN users u ON u.user_id = ur.user_id
+                    WHERE u.employee_id = e.employee_id
+                      AND u.status != 'Archived'
+                      AND r.role_name = 'HRHead'
+                    LIMIT 1
+                ), 0) AS has_hr_access
+            FROM employee e
+            LEFT JOIN employee_branch_assignment eba
+                   ON eba.employee_id = e.employee_id
+                  AND eba.effective_to IS NULL
+            LEFT JOIN branch b ON b.branch_id = eba.branch_id
+            LEFT JOIN employee_schedule_assignment esa
+                   ON esa.employee_id = e.employee_id
+                  AND esa.effective_to IS NULL
+                  AND esa.status = 'Active'
+            LEFT JOIN work_schedule ws ON ws.schedule_id = esa.schedule_id
+            {$whereClause}
+            ORDER BY e.last_name ASC, e.first_name ASC
+            LIMIT {$offset}, {$pageSize}
+        SQL;
+
+        $stmt = $this->pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Count total employees matching the given filters (for pagination).
+     *
+     * @param  array{search?: string, branch?: string|int, status?: string, position?: string} $filters
+     * @return int
+     */
+    public function countFiltered(array $filters = []): int
+    {
+        $built = $this->buildWhere($filters);
+        $whereClause = $built['where'];
+        $params = $built['params'];
+
+        $sql = "SELECT COUNT(*) FROM employee e
+                LEFT JOIN employee_branch_assignment eba
+                       ON eba.employee_id = e.employee_id
+                      AND eba.effective_to IS NULL
+                LEFT JOIN branch b ON b.branch_id = eba.branch_id
+                {$whereClause}";
+
+        $stmt = $this->pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Return the configured page size.
+     *
+     * @param int|null $pageSize  Optional override
+     * @return int
+     */
+    public function pageSize(?int $pageSize = null): int
+    {
+        return $pageSize ?? self::PAGE_SIZE;
     }
 
     // -----------------------------------------------------------------------

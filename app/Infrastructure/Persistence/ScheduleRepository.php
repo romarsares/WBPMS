@@ -9,10 +9,13 @@ use PDO;
 /** Persistence for reusable schedule templates and employee assignments. */
 final class ScheduleRepository extends AbstractRepository
 {
+    public const PAGE_SIZE = 10;
+
     /** @return list<array<string, mixed>> */
-    public function findAll(): array
+    public function findAll(int $page = 1, int $pageSize = self::PAGE_SIZE): array
     {
-        $stmt = $this->pdo()->query(
+        $offset = ($page - 1) * $pageSize;
+        $stmt = $this->pdo()->prepare(
             "SELECT ws.schedule_id AS id, ws.schedule_name, ws.working_days, ws.rest_days,
                     ws.work_start_time AS time_in, ws.work_end_time AS time_out,
                     ws.break_minutes, ws.break_start_time, ws.break_end_time,
@@ -20,9 +23,34 @@ final class ScheduleRepository extends AbstractRepository
                     ws.standard_minutes, ws.effective_from, ws.effective_to,
                     LOWER(ws.status) AS status
              FROM work_schedule ws
-             ORDER BY ws.schedule_name ASC, ws.work_start_time ASC"
+             ORDER BY ws.schedule_name ASC, ws.work_start_time ASC
+             LIMIT :offset, :pageSize"
         );
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->bindValue(':pageSize', $pageSize, \PDO::PARAM_INT);
+        $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function countAll(): int
+    {
+        return (int) $this->pdo()->query("SELECT COUNT(*) FROM work_schedule")->fetchColumn();
+    }
+
+    /**
+     * Return the configured page size.
+     *
+     * @param int|null $pageSize  Optional override
+     * @return int
+     */
+    public function pageSize(?int $pageSize = null): int
+    {
+        return $pageSize ?? self::PAGE_SIZE;
+    }
+
+    public function countActive(): int
+    {
+        return (int) $this->pdo()->query("SELECT COUNT(*) FROM work_schedule WHERE LOWER(status) = 'active'")->fetchColumn();
     }
 
     /** @return array<string, mixed>|null */
@@ -292,12 +320,23 @@ final class ScheduleRepository extends AbstractRepository
     }
 
     /** @return list<array<string, mixed>> */
-    public function findAllHolidays(): array
+    public function findAllHolidays(int $page = 1, int $pageSize = self::PAGE_SIZE): array
     {
-        return $this->pdo()->query(
+        $offset = ($page - 1) * $pageSize;
+        $stmt = $this->pdo()->prepare(
             "SELECT holiday_id, holiday_date, description, holiday_type, pay_multiplier, status
-             FROM holiday_calendar ORDER BY holiday_date DESC LIMIT 200"
-        )->fetchAll(PDO::FETCH_ASSOC);
+             FROM holiday_calendar ORDER BY holiday_date DESC
+             LIMIT :offset, :pageSize"
+        );
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->bindValue(':pageSize', $pageSize, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function countAllHolidays(): int
+    {
+        return (int) $this->pdo()->query("SELECT COUNT(*) FROM holiday_calendar")->fetchColumn();
     }
 
     /** @return array<string, mixed>|null */

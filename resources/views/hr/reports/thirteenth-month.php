@@ -12,6 +12,10 @@ use Wbpms\Http\View\Formatter;
  * @var list<array{branch_id:string|int,branch_name:string}> $branches
  * @var list<array{employee_id:string|int,employee_number:string,employee_name:string}> $employees
  * @var array{year:int,branch_id:int,employee_id:int} $filters
+ * @var int $page
+ * @var int $totalPages
+ * @var int $pageSize
+ * @var int $total
  */
 
 $rows ??= [];
@@ -19,6 +23,10 @@ $years ??= [];
 $branches ??= [];
 $employees ??= [];
 $filters ??= ['year' => (int) date('Y'), 'branch_id' => 0, 'employee_id' => 0];
+$page ??= 1;
+$totalPages ??= 1;
+$pageSize ??= 50;
+$total ??= 0;
 
 $query = http_build_query([
     'type' => '13th_month',
@@ -70,6 +78,16 @@ $totalThirteenthMonth = array_sum(array_column($rows, 'thirteenth_month'));
         <?php if ($filters['branch_id'] !== 0 || $filters['employee_id'] !== 0 || $filters['year'] !== (int) date('Y')): ?>
         <a href="<?= $base ?>/hr/reports/13th-month" class="btn btn-secondary">Clear</a>
         <?php endif; ?>
+        <div style="display:flex;align-items:flex-end;margin-left:auto">
+            <label style="font-size:.8rem;font-weight:500;color:#374151;display:block;margin-bottom:.25rem">Per page</label>
+            <select name="page_size" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
+                <option value="10" <?= $pageSize === 10 ? 'selected' : '' ?>>10</option>
+                <option value="20" <?= $pageSize === 20 ? 'selected' : '' ?>>20</option>
+                <option value="30" <?= $pageSize === 30 ? 'selected' : '' ?>>30</option>
+                <option value="50" <?= $pageSize === 50 ? 'selected' : '' ?>>50</option>
+                <option value="100" <?= $pageSize === 100 ? 'selected' : '' ?>>100</option>
+            </select>
+        </div>
     </form>
 </div>
 
@@ -112,3 +130,80 @@ $totalThirteenthMonth = array_sum(array_column($rows, 'thirteenth_month'));
     </table>
     <?php endif; ?>
 </div>
+
+<!-- Pagination -->
+<?php if ($totalPages > 1): ?>
+<div class="card" style="padding:1rem 1.25rem;margin-top:1rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem">
+    <div style="font-size:.875rem;color:#374151">
+        Showing
+        <strong><?= (int) (($page - 1) * $pageSize + 1) ?></strong>
+        to
+        <strong><?= (int) min($page * $pageSize, $total) ?></strong>
+        of
+        <strong><?= (int) $total ?></strong>
+        employees
+    </div>
+    <nav aria-label="13th Month Report pagination">
+        <ul style="display:flex;gap:.25rem;list-style:none;margin:0;padding:0">
+            <!-- Previous -->
+            <?php if ($page > 1): ?>
+            <li>
+                <a href="<?= $base ?>/hr/reports/13th-month?page=<?= $page - 1 ?>&year=<?= (int) $filters['year'] ?>&branch_id=<?= (int) $filters['branch_id'] ?>&employee_id=<?= (int) $filters['employee_id'] ?>&page_size=<?= $pageSize ?>"
+                   class="btn btn-secondary btn-sm" aria-label="Previous page">« Prev</a>
+            </li>
+            <?php else: ?>
+            <li>
+                <span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:not-allowed" aria-disabled="true">« Prev</span>
+            </li>
+            <?php endif; ?>
+
+            <!-- Page numbers -->
+            <?php
+            $start = max(1, $page - 2);
+            $end   = min($totalPages, $page + 2);
+            if ($start > 1): ?>
+            <li>
+                <a href="<?= $base ?>/hr/reports/13th-month?page=1&year=<?= (int) $filters['year'] ?>&branch_id=<?= (int) $filters['branch_id'] ?>&employee_id=<?= (int) $filters['employee_id'] ?>&page_size=<?= $pageSize ?>"
+                   class="btn btn-secondary btn-sm">1</a>
+            </li>
+            <?php if ($start > 2): ?>
+            <li><span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:default">…</span></li>
+            <?php endif; ?>
+            <?php endif; ?>
+
+            <?php for ($p = $start; $p <= $end; $p++): ?>
+            <li>
+                <?php if ($p === $page): ?>
+                <span class="btn btn-primary btn-sm" aria-current="page"><?= $p ?></span>
+                <?php else: ?>
+                <a href="<?= $base ?>/hr/reports/13th-month?page=<?= $p ?>&year=<?= (int) $filters['year'] ?>&branch_id=<?= (int) $filters['branch_id'] ?>&employee_id=<?= (int) $filters['employee_id'] ?>&page_size=<?= $pageSize ?>"
+                   class="btn btn-secondary btn-sm"><?= $p ?></a>
+                <?php endif; ?>
+            </li>
+            <?php endfor; ?>
+
+            <?php if ($end < $totalPages): ?>
+            <?php if ($end < $totalPages - 1): ?>
+            <li><span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:default">…</span></li>
+            <?php endif; ?>
+            <li>
+                <a href="<?= $base ?>/hr/reports/13th-month?page=<?= $totalPages ?>&year=<?= (int) $filters['year'] ?>&branch_id=<?= (int) $filters['branch_id'] ?>&employee_id=<?= (int) $filters['employee_id'] ?>&page_size=<?= $pageSize ?>"
+                   class="btn btn-secondary btn-sm"><?= $totalPages ?></a>
+            </li>
+            <?php endif; ?>
+
+            <!-- Next -->
+            <?php if ($page < $totalPages): ?>
+            <li>
+                <a href="<?= $base ?>/hr/reports/13th-month?page=<?= $page + 1 ?>&year=<?= (int) $filters['year'] ?>&branch_id=<?= (int) $filters['branch_id'] ?>&employee_id=<?= (int) $filters['employee_id'] ?>&page_size=<?= $pageSize ?>"
+                   class="btn btn-secondary btn-sm" aria-label="Next page">Next »</a>
+            </li>
+            <?php else: ?>
+            <li>
+                <span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:not-allowed" aria-disabled="true">Next »</span>
+            </li>
+            <?php endif; ?>
+        </ul>
+    </nav>
+</div>
+<?php endif; ?>

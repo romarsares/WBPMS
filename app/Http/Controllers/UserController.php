@@ -115,18 +115,29 @@ final class UserController
         $filterPosition = trim((string) ($_GET['position'] ?? ''));
         $filterUsername = trim((string) ($_GET['username'] ?? ''));
         $filterStatus   = trim((string) ($_GET['status']   ?? ''));
+        $page           = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize       = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
 
-        $rows = $service->list(
+        $rows = $service->findPaginated(
+            page: $page,
+            pageSize: $pageSize,
             includeArchived: true,
             position:        $filterPosition,
             username:        $filterUsername,
             status:          $filterStatus,
         );
-
-        $total    = count($rows);
-        $active   = count(array_filter($rows, fn($r) => $r['status'] === 'Active'));
-        $inactive = count(array_filter($rows, fn($r) => $r['status'] === 'Inactive'));
-        $archived = count(array_filter($rows, fn($r) => $r['status'] === 'Archived'));
+        $total      = $service->countFiltered(
+            includeArchived: true,
+            position:        $filterPosition,
+            username:        $filterUsername,
+            status:          $filterStatus,
+        );
+        $pageSize   = $service->pageSize($pageSize);
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
 
         // Load active positions for the filter dropdown
         $positions = $this->pdo()->query(
@@ -135,6 +146,17 @@ final class UserController
               WHERE status = 'Active'
               ORDER BY sort_order ASC, position_title ASC"
         )->fetchAll(\PDO::FETCH_ASSOC);
+
+        // Count stats for the summary cards (these are full counts, not paginated)
+        $allRows = $service->list(
+            includeArchived: true,
+            position:        $filterPosition,
+            username:        $filterUsername,
+            status:          $filterStatus,
+        );
+        $active   = count(array_filter($allRows, fn($r) => $r['status'] === 'Active'));
+        $inactive = count(array_filter($allRows, fn($r) => $r['status'] === 'Inactive'));
+        $archived = count(array_filter($allRows, fn($r) => $r['status'] === 'Archived'));
 
         $currentUserId = (int) ($identity['user_id'] ?? 0);
 
@@ -148,6 +170,9 @@ final class UserController
             'filterPosition'  => $filterPosition,
             'filterUsername'  => $filterUsername,
             'filterStatus'    => $filterStatus,
+            'page'            => $page,
+            'totalPages'      => $totalPages,
+            'pageSize'        => $pageSize,
             'currentUserId'   => $currentUserId,
             'roleName'        => $identity['role_name'] ?? '',
             'activePage'      => 'users',

@@ -36,6 +36,30 @@ final class PayrollController
     {
         $pdo = $this->makeConnection()->pdo();
 
+        // Pagination
+        $page      = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize  = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
+        // Count total for pagination
+        $countSql = "SELECT COUNT(*)
+               FROM payroll_run pr
+               JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+               JOIN branch b          ON b.branch_id          = pr.branch_id";
+        $countStmt = $pdo->query($countSql);
+        $totalRuns = (int) $countStmt->fetchColumn();
+        $totalPages = max(1, (int) ceil($totalRuns / $pageSize));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $pageSize;
+
+        // Count statuses globally (not just current page)
+        $draftCount = (int) $pdo->query("SELECT COUNT(*) FROM payroll_run WHERE status IN ('Draft', 'Computed')")->fetchColumn();
+        $pendingCount = (int) $pdo->query("SELECT COUNT(*) FROM payroll_run WHERE status = 'PendingOwnerApproval'")->fetchColumn();
+        $approvedCount = (int) $pdo->query("SELECT COUNT(*) FROM payroll_run WHERE status = 'Approved'")->fetchColumn();
+
+        // Fetch paginated runs
         $runs = $pdo->query(
             "SELECT pr.payroll_run_id,
                     pp.period_start,
@@ -59,20 +83,23 @@ final class PayrollController
                        b.branch_name, pr.status, pr.created_at, pr.submitted_at,
                        pr.reviewed_at, pr.return_reason, pr.cancellation_reason
               ORDER BY pr.created_at DESC
-              LIMIT 100"
+              LIMIT {$offset}, {$pageSize}"
         )->fetchAll();
 
-        $total    = count($runs);
-        $draft    = count(array_filter($runs, fn($r) => in_array($r['status'], ['Draft', 'Computed'])));
-        $pending  = count(array_filter($runs, fn($r) => $r['status'] === 'PendingOwnerApproval'));
-        $approved = count(array_filter($runs, fn($r) => $r['status'] === 'Approved'));
+        $total    = $totalRuns; // Use actual total count for display
+        $draft    = $draftCount;
+        $pending  = $pendingCount;
+        $approved = $approvedCount;
 
         ViewRenderer::render('hr/payroll/index', [
-            'runs'     => $runs,
-            'total'    => $total,
-            'draft'    => $draft,
-            'pending'  => $pending,
-            'approved' => $approved,
+            'runs'         => $runs,
+            'total'        => $total,
+            'draft'        => $draft,
+            'pending'      => $pending,
+            'approved'     => $approved,
+            'page'         => $page,
+            'totalPages'   => $totalPages,
+            'pageSize'     => $pageSize,
         ], 'Payroll');
     }
 

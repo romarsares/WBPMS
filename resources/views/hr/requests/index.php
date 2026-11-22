@@ -10,19 +10,23 @@ use Wbpms\Http\View\Formatter;
  *   list<array{request_type_id:int,type_name:string}> $types
  *   array{status:string,type_id:int,search:string} $filters
  *   int $total, $pending, $approved, $rejected
+ *   int $page, $totalPages, $pageSize
  *   string $base   — injected by ViewRenderer (APP_BASE_URL, no trailing slash)
  *   string $csrf   — injected by ViewRenderer
  */
 
-$rows     ??= [];
-$types    ??= [];
-$filters  ??= [];
-$total    ??= 0;
-$pending  ??= 0;
-$approved ??= 0;
-$rejected ??= 0;
-$base     ??= '';
-$csrf     ??= '';
+$rows         ??= [];
+$types        ??= [];
+$filters      ??= [];
+$total        ??= 0;
+$pending      ??= 0;
+$approved     ??= 0;
+$rejected     ??= 0;
+$page         ??= 1;
+$totalPages   ??= 1;
+$pageSize     ??= 50;
+$base         ??= '';
+$csrf         ??= '';
 
 /**
  * Build a short human-readable detail string for the type-specific column.
@@ -105,6 +109,16 @@ $statusColor = static function (string $status): string {
     <?php if (!empty($filters['status']) || !empty($filters['type_id']) || !empty($filters['search'])): ?>
     <a href="<?= $base ?>/hr/requests" class="btn btn-secondary">Clear</a>
     <?php endif; ?>
+    <div style="display:flex;align-items:flex-end;margin-left:auto">
+        <label style="font-size:.78rem;font-weight:500;color:#374151;display:block;margin-bottom:.2rem">Per page</label>
+        <select name="page_size" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
+            <option value="10" <?= $pageSize === 10 ? 'selected' : '' ?>>10</option>
+            <option value="20" <?= $pageSize === 20 ? 'selected' : '' ?>>20</option>
+            <option value="30" <?= $pageSize === 30 ? 'selected' : '' ?>>30</option>
+            <option value="50" <?= $pageSize === 50 ? 'selected' : '' ?>>50</option>
+            <option value="100" <?= $pageSize === 100 ? 'selected' : '' ?>>100</option>
+        </select>
+    </div>
 </form>
 
 <!-- Table -->
@@ -178,3 +192,80 @@ $statusColor = static function (string $status): string {
         </tbody>
     </table>
 </div>
+
+<!-- Pagination -->
+<?php if ($totalPages > 1): ?>
+<div class="card" style="padding:1rem 1.25rem;margin-top:1rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem">
+    <div style="font-size:.875rem;color:#374151">
+        Showing
+        <strong><?= (int) (($page - 1) * $pageSize + 1) ?></strong>
+        to
+        <strong><?= (int) min($page * $pageSize, $total) ?></strong>
+        of
+        <strong><?= (int) $total ?></strong>
+        requests
+    </div>
+    <nav aria-label="Request pagination">
+        <ul style="display:flex;gap:.25rem;list-style:none;margin:0;padding:0">
+            <!-- Previous -->
+            <?php if ($page > 1): ?>
+            <li>
+                <a href="<?= $base ?>/hr/requests?page=<?= $page - 1 ?>&status=<?= urlencode($filters['status'] ?? '') ?>&type_id=<?= urlencode((string) ($filters['type_id'] ?? '')) ?>&search=<?= urlencode($filters['search'] ?? '') ?>&page_size=<?= $pageSize ?>"
+                   class="btn btn-secondary btn-sm" aria-label="Previous page">« Prev</a>
+            </li>
+            <?php else: ?>
+            <li>
+                <span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:not-allowed" aria-disabled="true">« Prev</span>
+            </li>
+            <?php endif; ?>
+
+            <!-- Page numbers -->
+            <?php
+            $start = max(1, $page - 2);
+            $end   = min($totalPages, $page + 2);
+            if ($start > 1): ?>
+            <li>
+                <a href="<?= $base ?>/hr/requests?page=1&status=<?= urlencode($filters['status'] ?? '') ?>&type_id=<?= urlencode((string) ($filters['type_id'] ?? '')) ?>&search=<?= urlencode($filters['search'] ?? '') ?>&page_size=<?= $pageSize ?>"
+                   class="btn btn-secondary btn-sm">1</a>
+            </li>
+            <?php if ($start > 2): ?>
+            <li><span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:default">…</span></li>
+            <?php endif; ?>
+            <?php endif; ?>
+
+            <?php for ($p = $start; $p <= $end; $p++): ?>
+            <li>
+                <?php if ($p === $page): ?>
+                <span class="btn btn-primary btn-sm" aria-current="page"><?= $p ?></span>
+                <?php else: ?>
+                <a href="<?= $base ?>/hr/requests?page=<?= $p ?>&status=<?= urlencode($filters['status'] ?? '') ?>&type_id=<?= urlencode((string) ($filters['type_id'] ?? '')) ?>&search=<?= urlencode($filters['search'] ?? '') ?>&page_size=<?= $pageSize ?>"
+                   class="btn btn-secondary btn-sm"><?= $p ?></a>
+                <?php endif; ?>
+            </li>
+            <?php endfor; ?>
+
+            <?php if ($end < $totalPages): ?>
+            <?php if ($end < $totalPages - 1): ?>
+            <li><span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:default">…</span></li>
+            <?php endif; ?>
+            <li>
+                <a href="<?= $base ?>/hr/requests?page=<?= $totalPages ?>&status=<?= urlencode($filters['status'] ?? '') ?>&type_id=<?= urlencode((string) ($filters['type_id'] ?? '')) ?>&search=<?= urlencode($filters['search'] ?? '') ?>&page_size=<?= $pageSize ?>"
+                   class="btn btn-secondary btn-sm"><?= $totalPages ?></a>
+            </li>
+            <?php endif; ?>
+
+            <!-- Next -->
+            <?php if ($page < $totalPages): ?>
+            <li>
+                <a href="<?= $base ?>/hr/requests?page=<?= $page + 1 ?>&status=<?= urlencode($filters['status'] ?? '') ?>&type_id=<?= urlencode((string) ($filters['type_id'] ?? '')) ?>&search=<?= urlencode($filters['search'] ?? '') ?>&page_size=<?= $pageSize ?>"
+                   class="btn btn-secondary btn-sm" aria-label="Next page">Next »</a>
+            </li>
+            <?php else: ?>
+            <li>
+                <span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:not-allowed" aria-disabled="true">Next »</span>
+            </li>
+            <?php endif; ?>
+        </ul>
+    </nav>
+</div>
+<?php endif; ?>

@@ -22,7 +22,7 @@ use Wbpms\Infrastructure\Database\Connection;
  */
 final class AuditLogRepository extends AbstractRepository
 {
-    private const PAGE_SIZE = 50;
+    private const PAGE_SIZE = 10;
 
     public function __construct(Connection $connection)
     {
@@ -48,10 +48,10 @@ final class AuditLogRepository extends AbstractRepository
      * @param  int $page  1-based page number
      * @return list<array<string, mixed>>
      */
-    public function findPaginated(array $filters = [], int $page = 1): array
+    public function findPaginated(array $filters = [], int $page = 1, int $pageSize = self::PAGE_SIZE): array
     {
         $page   = max(1, $page);
-        $offset = ($page - 1) * self::PAGE_SIZE;
+        $offset = ($page - 1) * $pageSize;
 
         [$where, $bindings] = $this->buildWhere($filters);
 
@@ -73,7 +73,7 @@ final class AuditLogRepository extends AbstractRepository
               LEFT JOIN role  r ON r.role_id  = u.role_id
             {$where}
              ORDER BY al.log_id DESC
-             LIMIT " . self::PAGE_SIZE . " OFFSET {$offset}";
+             LIMIT {$pageSize} OFFSET {$offset}";
 
         $stmt = $this->pdo()->prepare($sql);
         $stmt->execute($bindings);
@@ -100,6 +100,17 @@ final class AuditLogRepository extends AbstractRepository
         $stmt->execute($bindings);
 
         return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Return the configured page size.
+     *
+     * @param int|null $pageSize  Optional override
+     * @return int
+     */
+    public function pageSize(?int $pageSize = null): int
+    {
+        return $pageSize ?? self::PAGE_SIZE;
     }
 
     /**
@@ -133,12 +144,6 @@ final class AuditLogRepository extends AbstractRepository
             ->fetchAll();
 
         return array_column($rows, 'table_affected');
-    }
-
-    /** Page size constant — exposed so the controller can compute total pages. */
-    public function pageSize(): int
-    {
-        return self::PAGE_SIZE;
     }
 
     // -----------------------------------------------------------------------

@@ -16,6 +16,9 @@ use Wbpms\Infrastructure\Reports\PdfRenderer;
  *   GET /hr/reports/13th-month → thirteenthMonth() [HRHead, BusinessOwner]
  *   GET /hr/reports/export  → export() [HRHead, BusinessOwner]
  *   GET /hr/reports/{type}  → preview() [HRHead, BusinessOwner]
+ *   GET /hr/reports/transaction-slips → transactionSlips() [HRHead, BusinessOwner]
+ *   GET /hr/reports/payslips → payslipsReport() [HRHead, BusinessOwner]
+ *   GET /hr/reports/payslips/bulk → bulkPrintPayslips() [HRHead, BusinessOwner]
  *
  * REQ065–REQ073.
  */
@@ -49,6 +52,25 @@ final class ReportsController
             "SELECT COUNT(*) FROM request"
         )->fetchColumn();
 
+        // Pagination for payroll summary
+        $page      = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize  = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
+        // Count total for pagination
+        $countSql = "SELECT COUNT(*)
+               FROM payroll_run pr
+               JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+               JOIN branch b          ON b.branch_id          = pr.branch_id
+              WHERE pr.status = 'Approved'";
+        $countStmt = $pdo->query($countSql);
+        $totalRuns = (int) $countStmt->fetchColumn();
+        $totalPages = max(1, (int) ceil($totalRuns / $pageSize));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $pageSize;
+
         $payrollSummary = $pdo->query(
             "SELECT pp.period_start,
                     pp.period_end,
@@ -65,7 +87,7 @@ final class ReportsController
               GROUP BY pr.payroll_run_id, pp.period_start, pp.period_end,
                        b.branch_name, pr.reviewed_at
               ORDER BY pr.reviewed_at DESC
-              LIMIT 20"
+              LIMIT {$offset}, {$pageSize}"
         )->fetchAll();
 
         ViewRenderer::render('hr/reports/index', [
@@ -74,6 +96,10 @@ final class ReportsController
             'approvedNetPay'  => $approvedNetPay,
             'totalRequests'   => $totalRequests,
             'payrollSummary'  => $payrollSummary,
+            'page'            => $page,
+            'totalPages'      => $totalPages,
+            'pageSize'        => $pageSize,
+            'total'           => $totalRuns,
         ], 'Reports');
     }
 
@@ -121,18 +147,36 @@ final class ReportsController
         )->fetchAll();
 
         $service = new \Wbpms\Application\PayrollService($this->makeConnection());
-        $rows = $service->compute13thMonth($year, [
+        $allRows = $service->compute13thMonth($year, [
             'branch_id'   => $filters['branch_id'],
             'employee_id' => $filters['employee_id'],
         ]);
 
+        // Pagination
+        $page      = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize  = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
+        $total = count($allRows);
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $pageSize;
+
+        $rows = array_slice($allRows, $offset, $pageSize);
+
         ViewRenderer::render('hr/reports/thirteenth-month', [
-            'rows'       => $rows,
-            'years'      => $years,
-            'branches'   => $branches,
-            'employees'  => $employees,
-            'filters'    => $filters,
-            'activePage' => 'reports',
+            'rows'         => $rows,
+            'years'        => $years,
+            'branches'     => $branches,
+            'employees'    => $employees,
+            'filters'      => $filters,
+            'activePage'   => 'reports',
+            'page'         => $page,
+            'totalPages'   => $totalPages,
+            'pageSize'     => $pageSize,
+            'total'        => $total,
         ], '13th Month Pay Report');
     }
 
@@ -175,6 +219,13 @@ final class ReportsController
 
         $printMode = isset($_GET['print']) && $_GET['print'] === '1';
 
+        // Pagination
+        $page     = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
         // ---- Reference data for filter dropdowns ---------------------------
         $branches = $pdo->query(
             "SELECT branch_id, branch_name FROM branch WHERE status = 'Active' ORDER BY branch_name"
@@ -197,6 +248,8 @@ final class ReportsController
 
         // ---- Slip data query -----------------------------------------------
         $slips = [];
+        $total = 0;
+        $totalPages = 1;
         if ($periodId > 0) {
             $where  = ["pr.status = 'Approved'", 'pr.payroll_period_id = :period_id'];
             $bind   = [':period_id' => $periodId];
@@ -209,6 +262,24 @@ final class ReportsController
                 $where[]              = 'p.employee_id = :employee_id';
                 $bind[':employee_id'] = $employeeId;
             }
+
+            // Count total for pagination
+            $countSql = "SELECT COUNT(*)
+                  FROM payroll p
+                  JOIN payroll_run pr       ON pr.payroll_run_id     = p.payroll_run_id
+                  JOIN payroll_period pp    ON pp.payroll_period_id  = pr.payroll_period_id
+                  JOIN employee e           ON e.employee_id         = p.employee_id
+                  JOIN branch b             ON b.branch_id           = pr.branch_id
+                  LEFT JOIN bank_details bd ON bd.employee_id        = e.employee_id
+                                           AND bd.status             = 'Active'
+                                           AND bd.effective_to IS NULL
+                 WHERE " . implode(' AND ', $where);
+            $countStmt = $pdo->prepare($countSql);
+            $countStmt->execute($bind);
+            $total = (int) $countStmt->fetchColumn();
+
+            $totalPages = max(1, (int) ceil($total / $pageSize));
+            $offset = ($page - 1) * $pageSize;
 
             $stmt = $pdo->prepare(
                 "SELECT
@@ -232,8 +303,9 @@ final class ReportsController
                                            AND bd.status             = 'Active'
                                            AND bd.effective_to IS NULL
                  WHERE " . implode(' AND ', $where) . "
-                 ORDER BY e.last_name, e.first_name"
-            );
+                 ORDER BY e.last_name, e.first_name
+                 LIMIT {$offset}, {$pageSize}"
+           );
             $stmt->execute($bind);
             $slips = $stmt->fetchAll();
         }
@@ -254,6 +326,10 @@ final class ReportsController
             'missingBankCount' => $missingBankCount,
             'printMode'        => $printMode,
             'activePage'       => 'reports',
+            'page'             => $page,
+            'totalPages'       => $totalPages,
+            'total'            => $total,
+            'pageSize'         => $pageSize,
         ], 'Transaction Slips');
     }
 
@@ -272,7 +348,22 @@ final class ReportsController
         }
 
         $filters = $this->previewFilters($type);
-        [$headers, $rows] = $this->previewData($type, $filters);
+
+        // Pagination
+        $page     = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
+        // Get total count first
+        $pdo = $this->makeConnection()->pdo();
+        $total = $this->previewCount($type, $filters, $pdo);
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $pageSize;
+
+        [$headers, $rows] = $this->previewData($type, $filters, $pageSize, $offset);
         $pdo = $this->makeConnection()->pdo();
 
         ViewRenderer::render('hr/reports/preview', [
@@ -284,6 +375,12 @@ final class ReportsController
             'branches'     => $pdo->query("SELECT branch_id, branch_name FROM branch WHERE status = 'Active' ORDER BY branch_name")->fetchAll(),
             'requestTypes' => $pdo->query("SELECT request_type_id, type_name FROM request_type ORDER BY type_name")->fetchAll(),
             'activePage'   => 'reports',
+            'page'         => $page,
+            'totalPages'   => $totalPages,
+            'pageSize'     => $pageSize,
+            'total'        => $total,
+            'total'        => $total,
+            'pageSize'     => $pageSize,
         ], $this->reportTitle($type));
     }
 
@@ -305,6 +402,13 @@ final class ReportsController
 
         $employeeSearch = trim((string) ($_GET['employee_search'] ?? ''));
 
+        // Pagination
+        $page     = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
         // Reference data for dropdowns
         $branches = $pdo->query(
             "SELECT branch_id, branch_name FROM branch WHERE status = 'Active' ORDER BY branch_name"
@@ -320,58 +424,69 @@ final class ReportsController
               LIMIT 60"
         )->fetchAll();
 
-        // Payslip data — always run the query (even with no filter) so the
-        // report shows all approved payslips by default. Optional filters
-        // narrow the result set. Then load the full earnings + deductions
-        // breakdown for each via PayrollService so the report displays a
-        // complete payslip per employee (REQ074, REQ081).
-        $payslips = [];
-        {
-            $where = ["pr.status = 'Approved'"];
-            $bind  = [];
+        // Build WHERE clause
+        $where = ["pr.status = 'Approved'"];
+        $bind  = [];
 
-            if ($periodId > 0) {
-                $where[]             = 'pr.payroll_period_id = :period_id';
-                $bind[':period_id']  = $periodId;
-            }
-            if ($branchId > 0) {
-                $where[]              = 'pr.branch_id = :branch_id';
-                $bind[':branch_id']   = $branchId;
-            }
-            if ($employeeSearch !== '') {
-                $where[] = '(e.last_name LIKE :emp_last OR e.first_name LIKE :emp_first OR e.employee_number LIKE :emp_num)';
-                $pattern = '%' . $employeeSearch . '%';
-                $bind[':emp_last']  = $pattern;
-                $bind[':emp_first'] = $pattern;
-                $bind[':emp_num']   = $pattern;
-            }
+        if ($periodId > 0) {
+            $where[]             = 'pr.payroll_period_id = :period_id';
+            $bind[':period_id']  = $periodId;
+        }
+        if ($branchId > 0) {
+            $where[]              = 'pr.branch_id = :branch_id';
+            $bind[':branch_id']   = $branchId;
+        }
+        if ($employeeSearch !== '') {
+            $where[] = '(e.last_name LIKE :emp_last OR e.first_name LIKE :emp_first OR e.employee_number LIKE :emp_num)';
+            $pattern = '%' . $employeeSearch . '%';
+            $bind[':emp_last']  = $pattern;
+            $bind[':emp_first'] = $pattern;
+            $bind[':emp_num']   = $pattern;
+        }
 
-            $stmt = $pdo->prepare(
-                "SELECT ps.payslip_id,
-                        pr.reviewed_at AS approved_at
+        // Count total for pagination
+        $countSql = "SELECT COUNT(*)
                    FROM payslip ps
                    JOIN payroll p         ON p.payroll_id         = ps.payroll_id
                    JOIN payroll_run pr    ON pr.payroll_run_id    = p.payroll_run_id
                    JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
                    JOIN employee e        ON e.employee_id        = p.employee_id
                    JOIN branch b          ON b.branch_id          = pr.branch_id
-                  WHERE " . implode(' AND ', $where) . "
-                  ORDER BY pp.period_start DESC, e.last_name, e.first_name
-                  LIMIT 500"
-            );
-            $stmt->execute($bind);
-            $matched = $stmt->fetchAll();
+                  WHERE " . implode(' AND ', $where);
+        $countStmt = $pdo->prepare($countSql);
+        $countStmt->execute($bind);
+        $total = (int) $countStmt->fetchColumn();
 
-            $service = new \Wbpms\Application\PayrollService($this->makeConnection());
-            foreach ($matched as $m) {
-                try {
-                    $detail = $service->payslipData((int) $m['payslip_id']);
-                    $detail['approved_at'] = $m['approved_at'];
-                    $payslips[] = $detail;
-                } catch (\RuntimeException) {
-                    // Skip a payslip that can no longer be resolved (e.g. row
-                    // removed between the id query and the detail fetch).
-                }
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $pageSize;
+
+        // Fetch paginated payslip IDs
+        $stmt = $pdo->prepare(
+            "SELECT ps.payslip_id,
+                    pr.reviewed_at AS approved_at
+               FROM payslip ps
+               JOIN payroll p         ON p.payroll_id         = ps.payroll_id
+               JOIN payroll_run pr    ON pr.payroll_run_id    = p.payroll_run_id
+               JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+               JOIN employee e        ON e.employee_id        = p.employee_id
+               JOIN branch b          ON b.branch_id          = pr.branch_id
+              WHERE " . implode(' AND ', $where) . "
+              ORDER BY pp.period_start DESC, e.last_name, e.first_name
+              LIMIT {$offset}, {$pageSize}"
+        );
+        $stmt->execute($bind);
+        $matched = $stmt->fetchAll();
+
+        $service = new \Wbpms\Application\PayrollService($this->makeConnection());
+        $payslips = [];
+        foreach ($matched as $m) {
+            try {
+                $detail = $service->payslipData((int) $m['payslip_id']);
+                $detail['approved_at'] = $m['approved_at'];
+                $payslips[] = $detail;
+            } catch (\RuntimeException) {
+                // Skip a payslip that can no longer be resolved
             }
         }
 
@@ -387,6 +502,10 @@ final class ReportsController
             'periods'    => $periods,
             'filters'    => $filters,
             'activePage' => 'reports',
+            'page'       => $page,
+            'totalPages' => $totalPages,
+            'total'      => $total,
+            'pageSize'   => $pageSize,
         ], 'Employee Payslip Report');
     }
 
@@ -631,7 +750,9 @@ body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;backgro
 
         if (in_array($type, ['payroll', 'attendance', 'requests', 'contributions', 'employees'], true)) {
             $filters = $this->previewFilters($type);
-            [$headers, $rows] = $this->previewData($type, $filters);
+            $pdo = $this->makeConnection()->pdo();
+            $total = $this->previewCount($type, $filters, $pdo);
+            [$headers, $rows] = $this->previewData($type, $filters, $total, 0);
         } else {
             switch ($type) {
 
@@ -1055,6 +1176,248 @@ body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;backgro
         return $html;
     }
 
+    /**
+     * Get total count for preview pagination
+     *
+     * @param array{branch_id:int,date_from:string,date_to:string,employee_search:string,status:string,type_id:int,program:string} $filters
+     */
+    private function previewCount(string $type, array $filters, \PDO $pdo): int
+    {
+        $where = [];
+        $bind = [];
+        $employeeSearch = $filters['employee_search'];
+
+        $applyEmployeeSearch = static function (array &$where, array &$bind, string $search, string $employeeAlias = 'e'): void {
+            if ($search === '') {
+                return;
+            }
+            $where[] = "({$employeeAlias}.last_name LIKE :employee_search_last OR {$employeeAlias}.first_name LIKE :employee_search_first OR {$employeeAlias}.employee_number LIKE :employee_search_number)";
+            $pattern = '%' . $search . '%';
+            $bind[':employee_search_last'] = $pattern;
+            $bind[':employee_search_first'] = $pattern;
+            $bind[':employee_search_number'] = $pattern;
+        };
+
+        if ($type === 'payroll') {
+            $where = ["pr.status = 'Approved'"];
+            if ($filters['branch_id'] > 0) {
+                $where[] = 'pr.branch_id = :branch_id';
+                $bind[':branch_id'] = $filters['branch_id'];
+            }
+            if ($filters['date_from'] !== '') {
+                $where[] = 'pp.period_start >= :date_from';
+                $bind[':date_from'] = $filters['date_from'];
+            }
+            if ($filters['date_to'] !== '') {
+                $where[] = 'pp.period_end <= :date_to';
+                $bind[':date_to'] = $filters['date_to'];
+            }
+            $stmt = $pdo->prepare(
+                "SELECT COUNT(*)
+                   FROM payroll_run pr
+                   JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+                   JOIN branch b ON b.branch_id = pr.branch_id
+                  WHERE " . implode(' AND ', $where)
+            );
+        } elseif ($type === 'attendance') {
+            $where[] = "a.status <> 'Cancelled'";
+            $where[] = "(aib.status IS NULL OR aib.status <> 'Cancelled')";
+            if ($filters['date_from'] !== '') { $where[] = 'a.attendance_date >= :date_from'; $bind[':date_from'] = $filters['date_from']; }
+            if ($filters['date_to'] !== '') { $where[] = 'a.attendance_date <= :date_to'; $bind[':date_to'] = $filters['date_to']; }
+            if ($filters['branch_id'] > 0) { $where[] = 'eba.branch_id = :branch_id'; $bind[':branch_id'] = $filters['branch_id']; }
+            if ($filters['status'] !== '') { $where[] = 'a.status = :status'; $bind[':status'] = $filters['status']; }
+            $applyEmployeeSearch($where, $bind, $employeeSearch);
+            $stmt = $pdo->prepare(
+                "SELECT COUNT(*)
+                   FROM attendance a JOIN employee e ON e.employee_id = a.employee_id
+                   JOIN employee_branch_assignment eba ON eba.branch_assignment_id = a.branch_assignment_id
+                   LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
+                  " . ($where === [] ? '' : 'WHERE ' . implode(' AND ', $where))
+            );
+        } elseif ($type === 'requests') {
+            $where = ['r.archived_at IS NULL'];
+            if ($filters['date_from'] !== '') { $where[] = 'DATE(r.submitted_at) >= :date_from'; $bind[':date_from'] = $filters['date_from']; }
+            if ($filters['date_to'] !== '') { $where[] = 'DATE(r.submitted_at) <= :date_to'; $bind[':date_to'] = $filters['date_to']; }
+            if ($filters['status'] !== '') { $where[] = 'r.status = :status'; $bind[':status'] = $filters['status']; }
+            if ($filters['type_id'] > 0) { $where[] = 'r.request_type_id = :type_id'; $bind[':type_id'] = $filters['type_id']; }
+            $applyEmployeeSearch($where, $bind, $employeeSearch);
+            $stmt = $pdo->prepare(
+                "SELECT COUNT(*)
+                   FROM request r JOIN employee e ON e.employee_id = r.employee_id
+                   JOIN request_type rt ON rt.request_type_id = r.request_type_id
+                  WHERE " . implode(' AND ', $where)
+            );
+        } elseif ($type === 'contributions') {
+            $where = ["pr.status = 'Approved'"];
+            if ($filters['date_from'] !== '') { $where[] = 'pp.period_start >= :date_from'; $bind[':date_from'] = $filters['date_from']; }
+            if ($filters['date_to'] !== '') { $where[] = 'pp.period_end <= :date_to'; $bind[':date_to'] = $filters['date_to']; }
+            if ($filters['program'] !== '') { $where[] = 'cr.contribution_type = :program'; $bind[':program'] = $filters['program']; }
+            $applyEmployeeSearch($where, $bind, $employeeSearch);
+            // Use subquery to count groups efficiently without fetching all rows
+            $stmt = $pdo->prepare(
+                "SELECT COUNT(*)
+                   FROM (
+                       SELECT 1
+                         FROM contribution_record cr JOIN payroll p ON p.payroll_id = cr.payroll_id
+                         JOIN payroll_run pr ON pr.payroll_run_id = p.payroll_run_id
+                         JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+                         JOIN employee e ON e.employee_id = p.employee_id
+                        WHERE " . implode(' AND ', $where) . "
+                        GROUP BY p.employee_id, pp.payroll_period_id, e.last_name, e.first_name, pp.period_start, pp.period_end, pp.pay_date
+                   ) AS contrib_groups"
+            );
+        } else { // employees
+            if ($filters['branch_id'] > 0) { $where[] = 'eba.branch_id = :branch_id'; $bind[':branch_id'] = $filters['branch_id']; }
+            if ($filters['status'] !== '') { $where[] = 'e.status = :status'; $bind[':status'] = $filters['status']; }
+            $applyEmployeeSearch($where, $bind, $employeeSearch);
+            $stmt = $pdo->prepare(
+                "SELECT COUNT(*)
+                   FROM employee e LEFT JOIN employee_branch_assignment eba ON eba.employee_id = e.employee_id AND eba.effective_to IS NULL
+                   LEFT JOIN branch b ON b.branch_id = eba.branch_id
+                  " . ($where === [] ? '' : 'WHERE ' . implode(' AND ', $where))
+            );
+        }
+        $stmt->execute($bind);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @param array{branch_id:int,date_from:string,date_to:string,employee_search:string,status:string,type_id:int,program:string} $filters
+     * @return array{0:list<string>,1:list<list<string|int|float>>}
+     */
+    private function previewData(string $type, array $filters, int $pageSize, int $offset): array
+    {
+        $pdo = $this->makeConnection()->pdo();
+        $where = [];
+        $bind = [];
+        $employeeSearch = $filters['employee_search'];
+
+        $applyEmployeeSearch = static function (array &$where, array &$bind, string $search, string $employeeAlias = 'e'): void {
+            if ($search === '') {
+                return;
+            }
+            $where[] = "({$employeeAlias}.last_name LIKE :employee_search_last OR {$employeeAlias}.first_name LIKE :employee_search_first OR {$employeeAlias}.employee_number LIKE :employee_search_number)";
+            $pattern = '%' . $search . '%';
+            $bind[':employee_search_last'] = $pattern;
+            $bind[':employee_search_first'] = $pattern;
+            $bind[':employee_search_number'] = $pattern;
+        };
+
+        if ($type === 'payroll') {
+            $where = ["pr.status = 'Approved'"];
+            if ($filters['branch_id'] > 0) {
+                $where[] = 'pr.branch_id = :branch_id';
+                $bind[':branch_id'] = $filters['branch_id'];
+            }
+            if ($filters['date_from'] !== '') {
+                $where[] = 'pp.period_start >= :date_from';
+                $bind[':date_from'] = $filters['date_from'];
+            }
+            if ($filters['date_to'] !== '') {
+                $where[] = 'pp.period_end <= :date_to';
+                $bind[':date_to'] = $filters['date_to'];
+            }
+            $stmt = $pdo->prepare(
+                "SELECT b.branch_name, pp.period_start, pp.period_end, COUNT(p.payroll_id) AS emp_count,
+                        COALESCE(SUM(p.gross_pay), 0) AS gross, COALESCE(SUM(p.total_deductions), 0) AS deductions,
+                        COALESCE(SUM(p.net_pay), 0) AS net, pr.reviewed_at AS approved_at
+                   FROM payroll_run pr
+                   JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+                   JOIN branch b ON b.branch_id = pr.branch_id
+                   LEFT JOIN payroll p ON p.payroll_run_id = pr.payroll_run_id
+                  WHERE " . implode(' AND ', $where) . "
+                  GROUP BY pr.payroll_run_id, b.branch_name, pp.period_start, pp.period_end, pr.reviewed_at
+                  ORDER BY pp.period_start DESC LIMIT {$offset}, {$pageSize}"
+            );
+            $stmt->execute($bind);
+            $rows = array_map(static fn(array $row): array => [
+                $row['branch_name'], $row['period_start'] . ' – ' . $row['period_end'], (int) $row['emp_count'],
+                '₱' . number_format((float) $row['gross'], 2), '₱' . number_format((float) $row['deductions'], 2),
+                '₱' . number_format((float) $row['net'], 2), (string) ($row['approved_at'] ?? '—'),
+            ], $stmt->fetchAll());
+            return [['Branch', 'Period', 'Employees', 'Gross Pay', 'Total Deductions', 'Net Pay', 'Approved At'], $rows];
+        }
+
+        if ($type === 'attendance') {
+            $where[] = "a.status <> 'Cancelled'";
+            $where[] = "(aib.status IS NULL OR aib.status <> 'Cancelled')";
+            if ($filters['date_from'] !== '') { $where[] = 'a.attendance_date >= :date_from'; $bind[':date_from'] = $filters['date_from']; }
+            if ($filters['date_to'] !== '') { $where[] = 'a.attendance_date <= :date_to'; $bind[':date_to'] = $filters['date_to']; }
+            if ($filters['branch_id'] > 0) { $where[] = 'eba.branch_id = :branch_id'; $bind[':branch_id'] = $filters['branch_id']; }
+            if ($filters['status'] !== '') { $where[] = 'a.status = :status'; $bind[':status'] = $filters['status']; }
+            $applyEmployeeSearch($where, $bind, $employeeSearch);
+            $stmt = $pdo->prepare(
+                "SELECT CONCAT(e.last_name, ', ', e.first_name) AS name, a.attendance_date, a.time_in, a.time_out,
+                        a.hours_worked_minutes, a.late_minutes, a.undertime_minutes, a.overtime_minutes, a.status
+                   FROM attendance a JOIN employee e ON e.employee_id = a.employee_id
+                   JOIN employee_branch_assignment eba ON eba.branch_assignment_id = a.branch_assignment_id
+                   LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
+                  " . ($where === [] ? '' : 'WHERE ' . implode(' AND ', $where)) . "
+                  ORDER BY a.attendance_date DESC, e.last_name LIMIT {$offset}, {$pageSize}"
+            );
+            $stmt->execute($bind);
+            $rows = array_map(static fn(array $row): array => [$row['name'], $row['attendance_date'], $row['time_in'] ?? '—', $row['time_out'] ?? '—', (int) $row['hours_worked_minutes'], (int) $row['late_minutes'], (int) $row['undertime_minutes'], (int) $row['overtime_minutes'], $row['status']], $stmt->fetchAll());
+            return [['Employee', 'Date', 'Time In', 'Time Out', 'Worked (min)', 'Late (min)', 'Undertime (min)', 'Overtime (min)', 'Status'], $rows];
+        }
+
+        if ($type === 'requests') {
+            $where = ['r.archived_at IS NULL'];
+            if ($filters['date_from'] !== '') { $where[] = 'DATE(r.submitted_at) >= :date_from'; $bind[':date_from'] = $filters['date_from']; }
+            if ($filters['date_to'] !== '') { $where[] = 'DATE(r.submitted_at) <= :date_to'; $bind[':date_to'] = $filters['date_to']; }
+            if ($filters['status'] !== '') { $where[] = 'r.status = :status'; $bind[':status'] = $filters['status']; }
+            if ($filters['type_id'] > 0) { $where[] = 'r.request_type_id = :type_id'; $bind[':type_id'] = $filters['type_id']; }
+            $applyEmployeeSearch($where, $bind, $employeeSearch);
+            $stmt = $pdo->prepare(
+                "SELECT CONCAT(e.last_name, ', ', e.first_name) AS name, rt.type_name, r.submitted_at, r.status, r.reason
+                   FROM request r JOIN employee e ON e.employee_id = r.employee_id
+                   JOIN request_type rt ON rt.request_type_id = r.request_type_id
+                  WHERE " . implode(' AND ', $where) . " ORDER BY r.submitted_at DESC LIMIT {$offset}, {$pageSize}"
+            );
+            $stmt->execute($bind);
+            $rows = array_map(static fn(array $row): array => [$row['name'], $row['type_name'], $row['submitted_at'], $row['status'], $row['reason']], $stmt->fetchAll());
+            return [['Employee', 'Type', 'Submitted', 'Status', 'Reason'], $rows];
+        }
+
+        if ($type === 'contributions') {
+            $where = ["pr.status = 'Approved'"];
+            if ($filters['date_from'] !== '') { $where[] = 'pp.period_start >= :date_from'; $bind[':date_from'] = $filters['date_from']; }
+            if ($filters['date_to'] !== '') { $where[] = 'pp.period_end <= :date_to'; $bind[':date_to'] = $filters['date_to']; }
+            if ($filters['program'] !== '') { $where[] = 'cr.contribution_type = :program'; $bind[':program'] = $filters['program']; }
+            $applyEmployeeSearch($where, $bind, $employeeSearch);
+            $stmt = $pdo->prepare(
+                "SELECT CONCAT(e.last_name, ', ', e.first_name) AS name, CONCAT(pp.period_start, ' – ', pp.period_end) AS period,
+                        pp.pay_date,
+                        SUM(CASE WHEN cr.contribution_type = 'SSS' THEN cr.employee_share ELSE 0 END) AS sss,
+                        SUM(CASE WHEN cr.contribution_type = 'PhilHealth' THEN cr.employee_share ELSE 0 END) AS phil,
+                        SUM(CASE WHEN cr.contribution_type = 'PagIBIG' THEN cr.employee_share ELSE 0 END) AS pag,
+                        SUM(cr.employee_share) AS total
+                   FROM contribution_record cr JOIN payroll p ON p.payroll_id = cr.payroll_id
+                   JOIN payroll_run pr ON pr.payroll_run_id = p.payroll_run_id
+                   JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+                   JOIN employee e ON e.employee_id = p.employee_id
+                  WHERE " . implode(' AND ', $where) . "
+                  GROUP BY p.employee_id, pp.payroll_period_id, e.last_name, e.first_name, pp.period_start, pp.period_end, pp.pay_date
+                  ORDER BY pp.period_start DESC, e.last_name LIMIT {$offset}, {$pageSize}"
+            );
+            $stmt->execute($bind);
+            $rows = array_map(static fn(array $row): array => [$row['name'], $row['period'], $row['pay_date'], '₱' . number_format((float) $row['sss'], 2), '₱' . number_format((float) $row['phil'], 2), '₱' . number_format((float) $row['pag'], 2), '₱' . number_format((float) $row['total'], 2)], $stmt->fetchAll());
+            return [['Employee', 'Period', 'Pay Date', 'SSS Employee', 'PhilHealth Employee', 'Pag-IBIG Employee', 'Total'], $rows];
+        }
+
+        if ($filters['branch_id'] > 0) { $where[] = 'eba.branch_id = :branch_id'; $bind[':branch_id'] = $filters['branch_id']; }
+        if ($filters['status'] !== '') { $where[] = 'e.status = :status'; $bind[':status'] = $filters['status']; }
+        $applyEmployeeSearch($where, $bind, $employeeSearch);
+        $stmt = $pdo->prepare(
+            "SELECT e.employee_number, CONCAT(e.last_name, ', ', e.first_name) AS name, e.position, b.branch_name, e.employee_type, e.status
+               FROM employee e LEFT JOIN employee_branch_assignment eba ON eba.employee_id = e.employee_id AND eba.effective_to IS NULL
+               LEFT JOIN branch b ON b.branch_id = eba.branch_id
+              " . ($where === [] ? '' : 'WHERE ' . implode(' AND ', $where)) . " ORDER BY e.last_name, e.first_name LIMIT {$offset}, {$pageSize}"
+        );
+        $stmt->execute($bind);
+        $rows = array_map(static fn(array $row): array => [$row['employee_number'], $row['name'], $row['position'], $row['branch_name'] ?? '—', $row['employee_type'], $row['status']], $stmt->fetchAll());
+        return [['Employee #', 'Name', 'Position', 'Branch', 'Type', 'Status'], $rows];
+    }
+
     private function makeConnection(): Connection
     {
         return new Connection(require APP_ROOT . '/config/database.php');
@@ -1101,143 +1464,6 @@ body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:10px;backgro
             'type_id' => $typeId !== false && $typeId > 0 ? $typeId : 0,
             'program' => in_array($program, ['SSS', 'PhilHealth', 'PagIBIG'], true) ? $program : '',
         ];
-    }
-
-    /**
-     * @param array{branch_id:int,date_from:string,date_to:string,employee_search:string,status:string,type_id:int,program:string} $filters
-     * @return array{0:list<string>,1:list<list<string|int|float>>}
-     */
-    private function previewData(string $type, array $filters): array
-    {
-        $pdo = $this->makeConnection()->pdo();
-        $where = [];
-        $bind = [];
-        $employeeSearch = $filters['employee_search'];
-
-        $applyEmployeeSearch = static function (array &$where, array &$bind, string $search, string $employeeAlias = 'e'): void {
-            if ($search === '') {
-                return;
-            }
-            $where[] = "({$employeeAlias}.last_name LIKE :employee_search_last OR {$employeeAlias}.first_name LIKE :employee_search_first OR {$employeeAlias}.employee_number LIKE :employee_search_number)";
-            $pattern = '%' . $search . '%';
-            $bind[':employee_search_last'] = $pattern;
-            $bind[':employee_search_first'] = $pattern;
-            $bind[':employee_search_number'] = $pattern;
-        };
-
-        if ($type === 'payroll') {
-            $where = ["pr.status = 'Approved'"];
-            if ($filters['branch_id'] > 0) {
-                $where[] = 'pr.branch_id = :branch_id';
-                $bind[':branch_id'] = $filters['branch_id'];
-            }
-            if ($filters['date_from'] !== '') {
-                $where[] = 'pp.period_start >= :date_from';
-                $bind[':date_from'] = $filters['date_from'];
-            }
-            if ($filters['date_to'] !== '') {
-                $where[] = 'pp.period_end <= :date_to';
-                $bind[':date_to'] = $filters['date_to'];
-            }
-            $stmt = $pdo->prepare(
-                "SELECT b.branch_name, pp.period_start, pp.period_end, COUNT(p.payroll_id) AS emp_count,
-                        COALESCE(SUM(p.gross_pay), 0) AS gross, COALESCE(SUM(p.total_deductions), 0) AS deductions,
-                        COALESCE(SUM(p.net_pay), 0) AS net, pr.reviewed_at AS approved_at
-                   FROM payroll_run pr
-                   JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
-                   JOIN branch b ON b.branch_id = pr.branch_id
-                   LEFT JOIN payroll p ON p.payroll_run_id = pr.payroll_run_id
-                  WHERE " . implode(' AND ', $where) . "
-                  GROUP BY pr.payroll_run_id, b.branch_name, pp.period_start, pp.period_end, pr.reviewed_at
-                  ORDER BY pp.period_start DESC LIMIT 500"
-            );
-            $stmt->execute($bind);
-            $rows = array_map(static fn(array $row): array => [
-                $row['branch_name'], $row['period_start'] . ' – ' . $row['period_end'], (int) $row['emp_count'],
-                '₱' . number_format((float) $row['gross'], 2), '₱' . number_format((float) $row['deductions'], 2),
-                '₱' . number_format((float) $row['net'], 2), (string) ($row['approved_at'] ?? '—'),
-            ], $stmt->fetchAll());
-            return [['Branch', 'Period', 'Employees', 'Gross Pay', 'Total Deductions', 'Net Pay', 'Approved At'], $rows];
-        }
-
-        if ($type === 'attendance') {
-            $where[] = "a.status <> 'Cancelled'";
-            $where[] = "(aib.status IS NULL OR aib.status <> 'Cancelled')";
-            if ($filters['date_from'] !== '') { $where[] = 'a.attendance_date >= :date_from'; $bind[':date_from'] = $filters['date_from']; }
-            if ($filters['date_to'] !== '') { $where[] = 'a.attendance_date <= :date_to'; $bind[':date_to'] = $filters['date_to']; }
-            if ($filters['branch_id'] > 0) { $where[] = 'eba.branch_id = :branch_id'; $bind[':branch_id'] = $filters['branch_id']; }
-            if ($filters['status'] !== '') { $where[] = 'a.status = :status'; $bind[':status'] = $filters['status']; }
-            $applyEmployeeSearch($where, $bind, $employeeSearch);
-            $stmt = $pdo->prepare(
-                "SELECT CONCAT(e.last_name, ', ', e.first_name) AS name, a.attendance_date, a.time_in, a.time_out,
-                        a.hours_worked_minutes, a.late_minutes, a.undertime_minutes, a.overtime_minutes, a.status
-                   FROM attendance a JOIN employee e ON e.employee_id = a.employee_id
-                   JOIN employee_branch_assignment eba ON eba.branch_assignment_id = a.branch_assignment_id
-                   LEFT JOIN attendance_import_batch aib ON aib.import_batch_id = a.import_batch_id
-                  " . ($where === [] ? '' : 'WHERE ' . implode(' AND ', $where)) . "
-                  ORDER BY a.attendance_date DESC, e.last_name LIMIT 500"
-            );
-            $stmt->execute($bind);
-            $rows = array_map(static fn(array $row): array => [$row['name'], $row['attendance_date'], $row['time_in'] ?? '—', $row['time_out'] ?? '—', (int) $row['hours_worked_minutes'], (int) $row['late_minutes'], (int) $row['undertime_minutes'], (int) $row['overtime_minutes'], $row['status']], $stmt->fetchAll());
-            return [['Employee', 'Date', 'Time In', 'Time Out', 'Worked (min)', 'Late (min)', 'Undertime (min)', 'Overtime (min)', 'Status'], $rows];
-        }
-
-        if ($type === 'requests') {
-            $where = ['r.archived_at IS NULL'];
-            if ($filters['date_from'] !== '') { $where[] = 'DATE(r.submitted_at) >= :date_from'; $bind[':date_from'] = $filters['date_from']; }
-            if ($filters['date_to'] !== '') { $where[] = 'DATE(r.submitted_at) <= :date_to'; $bind[':date_to'] = $filters['date_to']; }
-            if ($filters['status'] !== '') { $where[] = 'r.status = :status'; $bind[':status'] = $filters['status']; }
-            if ($filters['type_id'] > 0) { $where[] = 'r.request_type_id = :type_id'; $bind[':type_id'] = $filters['type_id']; }
-            $applyEmployeeSearch($where, $bind, $employeeSearch);
-            $stmt = $pdo->prepare(
-                "SELECT CONCAT(e.last_name, ', ', e.first_name) AS name, rt.type_name, r.submitted_at, r.status, r.reason
-                   FROM request r JOIN employee e ON e.employee_id = r.employee_id
-                   JOIN request_type rt ON rt.request_type_id = r.request_type_id
-                  WHERE " . implode(' AND ', $where) . " ORDER BY r.submitted_at DESC LIMIT 500"
-            );
-            $stmt->execute($bind);
-            $rows = array_map(static fn(array $row): array => [$row['name'], $row['type_name'], $row['submitted_at'], $row['status'], $row['reason']], $stmt->fetchAll());
-            return [['Employee', 'Type', 'Submitted', 'Status', 'Reason'], $rows];
-        }
-
-        if ($type === 'contributions') {
-            $where = ["pr.status = 'Approved'"];
-            if ($filters['date_from'] !== '') { $where[] = 'pp.period_start >= :date_from'; $bind[':date_from'] = $filters['date_from']; }
-            if ($filters['date_to'] !== '') { $where[] = 'pp.period_end <= :date_to'; $bind[':date_to'] = $filters['date_to']; }
-            if ($filters['program'] !== '') { $where[] = 'cr.contribution_type = :program'; $bind[':program'] = $filters['program']; }
-            $applyEmployeeSearch($where, $bind, $employeeSearch);
-            $stmt = $pdo->prepare(
-                "SELECT CONCAT(e.last_name, ', ', e.first_name) AS name, CONCAT(pp.period_start, ' – ', pp.period_end) AS period,
-                        pp.pay_date,
-                        SUM(CASE WHEN cr.contribution_type = 'SSS' THEN cr.employee_share ELSE 0 END) AS sss,
-                        SUM(CASE WHEN cr.contribution_type = 'PhilHealth' THEN cr.employee_share ELSE 0 END) AS phil,
-                        SUM(CASE WHEN cr.contribution_type = 'PagIBIG' THEN cr.employee_share ELSE 0 END) AS pag,
-                        SUM(cr.employee_share) AS total
-                   FROM contribution_record cr JOIN payroll p ON p.payroll_id = cr.payroll_id
-                   JOIN payroll_run pr ON pr.payroll_run_id = p.payroll_run_id
-                   JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
-                   JOIN employee e ON e.employee_id = p.employee_id
-                  WHERE " . implode(' AND ', $where) . "
-                  GROUP BY p.employee_id, pp.payroll_period_id, e.last_name, e.first_name, pp.period_start, pp.period_end, pp.pay_date
-                  ORDER BY pp.period_start DESC, e.last_name LIMIT 500"
-            );
-            $stmt->execute($bind);
-            $rows = array_map(static fn(array $row): array => [$row['name'], $row['period'], $row['pay_date'], '₱' . number_format((float) $row['sss'], 2), '₱' . number_format((float) $row['phil'], 2), '₱' . number_format((float) $row['pag'], 2), '₱' . number_format((float) $row['total'], 2)], $stmt->fetchAll());
-            return [['Employee', 'Period', 'Pay Date', 'SSS Employee', 'PhilHealth Employee', 'Pag-IBIG Employee', 'Total'], $rows];
-        }
-
-        if ($filters['branch_id'] > 0) { $where[] = 'eba.branch_id = :branch_id'; $bind[':branch_id'] = $filters['branch_id']; }
-        if ($filters['status'] !== '') { $where[] = 'e.status = :status'; $bind[':status'] = $filters['status']; }
-        $applyEmployeeSearch($where, $bind, $employeeSearch);
-        $stmt = $pdo->prepare(
-            "SELECT e.employee_number, CONCAT(e.last_name, ', ', e.first_name) AS name, e.position, b.branch_name, e.employee_type, e.status
-               FROM employee e LEFT JOIN employee_branch_assignment eba ON eba.employee_id = e.employee_id AND eba.effective_to IS NULL
-               LEFT JOIN branch b ON b.branch_id = eba.branch_id
-              " . ($where === [] ? '' : 'WHERE ' . implode(' AND ', $where)) . " ORDER BY e.last_name, e.first_name LIMIT 500"
-        );
-        $stmt->execute($bind);
-        $rows = array_map(static fn(array $row): array => [$row['employee_number'], $row['name'], $row['position'], $row['branch_name'] ?? '—', $row['employee_type'], $row['status']], $stmt->fetchAll());
-        return [['Employee #', 'Name', 'Position', 'Branch', 'Type', 'Status'], $rows];
     }
 
     private function validDate(string $value): bool

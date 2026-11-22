@@ -978,6 +978,287 @@ final class RequestService
             ->fetchAll();
     }
 
+    // -----------------------------------------------------------------------
+    // Pagination helpers for Request lists
+    // -----------------------------------------------------------------------
+
+    /**
+     * Page size for paginated request lists.
+     */
+    private const PAGE_SIZE = 10;
+
+    /**
+     * Build WHERE clause and parameters from filter array for the main list() query.
+     *
+     * @param array{status?: string, type_id?: int, search?: string} $filters
+     * @return array{where: string, params: array<string, mixed>}
+     */
+    private function buildWhere(array $filters = []): array
+    {
+        $where  = ['r.archived_at IS NULL'];
+        $params = [];
+
+        if (!empty($filters['status'])) {
+            $where[]           = 'r.status = :status';
+            $params[':status'] = $filters['status'];
+        }
+        if (!empty($filters['type_id'])) {
+            $where[]            = 'r.request_type_id = :type_id';
+            $params[':type_id'] = (int) $filters['type_id'];
+        }
+        if (!empty($filters['search'])) {
+            $where[]              = "(CONCAT(e.last_name,' ',e.first_name) LIKE :search_name
+                                     OR e.employee_number LIKE :search_num)";
+            $params[':search_name'] = '%' . $filters['search'] . '%';
+            $params[':search_num']  = '%' . $filters['search'] . '%';
+        }
+
+        $whereSql = 'WHERE ' . implode(' AND ', $where);
+
+        return ['where' => $whereSql, 'params' => $params];
+    }
+
+    /**
+     * Return a paginated list of requests with optional filters.
+     *
+     * @param array{status?: string, type_id?: int, search?: string} $filters
+     * @param int $page  1-based page number
+     * @return list<array<string,mixed>>
+     */
+    public function findPaginated(array $filters = [], int $page = 1, int $pageSize = self::PAGE_SIZE): array
+    {
+        $page = max(1, $page);
+        $offset = ($page - 1) * $pageSize;
+
+        $built = $this->buildWhere($filters);
+        $whereSql = $built['where'];
+        $params = $built['params'];
+
+        $sql = "SELECT r.request_id,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    e.employee_number,
+                    rt.type_name,
+                    r.status,
+                    r.submitted_at,
+                    r.reason,
+                    r.review_notes
+               FROM request r
+               JOIN employee e      ON e.employee_id      = r.employee_id
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+              {$whereSql}
+              ORDER BY r.submitted_at DESC
+              LIMIT {$offset}, {$pageSize}";
+
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Count total requests matching the given filters (for pagination).
+     *
+     * @param array{status?: string, type_id?: int, search?: string} $filters
+     * @return int
+     */
+    public function countFiltered(array $filters = []): int
+    {
+        $built = $this->buildWhere($filters);
+        $whereSql = $built['where'];
+        $params = $built['params'];
+
+        $sql = "SELECT COUNT(*) FROM request r
+                JOIN employee e ON e.employee_id = r.employee_id
+                {$whereSql}";
+
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Return the configured page size.
+     *
+     * @param int|null $pageSize  Optional override
+     * @return int
+     */
+    public function pageSize(?int $pageSize = null): int
+    {
+        return self::PAGE_SIZE;
+    }
+
+    /**
+     * Build WHERE clause for owner pending list.
+     *
+     * @param array{type_id?: int, search?: string} $filters
+     * @return array{where: string, params: array<string, mixed>}
+     */
+    private function buildOwnerPendingWhere(array $filters = []): array
+    {
+        $where  = ["r.status IN ('Pending', 'HRApproved', 'Returned')", 'r.archived_at IS NULL'];
+        $params = [];
+
+        if (!empty($filters['type_id'])) {
+            $where[]            = 'r.request_type_id = :type_id';
+            $params[':type_id'] = (int) $filters['type_id'];
+        }
+        if (!empty($filters['search'])) {
+            $where[]              = "(CONCAT(e.last_name,' ',e.first_name) LIKE :search_name
+                                     OR e.employee_number LIKE :search_num)";
+            $params[':search_name'] = '%' . $filters['search'] . '%';
+            $params[':search_num']  = '%' . $filters['search'] . '%';
+        }
+
+        $whereSql = 'WHERE ' . implode(' AND ', $where);
+
+        return ['where' => $whereSql, 'params' => $params];
+    }
+
+    /**
+     * Return a paginated list of pending requests for Owner.
+     *
+     * @param array{type_id?: int, search?: string} $filters
+     * @param int $page  1-based page number
+     * @return list<array<string,mixed>>
+     */
+    public function findOwnerPendingPaginated(array $filters = [], int $page = 1): array
+    {
+        $page = max(1, $page);
+        $offset = ($page - 1) * self::PAGE_SIZE;
+
+        $built = $this->buildOwnerPendingWhere($filters);
+        $whereSql = $built['where'];
+        $params = $built['params'];
+
+        $sql = "SELECT r.request_id,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    e.employee_number,
+                    rt.type_name,
+                    r.status,
+                    r.submitted_at,
+                    r.reviewed_at   AS hr_reviewed_at,
+                    r.reason
+               FROM request r
+               JOIN employee e      ON e.employee_id      = r.employee_id
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+              {$whereSql}
+              ORDER BY r.submitted_at ASC
+              LIMIT {$offset}, " . self::PAGE_SIZE;
+
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Count total pending requests for Owner matching the given filters.
+     *
+     * @param array{type_id?: int, search?: string} $filters
+     * @return int
+     */
+    public function countOwnerPendingFiltered(array $filters = []): int
+    {
+        $built = $this->buildOwnerPendingWhere($filters);
+        $whereSql = $built['where'];
+        $params = $built['params'];
+
+        $sql = "SELECT COUNT(*) FROM request r
+                JOIN employee e ON e.employee_id = r.employee_id
+                {$whereSql}";
+
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Build WHERE clause for owner actioned list.
+     *
+     * @param array{type_id?: int, search?: string} $filters
+     * @return array{where: string, params: array<string, mixed>}
+     */
+    private function buildOwnerActionedWhere(array $filters = []): array
+    {
+        $where  = ["r.status IN ('Approved', 'Cancelled')", 'r.archived_at IS NULL'];
+        $params = [];
+
+        if (!empty($filters['type_id'])) {
+            $where[]            = 'r.request_type_id = :type_id';
+            $params[':type_id'] = (int) $filters['type_id'];
+        }
+        if (!empty($filters['search'])) {
+            $where[]              = "(CONCAT(e.last_name,' ',e.first_name) LIKE :search_name
+                                     OR e.employee_number LIKE :search_num)";
+            $params[':search_name'] = '%' . $filters['search'] . '%';
+            $params[':search_num']  = '%' . $filters['search'] . '%';
+        }
+
+        $whereSql = 'WHERE ' . implode(' AND ', $where);
+
+        return ['where' => $whereSql, 'params' => $params];
+    }
+
+    /**
+     * Return a paginated list of actioned requests for Owner.
+     *
+     * @param array{type_id?: int, search?: string} $filters
+     * @param int $page  1-based page number
+     * @return list<array<string,mixed>>
+     */
+    public function findOwnerActionedPaginated(array $filters = [], int $page = 1): array
+    {
+        $page = max(1, $page);
+        $offset = ($page - 1) * self::PAGE_SIZE;
+
+        $built = $this->buildOwnerActionedWhere($filters);
+        $whereSql = $built['where'];
+        $params = $built['params'];
+
+        $sql = "SELECT r.request_id,
+                    CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
+                    e.employee_number,
+                    rt.type_name,
+                    r.status,
+                    r.submitted_at,
+                    r.reviewed_at        AS hr_reviewed_at,
+                    r.owner_reviewed_at,
+                    r.owner_notes,
+                    r.reason
+               FROM request r
+               JOIN employee e      ON e.employee_id      = r.employee_id
+               JOIN request_type rt ON rt.request_type_id = r.request_type_id
+              {$whereSql}
+              ORDER BY r.owner_reviewed_at DESC
+              LIMIT {$offset}, " . self::PAGE_SIZE;
+
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Count total actioned requests for Owner matching the given filters.
+     *
+     * @param array{type_id?: int, search?: string} $filters
+     * @return int
+     */
+    public function countOwnerActionedFiltered(array $filters = []): int
+    {
+        $built = $this->buildOwnerActionedWhere($filters);
+        $whereSql = $built['where'];
+        $params = $built['params'];
+
+        $sql = "SELECT COUNT(*) FROM request r
+                JOIN employee e ON e.employee_id = r.employee_id
+                {$whereSql}";
+
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
     /**
      * Return the current sick-leave balance for an employee in a given year.
      * Auto-provisions a 4-day entitlement row if none exists.

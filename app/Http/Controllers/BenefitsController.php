@@ -52,6 +52,11 @@ final class BenefitsController
         $filterSearch  = trim((string) ($_GET['employee_search'] ?? ''));
         $filterFrom    = trim((string) ($_GET['date_from'] ?? ''));
         $filterTo      = trim((string) ($_GET['date_to']   ?? ''));
+        $page          = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
 
         // Validate / sanitise
         if (!in_array($filterProgram, $validPrograms, true)) {
@@ -92,6 +97,24 @@ final class BenefitsController
 
         $whereClause = $where !== [] ? ('WHERE ' . implode(' AND ', $where)) : '';
 
+        // Pagination
+
+        // Count total for pagination
+        $countSql = "SELECT COUNT(*)
+               FROM contribution_record cr
+               JOIN payroll p           ON p.payroll_id              = cr.payroll_id
+               JOIN employee e          ON e.employee_id              = p.employee_id
+               JOIN payroll_run pr      ON pr.payroll_run_id          = p.payroll_run_id
+               JOIN payroll_period pp   ON pp.payroll_period_id       = pr.payroll_period_id
+              {$whereClause}";
+        $countStmt = $pdo->prepare($countSql);
+        $countStmt->execute($bind);
+        $total = (int) $countStmt->fetchColumn();
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $pageSize;
+
+        // Fetch paginated records
         $stmt = $pdo->prepare(
             "SELECT cr.contribution_id,
                     CONCAT(e.last_name, ', ', e.first_name) AS employee_name,
@@ -111,14 +134,14 @@ final class BenefitsController
                JOIN payroll_period pp   ON pp.payroll_period_id       = pr.payroll_period_id
               {$whereClause}
               ORDER BY cr.created_at DESC
-              LIMIT 200"
+              LIMIT {$offset}, {$pageSize}"
         );
         $stmt->execute($bind);
         $records = $stmt->fetchAll();
 
         $totalPolicies = count($policies);
         $active        = count(array_filter($policies, fn($r) => $r['status'] === 'Approved'));
-        $totalRecords  = count($records);
+        $totalRecords  = $total; // Use actual total count for display
         $programs      = count(array_unique(array_column($policies, 'program')));
 
         $filters = [
@@ -138,6 +161,10 @@ final class BenefitsController
             'programs'      => $programs,
             'filters'       => $filters,
             'isFiltered'    => $isFiltered,
+            'page'          => $page,
+            'totalPages'    => $totalPages,
+            'pageSize'      => $pageSize,
+            'total'         => $total,
         ], 'Benefits & Deductions');
     }
 

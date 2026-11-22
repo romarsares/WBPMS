@@ -50,13 +50,25 @@ final class EmployeeController
         $status      = $statusInUrl ? (string) ($_GET['status'] ?? '') : 'active';
 
         $position = trim((string) ($_GET['position'] ?? ''));
+        $page     = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
 
-        $employees = $repo->findAll([
+        $filters = [
             'search'   => $search,
             'branch'   => $branch,
             'status'   => $status,
             'position' => $position,
-        ]);
+        ];
+
+        $employees = $repo->findPaginated($filters, $page, $pageSize);
+        $total     = $repo->countFiltered($filters);
+        $pageSize  = $repo->pageSize($pageSize);
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
+
         $branches  = $repo->activeBranches();
         $positions = $this->makeConnection()->pdo()->query(
             "SELECT position_title AS name
@@ -73,6 +85,10 @@ final class EmployeeController
             'filterBranch'   => $branch,
             'filterStatus'   => $status,
             'filterPosition' => $position,
+            'page'           => $page,
+            'totalPages'     => $totalPages,
+            'total'          => $total,
+            'pageSize'       => $pageSize,
         ], 'Employees');
     }
 
@@ -1349,8 +1365,7 @@ final class EmployeeController
             return;
         }
 
-        $service   = new EmployeeDocumentService($this->makeConnection());
-        $documents = $service->listForEmployee($id);
+        [$page, $pageSize, $total, $totalPages, $documents] = $this->getEmployeeDocumentsPagination($id);
 
         ViewRenderer::render('hr/employees/documents', [
             'employee'      => $employee,
@@ -1358,6 +1373,10 @@ final class EmployeeController
             'documentTypes' => EmployeeDocumentService::DOCUMENT_TYPES,
             'errors'        => [],
             'activePage'    => 'employees',
+            'page'          => $page,
+            'totalPages'    => $totalPages,
+            'pageSize'      => $pageSize,
+            'total'         => $total,
         ], 'Employee Documents');
     }
 
@@ -1391,8 +1410,7 @@ final class EmployeeController
             ViewRenderer::flash('Document uploaded successfully.');
             $this->redirect('/hr/employees/' . $id . '/documents');
         } catch (\RuntimeException $e) {
-            $service   = new EmployeeDocumentService($this->makeConnection());
-            $documents = $service->listForEmployee($id);
+            [$page, $pageSize, $total, $totalPages, $documents] = $this->getEmployeeDocumentsPagination($id);
 
             ViewRenderer::render('hr/employees/documents', [
                 'employee'      => $employee,
@@ -1400,8 +1418,35 @@ final class EmployeeController
                 'documentTypes' => EmployeeDocumentService::DOCUMENT_TYPES,
                 'errors'        => ['upload' => $e->getMessage()],
                 'activePage'    => 'employees',
+                'page'          => $page,
+                'totalPages'    => $totalPages,
+                'pageSize'      => $pageSize,
+                'total'         => $total,
             ], 'Employee Documents');
         }
+    }
+
+    /**
+     * Get paginated documents for an employee.
+     *
+     * @return array{0:int, 1:int, 2:int, 3:int, 4:list<array<string,mixed>>}
+     */
+    private function getEmployeeDocumentsPagination(int $employeeId): array
+    {
+        $page      = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize  = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
+        $conn      = $this->makeConnection();
+        $repo      = new \Wbpms\Infrastructure\Persistence\EmployeeDocumentRepository($conn);
+        $total     = $repo->countByEmployee($employeeId);
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
+        $documents = $repo->findByEmployee($employeeId, $page, $pageSize);
+
+        return [$page, $pageSize, $total, $totalPages, $documents];
     }
 
     /**

@@ -48,7 +48,8 @@ final class EmployeePortalController
      *
      * REQ075: own attendance view, scoped to session.employee_id.
      * Variable contract: resources/views/employee/attendance.php
-     *   expects $rows, $total, $present, $incomplete, $totalLate, $totalAbsent, and $totalOT.
+     *   expects $rows, $total, $present, $incomplete, $totalLate, $totalAbsent, $totalOT,
+     *   and pagination variables $page, $totalPages, $pageSize.
      *
      * @param array<string, string> $params
      */
@@ -78,22 +79,38 @@ final class EmployeePortalController
             $dateTo = '';
         }
 
-        // Build WHERE clause
+        // Pagination
+        $page      = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize  = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
+        // Build WHERE clause for date range
         if ($dateFrom !== '' && $dateTo !== '') {
             $rangeClause = 'AND a.attendance_date BETWEEN :date_from AND :date_to';
             $bind = [':emp_id' => $employeeId, ':date_from' => $dateFrom, ':date_to' => $dateTo];
+            $periodFrom = $dateFrom;
+            $periodTo = $dateTo;
         } elseif ($dateFrom !== '') {
             $rangeClause = 'AND a.attendance_date >= :date_from';
             $bind = [':emp_id' => $employeeId, ':date_from' => $dateFrom];
+            $periodFrom = $dateFrom;
+            $periodTo = (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila')))->format('Y-m-d');
         } elseif ($dateTo !== '') {
             $rangeClause = 'AND a.attendance_date <= :date_to';
             $bind = [':emp_id' => $employeeId, ':date_to' => $dateTo];
+            $periodFrom = (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila')))->modify('-89 days')->format('Y-m-d');
+            $periodTo = $dateTo;
         } else {
             // Default: last 90 days
             $rangeClause = 'AND a.attendance_date BETWEEN DATE_SUB(CURDATE(), INTERVAL 89 DAY) AND CURDATE()';
             $bind = [':emp_id' => $employeeId];
+            $periodFrom = (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila')))->modify('-89 days')->format('Y-m-d');
+            $periodTo = (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila')))->format('Y-m-d');
         }
 
+        // Fetch ALL attendance records for the date range (no pagination yet)
         $stmt = $pdo->prepare(
             "SELECT a.attendance_date,
                     a.time_in,
@@ -119,8 +136,6 @@ final class EmployeePortalController
 
         // An absence is a scheduled working day covered by an approved import
         // with no attendance row. Holidays and approved leave are excluded.
-        $periodFrom = $dateFrom !== '' ? $dateFrom : (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila')))->modify('-89 days')->format('Y-m-d');
-        $periodTo = $dateTo !== '' ? $dateTo : (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Manila')))->format('Y-m-d');
         $absenceDates = $this->employeeAbsenceDates($pdo, $employeeId, $periodFrom, $periodTo);
         foreach ($absenceDates as $absenceDate) {
             $rows[] = [
@@ -140,6 +155,8 @@ final class EmployeePortalController
             $row['is_absent'] = (int) ($row['is_absent'] ?? 0);
         }
         unset($row);
+
+        // Apply status filter to all rows (attendance + absences)
         if ($statusFilter !== '') {
             $rows = array_values(array_filter($rows, static function (array $row) use ($statusFilter): bool {
                 if ((int) $row['is_absent'] === 1) return $statusFilter === 'Absent';
@@ -150,7 +167,21 @@ final class EmployeePortalController
             }));
         }
 
-        $total      = count($rows);
+        // Now count total AFTER adding absences and applying status filter
+        $total = count($rows);
+
+        // Pagination
+        $page      = max(1, (int) ($_GET['page'] ?? 1));
+        $pageSize  = 50;
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
+
+        // Apply pagination to filtered rows
+        $offset = ($page - 1) * $pageSize;
+        $rows = array_slice($rows, $offset, $pageSize);
+
+        // Calculate display totals from paginated rows
+        $displayTotal = count($rows);
         $incomplete = 0;
         $totalLate  = 0;
         $totalAbsent = 0;
@@ -161,19 +192,22 @@ final class EmployeePortalController
             $totalAbsent += (int) $row['is_absent'];
             $totalOT    += (int) $row['overtime_minutes'];
         }
-        $present = $total - $incomplete - $totalAbsent;
+        $present = $displayTotal - $incomplete - $totalAbsent;
 
         ViewRenderer::render('employee/attendance', [
-            'rows'       => $rows,
-            'total'      => $total,
-            'present'    => $present,
-            'incomplete' => $incomplete,
-            'totalLate'  => $totalLate,
-            'totalAbsent' => $totalAbsent,
-            'totalOT'    => $totalOT,
-            'dateFrom'   => $dateFrom,
-            'dateTo'     => $dateTo,
+            'rows'         => $rows,
+            'total'        => $total,
+            'present'      => $present,
+            'incomplete'   => $incomplete,
+            'totalLate'    => $totalLate,
+            'totalAbsent'  => $totalAbsent,
+            'totalOT'      => $totalOT,
+            'dateFrom'     => $dateFrom,
+            'dateTo'       => $dateTo,
             'statusFilter' => $statusFilter,
+            'page'         => $page,
+            'totalPages'   => $totalPages,
+            'pageSize'     => $pageSize,
         ], 'My Attendance');
     }
 
@@ -259,20 +293,48 @@ final class EmployeePortalController
     public function notices(array $params = []): void
     {
         $employeeId = $this->requireEmployeeId();
-        $stmt = $this->makeConnection()->pdo()->prepare(
+        $pdo        = $this->makeConnection()->pdo();
+
+        // Pagination
+        $page     = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
+        // Count total for pagination
+        $countSql = "SELECT COUNT(*)
+               FROM employee_hr_notice n
+               LEFT JOIN attendance_policy_flag f ON f.flag_id = n.policy_flag_id
+              WHERE n.employee_id = :employee_id";
+        $countStmt = $pdo->prepare($countSql);
+        $countStmt->execute([':employee_id' => $employeeId]);
+        $total = (int) $countStmt->fetchColumn();
+
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $pageSize;
+
+        // Fetch paginated notices
+        $stmt = $pdo->prepare(
             "SELECT n.notice_id, n.title, n.body, n.issued_at, n.acknowledged_at,
                     f.flag_type, f.triggering_date
                FROM employee_hr_notice n
                LEFT JOIN attendance_policy_flag f ON f.flag_id = n.policy_flag_id
               WHERE n.employee_id = :employee_id
               ORDER BY n.issued_at DESC, n.notice_id DESC
-              LIMIT 50"
+              LIMIT {$offset}, {$pageSize}"
         );
         $stmt->execute([':employee_id' => $employeeId]);
+        $notices = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         ViewRenderer::render('employee/notices', [
-            'notices' => $stmt->fetchAll(PDO::FETCH_ASSOC),
-            'activePage' => 'my-notices',
+            'notices'      => $notices,
+            'page'         => $page,
+            'totalPages'   => $totalPages,
+            'total'        => $total,
+            'pageSize'     => $pageSize,
+            'activePage'   => 'my-notices',
         ], 'HR Notices');
     }
 
@@ -349,15 +411,28 @@ final class EmployeePortalController
         $pdo        = $this->makeConnection()->pdo();
 
         $filterStatus = trim((string) ($_GET['status'] ?? ''));
-        $whereStatus  = $filterStatus !== '' ? 'AND r.status = :status' : '';
-        $queryParams  = [':emp_id' => $employeeId];
+        $page         = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
+        // Build filters for the query
+        $where  = ['r.employee_id = :emp_id', 'r.archived_at IS NULL'];
+        $params = [':emp_id' => $employeeId];
+
         if ($filterStatus !== '') {
-            $queryParams[':status'] = $filterStatus;
+            $where[]           = 'r.status = :status';
+            $params[':status'] = $filterStatus;
         }
 
-        // request_type.type_name is the actual column; request.reason for summary;
-        // request.review_notes for hr_note. Leave detail lets the employee
-        // see the saved number of requested leave days after submission.
+        $whereSql = 'WHERE ' . implode(' AND ', $where);
+
+        // Get pageSize from RequestService
+        $service  = new RequestService($this->makeConnection());
+        $pageSize = $service->pageSize($pageSize);
+        $offset   = ($page - 1) * $pageSize;
+
         $stmt = $pdo->prepare(
             "SELECT r.request_id         AS id,
                     rt.type_name         AS type,
@@ -371,16 +446,24 @@ final class EmployeePortalController
              FROM request r
              JOIN request_type rt ON rt.request_type_id = r.request_type_id
              LEFT JOIN leave_request_detail lrd ON lrd.request_id = r.request_id
-             WHERE r.employee_id = :emp_id
-             {$whereStatus}
+             {$whereSql}
              ORDER BY r.submitted_at DESC
-             LIMIT 50"
+             LIMIT {$offset}, {$pageSize}"
         );
-        $stmt->execute($queryParams);
+        $stmt->execute($params);
         $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Count total for this employee
+        $countStmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM request r
+             {$whereSql}"
+        );
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
+
         // Leave balance for the current year
-        $service = new RequestService($this->makeConnection());
         try {
             $sickLeaveBalance = $service->leaveBalance($employeeId);
         } catch (\RuntimeException) {
@@ -424,6 +507,10 @@ final class EmployeePortalController
             'leaveBalanceAfterPending' => $leaveBalanceAfterPending,
             'cashAdvanceOutstanding' => $cashAdvanceOutstanding,
             'cashAdvanceMax'         => $cashAdvanceMax,
+            'page'                   => $page,
+            'totalPages'             => $totalPages,
+            'total'                  => $total,
+            'pageSize'               => $pageSize,
         ], 'My Requests');
     }
 
@@ -599,7 +686,31 @@ final class EmployeePortalController
         $employeeId = $this->requireEmployeeId();
         $pdo        = $this->makeConnection()->pdo();
 
-        // payroll_period uses payroll_period_id as PK
+        // Pagination
+        $page     = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
+
+        // Count total for pagination
+        $countSql = "SELECT COUNT(*)
+             FROM payslip ps
+             JOIN payroll p      ON p.payroll_id          = ps.payroll_id
+             JOIN payroll_run pr ON pr.payroll_run_id      = p.payroll_run_id
+             JOIN payroll_period pp ON pp.payroll_period_id = pr.payroll_period_id
+             JOIN branch b       ON b.branch_id            = pr.branch_id
+             WHERE p.employee_id = :emp_id
+               AND pr.status = 'Approved'";
+        $countStmt = $pdo->prepare($countSql);
+        $countStmt->execute([':emp_id' => $employeeId]);
+        $total = (int) $countStmt->fetchColumn();
+
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $pageSize;
+
+        // Fetch paginated payslips
         $stmt = $pdo->prepare(
             "SELECT ps.payslip_id AS id,
                     CONCAT(pp.period_start, ' – ', pp.period_end) AS period_label,
@@ -616,13 +727,19 @@ final class EmployeePortalController
              WHERE p.employee_id = :emp_id
                AND pr.status = 'Approved'
              ORDER BY pp.period_start DESC
-             LIMIT 24"
+             LIMIT {$offset}, {$pageSize}"
         );
         $stmt->execute([':emp_id' => $employeeId]);
         $payslips = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        $totalPages = (int) ceil($total / $pageSize);
+
         ViewRenderer::render('employee/payslips', [
-            'payslips' => $payslips,
+            'payslips'    => $payslips,
+            'page'        => $page,
+            'totalPages'  => $totalPages,
+            'total'       => $total,
+            'pageSize'    => $pageSize,
         ], 'My Payslips');
     }
 

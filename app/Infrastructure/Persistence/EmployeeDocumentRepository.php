@@ -73,13 +73,16 @@ final class EmployeeDocumentRepository extends AbstractRepository
         return (int) $this->pdo()->lastInsertId();
     }
 
+    public const PAGE_SIZE = 10;
+
     /**
      * Return all documents for an employee, newest first.
      *
      * @return list<array<string, mixed>>
      */
-    public function findByEmployee(int $employeeId): array
+    public function findByEmployee(int $employeeId, int $page = 1, int $pageSize = self::PAGE_SIZE): array
     {
+        $offset = ($page - 1) * $pageSize;
         $stmt = $this->pdo()->prepare(
             "SELECT
                 d.document_id,
@@ -106,11 +109,35 @@ final class EmployeeDocumentRepository extends AbstractRepository
              LEFT JOIN users   vp  ON vp.user_id     = d.verified_by
              LEFT JOIN employee v  ON v.employee_id  = vp.employee_id
              WHERE d.employee_id = :employee_id
-             ORDER BY d.uploaded_at DESC"
+             ORDER BY d.uploaded_at DESC
+             LIMIT :offset, :pageSize"
         );
-        $stmt->execute([':employee_id' => $employeeId]);
+        $stmt->bindValue(':employee_id', $employeeId, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->bindValue(':pageSize', $pageSize, \PDO::PARAM_INT);
+        $stmt->execute();
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Return the configured page size.
+     *
+     * @param int|null $pageSize  Optional override
+     * @return int
+     */
+    public function pageSize(?int $pageSize = null): int
+    {
+        return $pageSize ?? self::PAGE_SIZE;
+    }
+
+    public function countByEmployee(int $employeeId): int
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT COUNT(*) FROM employee_document WHERE employee_id = :employee_id"
+        );
+        $stmt->execute([':employee_id' => $employeeId]);
+        return (int) $stmt->fetchColumn();
     }
 
     /**

@@ -148,7 +148,7 @@ $timeValue = static fn(string $key): string =>
                 <strong><?= (int) $total ?></strong>
                 schedules
             </div>
-            <div style="display:flex;align-items:center;gap:.5rem">
+            <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
                 <label style="font-size:.8rem;font-weight:500;color:#374151">Per page</label>
                 <select name="page_size" onchange="this.form.submit()" style="padding:.4rem .6rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
                     <option value="10" <?= $pageSize === 10 ? 'selected' : '' ?>>10</option>

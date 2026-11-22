@@ -37,6 +37,10 @@ $filters          ??= ['payroll_period_id' => 0, 'branch_id' => 0, 'employee_id'
 $missingBankCount ??= 0;
 $printMode        ??= false;
 $base             ??= '';
+$page             ??= 1;
+$totalPages       ??= 1;
+$total            ??= 0;
+$pageSize         ??= 50;
 ?>
 
 <?php if (!$printMode): ?>
@@ -108,6 +112,16 @@ $base             ??= '';
                 Generate Slips
             </button>
         </div>
+        <div style="display:flex;align-items:flex-end;margin-left:auto">
+            <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">Per page</label>
+            <select name="page_size" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;font-size:13px">
+                <option value="10" <?= $pageSize === 10 ? 'selected' : '' ?>>10</option>
+                <option value="20" <?= $pageSize === 20 ? 'selected' : '' ?>>20</option>
+                <option value="30" <?= $pageSize === 30 ? 'selected' : '' ?>>30</option>
+                <option value="50" <?= $pageSize === 50 ? 'selected' : '' ?>>50</option>
+                <option value="100" <?= $pageSize === 100 ? 'selected' : '' ?>>100</option>
+            </select>
+        </div>
     </form>
 </div>
 
@@ -159,6 +173,83 @@ $base             ??= '';
         </tbody>
     </table>
 </div>
+
+    <!-- Pagination -->
+    <?php if ($totalPages > 1): ?>
+    <div class="card" style="padding:1rem 1.25rem;margin-top:1rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem">
+        <div style="font-size:.875rem;color:#374151">
+            Showing
+            <strong><?= (int) (($page - 1) * $pageSize + 1) ?></strong>
+            to
+            <strong><?= (int) min($page * $pageSize, $total) ?></strong>
+            of
+            <strong><?= (int) $total ?></strong>
+            slips
+        </div>
+        <nav aria-label="Transaction slips pagination">
+            <ul style="display:flex;gap:.25rem;list-style:none;margin:0;padding:0">
+                <!-- Previous -->
+                <?php if ($page > 1): ?>
+                <li>
+                    <a href="<?= $e($base) ?>/hr/reports/transaction-slips?page=<?= $page - 1 ?>&payroll_period_id=<?= (int) $filters['payroll_period_id'] ?>&branch_id=<?= (int) $filters['branch_id'] ?>&employee_id=<?= (int) $filters['employee_id'] ?>&page_size=<?= $pageSize ?>"
+                       class="btn btn-secondary btn-sm" aria-label="Previous page">« Prev</a>
+                </li>
+                <?php else: ?>
+                <li>
+                    <span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:not-allowed" aria-disabled="true">« Prev</span>
+                </li>
+                <?php endif; ?>
+
+                <!-- Page numbers -->
+                <?php
+                $start = max(1, $page - 2);
+                $end   = min($totalPages, $page + 2);
+                if ($start > 1): ?>
+                <li>
+                    <a href="<?= $e($base) ?>/hr/reports/transaction-slips?page=1&payroll_period_id=<?= (int) $filters['payroll_period_id'] ?>&branch_id=<?= (int) $filters['branch_id'] ?>&employee_id=<?= (int) $filters['employee_id'] ?>&page_size=<?= $pageSize ?>"
+                       class="btn btn-secondary btn-sm">1</a>
+                </li>
+                <?php if ($start > 2): ?>
+                <li><span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:default">…</span></li>
+                <?php endif; ?>
+                <?php endif; ?>
+
+                <?php for ($p = $start; $p <= $end; $p++): ?>
+                <li>
+                    <?php if ($p === $page): ?>
+                    <span class="btn btn-primary btn-sm" aria-current="page"><?= $p ?></span>
+                    <?php else: ?>
+                    <a href="<?= $e($base) ?>/hr/reports/transaction-slips?page=<?= $p ?>&payroll_period_id=<?= (int) $filters['payroll_period_id'] ?>&branch_id=<?= (int) $filters['branch_id'] ?>&employee_id=<?= (int) $filters['employee_id'] ?>&page_size=<?= $pageSize ?>"
+                       class="btn btn-secondary btn-sm"><?= $p ?></a>
+                    <?php endif; ?>
+                </li>
+                <?php endfor; ?>
+
+                <?php if ($end < $totalPages): ?>
+                <?php if ($end < $totalPages - 1): ?>
+                <li><span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:default">…</span></li>
+                <?php endif; ?>
+                <li>
+                    <a href="<?= $e($base) ?>/hr/reports/transaction-slips?page=<?= $totalPages ?>&payroll_period_id=<?= (int) $filters['payroll_period_id'] ?>&branch_id=<?= (int) $filters['branch_id'] ?>&employee_id=<?= (int) $filters['employee_id'] ?>&page_size=<?= $pageSize ?>"
+                       class="btn btn-secondary btn-sm"><?= $totalPages ?></a>
+                </li>
+                <?php endif; ?>
+
+                <!-- Next -->
+                <?php if ($page < $totalPages): ?>
+                <li>
+                    <a href="<?= $e($base) ?>/hr/reports/transaction-slips?page=<?= $page + 1 ?>&payroll_period_id=<?= (int) $filters['payroll_period_id'] ?>&branch_id=<?= (int) $filters['branch_id'] ?>&employee_id=<?= (int) $filters['employee_id'] ?>&page_size=<?= $pageSize ?>"
+                       class="btn btn-secondary btn-sm" aria-label="Next page">Next »</a>
+                </li>
+                <?php else: ?>
+                <li>
+                    <span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:not-allowed" aria-disabled="true">Next »</span>
+                </li>
+                <?php endif; ?>
+            </ul>
+        </nav>
+    </div>
+    <?php endif; ?>
 <?php endif; ?>
 
 <?php else: ?>

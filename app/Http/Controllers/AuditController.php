@@ -36,7 +36,8 @@ final class AuditController
         $rows       = $repo->findPaginated($filters, $page);
         $total      = $repo->countFiltered($filters);
         $pageSize   = $repo->pageSize();
-        $totalPages = (int) ceil($total / $pageSize);
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
 
         $eventTypes     = $repo->distinctEventTypes();
         $tablesAffected = $repo->distinctTablesAffected();

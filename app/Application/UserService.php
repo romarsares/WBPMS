@@ -31,6 +31,11 @@ use Wbpms\Infrastructure\Database\Connection;
  */
 final class UserService
 {
+    /**
+     * Page size for paginated user lists.
+     */
+    private const PAGE_SIZE = 10;
+
     public function __construct(private Connection $connection) {}
 
     // -----------------------------------------------------------------------
@@ -38,22 +43,22 @@ final class UserService
     // -----------------------------------------------------------------------
 
     /**
-     * Return all users with their role name.
+     * Build WHERE clause and parameters from filter parameters.
      *
      * @param bool   $includeArchived  Include Archived rows (for admin view).
      * @param string $position         Restrict to users linked to employees with this position title.
      * @param string $username         LIKE filter on u.username (partial match).
      * @param string $status           Exact filter on u.status ('Active'|'Inactive'|'Archived'|'').
-     * @return list<array<string,mixed>>
+     * @return array{where: string, params: array<string, mixed>}
      */
-    public function list(
+    private function buildWhere(
         bool   $includeArchived = false,
         string $position        = '',
         string $username        = '',
         string $status          = '',
     ): array {
-        $params = [];
         $where  = [];
+        $params = [];
 
         if (!$includeArchived && $status === '') {
             // No explicit status filter — hide archived by default
@@ -61,7 +66,7 @@ final class UserService
         }
 
         if ($status !== '') {
-            $where[]          = 'u.status = :status';
+            $where[]           = 'u.status = :status';
             $params[':status'] = ucfirst(strtolower($status));
         }
 
@@ -76,6 +81,28 @@ final class UserService
         }
 
         $whereClause = $where !== [] ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        return ['where' => $whereClause, 'params' => $params];
+    }
+
+    /**
+     * Return all users with their role name (non-paginated, for backward compatibility).
+     *
+     * @param bool   $includeArchived  Include Archived rows (for admin view).
+     * @param string $position         Restrict to users linked to employees with this position title.
+     * @param string $username         LIKE filter on u.username (partial match).
+     * @param string $status           Exact filter on u.status ('Active'|'Inactive'|'Archived'|'').
+     * @return list<array<string,mixed>>
+     */
+    public function list(
+        bool   $includeArchived = false,
+        string $position        = '',
+        string $username        = '',
+        string $status          = '',
+    ): array {
+        $built = $this->buildWhere($includeArchived, $position, $username, $status);
+        $whereClause = $built['where'];
+        $params = $built['params'];
 
         $sql = "SELECT u.user_id, u.username, u.account_email, u.status,
                        u.employee_id, u.created_at, u.updated_at,
@@ -95,6 +122,92 @@ final class UserService
         $stmt->execute($params);
 
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Return a paginated list of users with their role name.
+     *
+     * @param int    $page             1-based page number
+     * @param bool   $includeArchived  Include Archived rows (for admin view).
+     * @param string $position         Restrict to users linked to employees with this position title.
+     * @param string $username         LIKE filter on u.username (partial match).
+     * @param string $status           Exact filter on u.status ('Active'|'Inactive'|'Archived'|'').
+     * @return list<array<string,mixed>>
+     */
+    public function findPaginated(
+        int    $page = 1,
+        int    $pageSize = self::PAGE_SIZE,
+        bool   $includeArchived = false,
+        string $position        = '',
+        string $username        = '',
+        string $status          = '',
+    ): array {
+        $page = max(1, $page);
+        $offset = ($page - 1) * $pageSize;
+
+        $built = $this->buildWhere($includeArchived, $position, $username, $status);
+        $whereClause = $built['where'];
+        $params = $built['params'];
+
+        $sql = "SELECT u.user_id, u.username, u.account_email, u.status,
+                       u.employee_id, u.created_at, u.updated_at,
+                       r.role_id, r.role_name,
+                       (SELECT GROUP_CONCAT(r2.role_name ORDER BY r2.role_name SEPARATOR ', ')
+                          FROM user_role ur2
+                          JOIN role r2 ON r2.role_id = ur2.role_id
+                         WHERE ur2.user_id = u.user_id) AS role_names,
+                       CONCAT(e.last_name, ', ', e.first_name) AS employee_name
+                  FROM users u
+                  JOIN role r   ON r.role_id = u.role_id
+                  LEFT JOIN employee e ON e.employee_id = u.employee_id
+                {$whereClause}
+                 ORDER BY u.created_at DESC
+                 LIMIT {$offset}, {$pageSize}";
+
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Count total users matching the given filters (for pagination).
+     *
+     * @param bool   $includeArchived  Include Archived rows (for admin view).
+     * @param string $position         Restrict to users linked to employees with this position title.
+     * @param string $username         LIKE filter on u.username (partial match).
+     * @param string $status           Exact filter on u.status ('Active'|'Inactive'|'Archived'|'').
+     * @return int
+     */
+    public function countFiltered(
+        bool   $includeArchived = false,
+        string $position        = '',
+        string $username        = '',
+        string $status          = '',
+    ): int {
+        $built = $this->buildWhere($includeArchived, $position, $username, $status);
+        $whereClause = $built['where'];
+        $params = $built['params'];
+
+        $sql = "SELECT COUNT(*) FROM users u
+                JOIN role r ON r.role_id = u.role_id
+                LEFT JOIN employee e ON e.employee_id = u.employee_id
+                {$whereClause}";
+
+        $stmt = $this->connection->pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Return the configured page size.
+     *
+     * @return int
+     */
+    public function pageSize(): int
+    {
+        return self::PAGE_SIZE;
     }
 
     // -----------------------------------------------------------------------

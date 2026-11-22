@@ -45,22 +45,36 @@ final class RequestsController
         if ($filters['type_id'] === 0) {
             unset($filters['type_id']);
         }
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $allowedPageSizes = [10, 20, 30, 50, 100];
+        $pageSize = in_array((int) ($_GET['page_size'] ?? 10), $allowedPageSizes, true)
+            ? (int) ($_GET['page_size'] ?? 10)
+            : 10;
 
-        $rows     = $service->list($filters);
+        $rows     = $service->findPaginated($filters, $page, $pageSize);
+        $total    = $service->countFiltered($filters);
+        $pageSize = $service->pageSize($pageSize);
+        $totalPages = max(1, (int) ceil($total / $pageSize));
+        $page = min($page, $totalPages);
         $types    = $service->requestTypes();
-        $total    = count($rows);
-        $pending  = count(array_filter($rows, fn($r) => $r['status'] === 'Pending'));
-        $approved = count(array_filter($rows, fn($r) => in_array($r['status'], ['HRApproved', 'Approved'], true)));
-        $rejected = count(array_filter($rows, fn($r) => $r['status'] === 'Cancelled'));
+
+        // Stats for summary cards (using full list for accurate counts)
+        $allRows  = $service->list($filters);
+        $pending  = count(array_filter($allRows, fn($r) => $r['status'] === 'Pending'));
+        $approved = count(array_filter($allRows, fn($r) => in_array($r['status'], ['HRApproved', 'Approved'], true)));
+        $rejected = count(array_filter($allRows, fn($r) => $r['status'] === 'Cancelled'));
 
         ViewRenderer::render('hr/requests/index', [
-            'rows'     => $rows,
-            'types'    => $types,
-            'filters'  => $filters,
-            'total'    => $total,
-            'pending'  => $pending,
-            'approved' => $approved,
-            'rejected' => $rejected,
+            'rows'         => $rows,
+            'types'        => $types,
+            'filters'      => $filters,
+            'total'        => $total,
+            'page'         => $page,
+            'totalPages'   => $totalPages,
+            'pageSize'     => $pageSize,
+            'pending'      => $pending,
+            'approved'     => $approved,
+            'rejected'     => $rejected,
         ], 'Request Management');
     }
 
