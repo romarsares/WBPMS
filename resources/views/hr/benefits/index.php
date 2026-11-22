@@ -99,8 +99,8 @@ use Wbpms\Http\View\Formatter;
         </div>
         <button type="submit" class="btn btn-primary">Filter</button>
         <a href="<?= $base ?>/hr/benefits" class="btn btn-secondary">Clear</a>
-        <div style="display:flex;align-items:flex-end;margin-left:auto">
-            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Per page</label>
+        <div style="display:flex;align-items:flex-end;gap:.5rem;margin-left:auto">
+            <label style="font-size:.8rem;font-weight:500;white-space:nowrap">Per page</label>
             <select name="page_size" style="min-width:7rem;padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
                 <option value="10" <?= $pageSize === 10 ? 'selected' : '' ?>>10</option>
                 <option value="20" <?= $pageSize === 20 ? 'selected' : '' ?>>20</option>
