@@ -16,6 +16,10 @@ use Wbpms\Http\View\Formatter;
 
 $errors = $errors ?? [];
 $input  = $input  ?? [];
+$page ??= 1;
+$totalPages ??= 1;
+$pageSize ??= 50;
+$total ??= 0;
 
 $allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -131,6 +135,93 @@ $timeValue = static fn(string $key): string =>
                 </tbody>
             </table>
         </div>
+
+        <!-- Pagination for Schedule Templates -->
+        <?php if ($totalPages > 1): ?>
+        <div class="card" style="padding:1rem 1.25rem;margin-top:1rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem">
+            <div style="font-size:.875rem;color:#374151">
+                Showing
+                <strong><?= (int) (($page - 1) * $pageSize + 1) ?></strong>
+                to
+                <strong><?= (int) min($page * $pageSize, $total) ?></strong>
+                of
+                <strong><?= (int) $total ?></strong>
+                schedules
+            </div>
+            <div style="display:flex;align-items:center;gap:.5rem">
+                <label style="font-size:.8rem;font-weight:500;color:#374151">Per page</label>
+                <select name="page_size" onchange="this.form.submit()" style="padding:.4rem .6rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
+                    <option value="10" <?= $pageSize === 10 ? 'selected' : '' ?>>10</option>
+                    <option value="20" <?= $pageSize === 20 ? 'selected' : '' ?>>20</option>
+                    <option value="30" <?= $pageSize === 30 ? 'selected' : '' ?>>30</option>
+                    <option value="50" <?= $pageSize === 50 ? 'selected' : '' ?>>50</option>
+                    <option value="100" <?= $pageSize === 100 ? 'selected' : '' ?>>100</option>
+                </select>
+            </div>
+            <nav aria-label="Schedules pagination">
+                <ul style="display:flex;gap:.25rem;list-style:none;margin:0;padding:0">
+                    <!-- Previous -->
+                    <?php if ($page > 1): ?>
+                    <li>
+                        <a href="<?= $base ?>/hr/schedules?page=<?= $page - 1 ?>&page_size=<?= $pageSize ?>"
+                           class="btn btn-secondary btn-sm" aria-label="Previous page">« Prev</a>
+                    </li>
+                    <?php else: ?>
+                    <li>
+                        <span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:not-allowed" aria-disabled="true">« Prev</span>
+                    </li>
+                    <?php endif; ?>
+
+                    <!-- Page numbers -->
+                    <?php
+                    $start = max(1, $page - 2);
+                    $end   = min($totalPages, $page + 2);
+                    if ($start > 1): ?>
+                    <li>
+                        <a href="<?= $base ?>/hr/schedules?page=1&page_size=<?= $pageSize ?>"
+                           class="btn btn-secondary btn-sm">1</a>
+                    </li>
+                    <?php if ($start > 2): ?>
+                    <li><span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:default">…</span></li>
+                    <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php for ($p = $start; $p <= $end; $p++): ?>
+                    <li>
+                        <?php if ($p === $page): ?>
+                        <span class="btn btn-primary btn-sm" aria-current="page"><?= $p ?></span>
+                        <?php else: ?>
+                        <a href="<?= $base ?>/hr/schedules?page=<?= $p ?>&page_size=<?= $pageSize ?>"
+                           class="btn btn-secondary btn-sm"><?= $p ?></a>
+                        <?php endif; ?>
+                    </li>
+                    <?php endfor; ?>
+
+                    <?php if ($end < $totalPages): ?>
+                    <?php if ($end < $totalPages - 1): ?>
+                    <li><span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:default">…</span></li>
+                    <?php endif; ?>
+                    <li>
+                        <a href="<?= $base ?>/hr/schedules?page=<?= $totalPages ?>&page_size=<?= $pageSize ?>"
+                           class="btn btn-secondary btn-sm"><?= $totalPages ?></a>
+                    </li>
+                    <?php endif; ?>
+
+                    <!-- Next -->
+                    <?php if ($page < $totalPages): ?>
+                    <li>
+                        <a href="<?= $base ?>/hr/schedules?page=<?= $page + 1 ?>&page_size=<?= $pageSize ?>"
+                           class="btn btn-secondary btn-sm" aria-label="Next page">Next »</a>
+                    </li>
+                    <?php else: ?>
+                    <li>
+                        <span class="btn btn-secondary btn-sm" style="opacity:.5;cursor:not-allowed" aria-disabled="true">Next »</span>
+                    </li>
+                    <?php endif; ?>
+                </ul>
+            </nav>
+        </div>
+        <?php endif; ?>
 
         <!-- Employee Assignments -->
         <div class="card" style="padding:0;overflow:hidden">
@@ -286,6 +377,56 @@ $timeValue = static fn(string $key): string =>
                 </div>
             </div>
             <p class="muted" style="margin:-.4rem 0 1rem;font-size:.8rem">Use 24-hour time (HH:MM), for example 13:30.</p>
+
+            <script>
+            // Auto-calculate break minutes from break start/end times
+            (function () {
+                var breakStart = document.getElementById('break_start');
+                var breakEnd = document.getElementById('break_end');
+                var breakMinutes = document.getElementById('break_minutes');
+
+                function calculateBreakMinutes() {
+                    var startVal = breakStart.value.trim();
+                    var endVal = breakEnd.value.trim();
+
+                    if (!startVal || !endVal) return;
+
+                    // Parse HH:MM format
+                    var startParts = startVal.split(':');
+                    var endParts = endVal.split(':');
+
+                    if (startParts.length !== 2 || endParts.length !== 2) return;
+
+                    var startHour = parseInt(startParts[0], 10);
+                    var startMin = parseInt(startParts[1], 10);
+                    var endHour = parseInt(endParts[0], 10);
+                    var endMin = parseInt(endParts[1], 10);
+
+                    if (isNaN(startHour) || isNaN(startMin) || isNaN(endHour) || isNaN(endMin)) return;
+
+                    var startTotal = startHour * 60 + startMin;
+                    var endTotal = endHour * 60 + endMin;
+
+                    // Handle overnight breaks (end time before start time)
+                    if (endTotal < startTotal) {
+                        endTotal += 24 * 60;
+                    }
+
+                    var diff = endTotal - startTotal;
+
+                    if (diff > 0 && diff <= 24 * 60) {
+                        breakMinutes.value = diff;
+                    }
+                }
+
+                if (breakStart && breakEnd && breakMinutes) {
+                    breakStart.addEventListener('change', calculateBreakMinutes);
+                    breakStart.addEventListener('blur', calculateBreakMinutes);
+                    breakEnd.addEventListener('change', calculateBreakMinutes);
+                    breakEnd.addEventListener('blur', calculateBreakMinutes);
+                }
+            })();
+            </script>
 
             <!-- Grace Period / Overtime -->
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">

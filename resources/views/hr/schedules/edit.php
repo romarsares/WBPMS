@@ -128,6 +128,56 @@ $timeValue = static function (string $key) use ($schedule): string {
         </div>
         <p class="muted" style="margin:-.4rem 0 1rem;font-size:.8rem">Use 24-hour time (HH:MM), for example 13:30.</p>
 
+        <script>
+        // Auto-calculate break minutes from break start/end times
+        (function () {
+            var breakStart = document.getElementById('break_start');
+            var breakEnd = document.getElementById('break_end');
+            var breakMinutes = document.getElementById('break_minutes');
+
+            function calculateBreakMinutes() {
+                var startVal = breakStart.value.trim();
+                var endVal = breakEnd.value.trim();
+
+                if (!startVal || !endVal) return;
+
+                // Parse HH:MM format
+                var startParts = startVal.split(':');
+                var endParts = endVal.split(':');
+
+                if (startParts.length !== 2 || endParts.length !== 2) return;
+
+                var startHour = parseInt(startParts[0], 10);
+                var startMin = parseInt(startParts[1], 10);
+                var endHour = parseInt(endParts[0], 10);
+                var endMin = parseInt(endParts[1], 10);
+
+                if (isNaN(startHour) || isNaN(startMin) || isNaN(endHour) || isNaN(endMin)) return;
+
+                var startTotal = startHour * 60 + startMin;
+                var endTotal = endHour * 60 + endMin;
+
+                // Handle overnight breaks (end time before start time)
+                if (endTotal < startTotal) {
+                    endTotal += 24 * 60;
+                }
+
+                var diff = endTotal - startTotal;
+
+                if (diff > 0 && diff <= 24 * 60) {
+                    breakMinutes.value = diff;
+                }
+            }
+
+            if (breakStart && breakEnd && breakMinutes) {
+                breakStart.addEventListener('change', calculateBreakMinutes);
+                breakStart.addEventListener('blur', calculateBreakMinutes);
+                breakEnd.addEventListener('change', calculateBreakMinutes);
+                breakEnd.addEventListener('blur', calculateBreakMinutes);
+            }
+        })();
+        </script>
+
         <!-- Grace Period / Overtime -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
             <div class="form-group">
