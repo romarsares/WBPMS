@@ -143,9 +143,9 @@ $statusBadge = static function (string $status): string {
                 <option value="Cancelled" <?= $filterStatus === 'Cancelled' ? 'selected' : '' ?>>Cancelled</option>
             </select>
         </div>
-        <div style="display:flex;align-items:flex-end;margin-left:auto">
-            <label style="font-size:.8rem;font-weight:500;display:block;margin-bottom:.25rem">Per page</label>
-            <select name="page_size" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+            <label for="page_size" style="font-size:.8rem;font-weight:500;color:#374151;white-space:nowrap">Per page</label>
+            <select id="page_size" name="page_size" style="padding:.45rem .7rem;border:1px solid #d1d5db;border-radius:4px;font-size:.875rem">
                 <option value="10" <?= $pageSize === 10 ? 'selected' : '' ?>>10</option>
                 <option value="20" <?= $pageSize === 20 ? 'selected' : '' ?>>20</option>
                 <option value="30" <?= $pageSize === 30 ? 'selected' : '' ?>>30</option>

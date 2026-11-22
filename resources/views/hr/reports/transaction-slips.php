@@ -112,9 +112,9 @@ $pageSize         ??= 50;
                 Generate Slips
             </button>
         </div>
-        <div style="display:flex;align-items:flex-end;margin-left:auto">
-            <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">Per page</label>
-            <select name="page_size" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;font-size:13px">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-left:auto">
+            <label for="page_size" style="font-size:.8rem;font-weight:500;color:#374151;white-space:nowrap">Per page</label>
+            <select id="page_size" name="page_size" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:4px;font-size:13px">
                 <option value="10" <?= $pageSize === 10 ? 'selected' : '' ?>>10</option>
                 <option value="20" <?= $pageSize === 20 ? 'selected' : '' ?>>20</option>
                 <option value="30" <?= $pageSize === 30 ? 'selected' : '' ?>>30</option>
